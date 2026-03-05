@@ -275,8 +275,9 @@
     display: flex;
     align-items: center;
     gap: 20px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #f2f2f2;
+    /* Removed padding-bottom and border-bottom for tighter layout */
+    /* padding-bottom: 20px; */
+    /* border-bottom: 1px solid #f2f2f2; */
 }
 
 .chat-profile-avatar-wrapper {
@@ -382,9 +383,9 @@
 
 /* Persona Section */
 .settings-section {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #f2f2f2;
+    margin-top: 15px; /* Reduced from 20px */
+    padding-top: 15px; /* Reduced from 20px */
+    border-top: 1px solid #f2f2f2; /* Kept this one as the single separator */
 }
 
 .section-title {

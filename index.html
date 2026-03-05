@@ -87,7 +87,7 @@
                 <div class="app-content">
                     <div class="worldbook-toolbar">
                         <div class="toolbar-icons">
-                            <button class="toolbar-icon-btn" title="添加">
+                            <button class="toolbar-icon-btn" id="add-worldbook-item-btn" title="添加">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                             </button>
                             <button class="toolbar-icon-btn" title="导入">
@@ -96,19 +96,73 @@
                             <button class="toolbar-icon-btn" title="导出">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                             </button>
-                            <button class="toolbar-icon-btn" title="管理">
+                            <button class="toolbar-icon-btn" id="manage-categories-btn" title="管理">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                             </button>
                         </div>
                     </div>
                     <div class="worldbook-categories">
                         <div class="category-tag active">未分类</div>
-                        <div class="category-tag">角色</div>
-                        <div class="category-tag">地点</div>
-                        <div class="category-tag">物品</div>
+                        <!-- 动态生成分类 -->
                     </div>
                     <div class="worldbook-list">
                         <!-- 世界书条目将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 添加世界书条目页面 -->
+            <div class="app-modal" id="add-worldbook-item-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-add-worldbook-item">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">添加条目</h2>
+                    <button class="header-btn save-btn" id="save-worldbook-item">保存</button>
+                </div>
+                <div class="app-content" style="padding: 20px;">
+                    <div class="form-group">
+                        <label class="form-label">名称</label>
+                        <input type="text" class="form-input" id="wb-item-name" placeholder="输入条目名称">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">分类</label>
+                        <select class="form-select" id="wb-item-category">
+                            <option value="未分类">未分类</option>
+                            <option value="角色">角色</option>
+                            <option value="地点">地点</option>
+                            <option value="物品">物品</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">关键词</label>
+                        <input type="text" class="form-input" id="wb-item-keywords" placeholder="输入关键词，用逗号分隔">
+                    </div>
+                    <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                        <label class="form-label">内容</label>
+                        <textarea class="form-textarea" id="wb-item-content" placeholder="输入详细内容..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分类管理页面 -->
+            <div class="app-modal" id="category-manager-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-category-manager">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">分类管理</h2>
+                    <div style="width: 40px;"></div> <!-- Spacer -->
+                </div>
+                <div class="app-content category-manager-content">
+                    <div class="category-list">
+                        <!-- 分类列表将在这里动态生成 -->
+                    </div>
+                    <div class="category-input-area">
+                        <input type="text" class="category-input" id="new-category-input" placeholder="输入新分类名称">
+                        <button class="add-category-btn" id="add-category-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
                     </div>
                 </div>
             </div>

@@ -840,14 +840,317 @@ function initWorldBookApp() {
     }
 
     // 分类标签切换
-    const tags = document.querySelectorAll('.category-tag');
-    tags.forEach(tag => {
-        tag.addEventListener('click', () => {
+    const tagsContainer = document.querySelector('.worldbook-categories');
+    
+    // Initial category load
+    loadCategories();
+
+    // Event delegation for category tags
+    tagsContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('category-tag')) {
+            const tags = document.querySelectorAll('.category-tag');
             tags.forEach(t => t.classList.remove('active'));
-            tag.classList.add('active');
-            // TODO: Filter content based on category
-        });
+            e.target.classList.add('active');
+            renderWorldBookList(e.target.textContent);
+        }
     });
+
+    initAddWorldBookItemLogic();
+    initCategoryManagerLogic();
+    
+    // Initial render
+    renderWorldBookList('未分类');
+}
+
+// 加载分类标签
+function loadCategories() {
+    const container = document.querySelector('.worldbook-categories');
+    // 修改默认值为空数组，因为 '未分类' 是硬编码在 HTML 里的第一个
+    const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]'); 
+    
+    // Always start with '未分类'
+    let html = `<div class="category-tag active">未分类</div>`;
+    categories.forEach(cat => {
+        html += `<div class="category-tag">${cat}</div>`;
+    });
+    container.innerHTML = html;
+}
+
+// 11. 分类管理逻辑
+function initCategoryManagerLogic() {
+    // ... (no change needed here) ...
+    const manageBtn = document.getElementById('manage-categories-btn');
+    const modal = document.getElementById('category-manager-modal');
+    const closeBtn = document.getElementById('close-category-manager');
+    const addBtn = document.getElementById('add-category-btn');
+    const input = document.getElementById('new-category-input');
+    const listContainer = document.querySelector('.category-list');
+
+    // ... (open/close logic) ...
+
+    // 添加分类
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            const name = input.value.trim();
+            if (!name) return;
+            
+            if (name === '未分类') {
+                alert('此分类名为系统保留');
+                return;
+            }
+
+            const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+            if (categories.includes(name)) {
+                alert('分类已存在');
+                return;
+            }
+
+            categories.push(name);
+            localStorage.setItem('worldbook_categories', JSON.stringify(categories));
+            
+            input.value = '';
+            renderCategoryList();
+        });
+    }
+
+    // 渲染分类列表 (管理页)
+    function renderCategoryList() {
+        const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        listContainer.innerHTML = '';
+        
+        categories.forEach(cat => {
+            const item = document.createElement('div');
+            item.className = 'category-item';
+            item.innerHTML = `
+                <span class="category-item-name">${cat}</span>
+                <button class="delete-category-btn" data-category="${cat}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            `;
+            listContainer.appendChild(item);
+        });
+
+        // Bind delete events
+        document.querySelectorAll('.delete-category-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const catToDelete = btn.dataset.category;
+                if (confirm(`确定删除分类 "${catToDelete}" 吗？该分类下的条目将变为"未分类"`)) {
+                    deleteCategory(catToDelete);
+                }
+            });
+        });
+    }
+
+    function deleteCategory(category) {
+        let categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        categories = categories.filter(c => c !== category);
+        localStorage.setItem('worldbook_categories', JSON.stringify(categories));
+        
+        // Update items in this category to '未分类'
+        const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        let updated = false;
+        items.forEach(item => {
+            if (item.category === category) {
+                item.category = '未分类';
+                updated = true;
+            }
+        });
+        if (updated) {
+            localStorage.setItem('worldbook_items', JSON.stringify(items));
+        }
+
+        renderCategoryList();
+    }
+}
+
+// Helper to update dropdown in Add/Edit modal
+function updateCategoryDropdown() {
+    const select = document.getElementById('wb-item-category');
+    if (!select) return;
+    
+    const currentVal = select.value;
+    const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+    
+    let html = `<option value="未分类">未分类</option>`;
+    categories.forEach(cat => {
+        html += `<option value="${cat}">${cat}</option>`;
+    });
+    
+    select.innerHTML = html;
+    // Restore value if it still exists, else '未分类'
+    if (categories.includes(currentVal) || currentVal === '未分类') {
+        select.value = currentVal;
+    } else {
+        select.value = '未分类';
+    }
+}
+
+// 渲染世界书列表
+function renderWorldBookList(filterCategory = '未分类') {
+    const listContainer = document.querySelector('.worldbook-list');
+    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    
+    listContainer.innerHTML = '';
+    
+    const filteredItems = items.filter(item => {
+        if (filterCategory === '未分类') return true; 
+        return item.category === filterCategory;
+    });
+
+    filteredItems.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'wb-item-card';
+        card.innerHTML = `
+            <div class="wb-item-name">${item.name}</div>
+            <div class="wb-item-category">${item.category}</div>
+        `;
+        // Click to edit
+        card.addEventListener('click', () => {
+            openWorldBookItem(item.id);
+        });
+        listContainer.appendChild(card);
+    });
+}
+
+// 10. 添加/编辑世界书条目逻辑
+function initAddWorldBookItemLogic() {
+    const addBtn = document.getElementById('add-worldbook-item-btn');
+    const modal = document.getElementById('add-worldbook-item-modal');
+    const closeBtn = document.getElementById('close-add-worldbook-item');
+    const saveBtn = document.getElementById('save-worldbook-item');
+    const modalTitle = modal.querySelector('.header-title');
+    
+    // 输入框
+    const nameInput = document.getElementById('wb-item-name');
+    const categorySelect = document.getElementById('wb-item-category');
+    const keywordsInput = document.getElementById('wb-item-keywords');
+    const contentInput = document.getElementById('wb-item-content');
+
+    // 打开添加页面 (Add Mode)
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            // Update dropdown categories first
+            updateCategoryDropdown();
+            
+            // Reset to Add Mode
+            modal.dataset.mode = 'add';
+            modal.dataset.itemId = '';
+            modalTitle.textContent = '添加条目';
+            
+            // 重置表单
+            nameInput.value = '';
+            categorySelect.value = '未分类';
+            keywordsInput.value = '';
+            contentInput.value = '';
+            
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+    }
+
+    // 关闭添加页面
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+        });
+    }
+
+    // 保存条目 (Add or Update)
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const name = nameInput.value.trim();
+            const category = categorySelect.value;
+            const keywords = keywordsInput.value.trim();
+            const content = contentInput.value.trim();
+
+            if (!name) {
+                alert('请输入条目名称');
+                return;
+            }
+
+            const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+            
+            if (modal.dataset.mode === 'edit' && modal.dataset.itemId) {
+                // Update existing item
+                const index = items.findIndex(item => item.id === modal.dataset.itemId);
+                if (index !== -1) {
+                    items[index] = {
+                        ...items[index],
+                        name,
+                        category,
+                        keywords,
+                        content,
+                        updatedAt: Date.now().toString()
+                    };
+                }
+            } else {
+                // Add new item
+                const newItem = {
+                    id: Date.now().toString(),
+                    name,
+                    category,
+                    keywords,
+                    content,
+                    createdAt: Date.now().toString()
+                };
+                items.push(newItem);
+            }
+
+            localStorage.setItem('worldbook_items', JSON.stringify(items));
+
+            // 刷新列表 (如果当前在对应分类下)
+            const activeTag = document.querySelector('.category-tag.active');
+            if (activeTag && (activeTag.textContent === category || activeTag.textContent === '未分类')) {
+                 renderWorldBookList(activeTag.textContent);
+            } else {
+                // If category changed, maybe switch tab or just refresh current tab (item disappears from current view)
+                // For simplicity, refresh current view
+                renderWorldBookList(activeTag ? activeTag.textContent : '未分类');
+            }
+
+            // 关闭页面
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+        });
+    }
+}
+
+// 打开条目进行编辑 (Global helper)
+function openWorldBookItem(id) {
+    const modal = document.getElementById('add-worldbook-item-modal');
+    const modalTitle = modal.querySelector('.header-title');
+    
+    const nameInput = document.getElementById('wb-item-name');
+    const categorySelect = document.getElementById('wb-item-category');
+    const keywordsInput = document.getElementById('wb-item-keywords');
+    const contentInput = document.getElementById('wb-item-content');
+
+    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const item = items.find(i => i.id === id);
+
+    if (item) {
+        // Update dropdown categories first
+        updateCategoryDropdown();
+        
+        // Set Edit Mode
+        modal.dataset.mode = 'edit';
+        modal.dataset.itemId = item.id;
+        modalTitle.textContent = item.name; // Title becomes item name
+
+        // Populate fields
+        nameInput.value = item.name;
+        // Ensure category exists in dropdown, else fallback or add it temporary?
+        // updateCategoryDropdown handles '未分类' fallback if category deleted.
+        // But if item has a valid category, it should be selected.
+        categorySelect.value = item.category;
+        
+        keywordsInput.value = item.keywords || '';
+        contentInput.value = item.content || '';
+
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
 }
 
 function getRandomColor() {

@@ -1,0 +1,256 @@
+
+/* World Book Styles */
+
+/* Toolbar */
+.worldbook-toolbar {
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-start; /* Align to left */
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.toolbar-icons {
+    display: flex;
+    gap: 15px;
+}
+
+.toolbar-icon-btn {
+    background: transparent;
+    border: none;
+    color: #1d1d1f;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.toolbar-icon-btn:hover {
+    background-color: #f2f2f2;
+}
+
+.toolbar-icon-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* Categories */
+.worldbook-categories {
+    padding: 15px 20px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none; /* Hide scrollbar */
+    justify-content: flex-start; /* Ensure left alignment */
+}
+
+.worldbook-categories::-webkit-scrollbar {
+    display: none;
+}
+
+.category-tag {
+    padding: 6px 16px;
+    background: #f2f2f2;
+    border-radius: 20px; /* Capsule shape */
+    font-size: 0.9rem;
+    color: #8e8e93;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.category-tag.active {
+    background: #1d1d1f;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.category-tag:hover:not(.active) {
+    background: #e5e5ea;
+}
+
+/* Content List Grid */
+.worldbook-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 20px 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 columns */
+    gap: 12px;
+    align-content: start; /* Align content to top */
+}
+
+/* World Book Item Card */
+.wb-item-card {
+    background: #ffffff;
+    border-radius: 16px; /* Rounded capsule/box */
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 80px; /* Fixed height for consistency */
+    border: 1px solid rgba(0,0,0,0.03);
+}
+
+.wb-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.wb-item-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.wb-item-category {
+    font-size: 0.75rem;
+    color: #8e8e93;
+    display: none; /* Hide category label */
+}
+
+/* Empty State (for now) */
+.worldbook-list:empty::after {
+    content: "暂无条目";
+    display: block;
+    grid-column: 1 / -1; /* Span full width */
+    text-align: center;
+    color: #8e8e93;
+    margin-top: 50px;
+    font-size: 0.9rem;
+}
+
+/* Add Item Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin-bottom: 8px;
+}
+
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: #f2f2f2;
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 0.95rem;
+    color: #1d1d1f;
+    outline: none;
+    font-family: inherit;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    background: #e5e5ea;
+}
+
+.form-textarea {
+    height: 200px;
+    resize: none;
+    line-height: 1.5;
+}
+
+/* Category Manager Styles */
+.category-manager-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+}
+
+.category-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    padding-bottom: 80px; /* Space for input area */
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px;
+    background: #ffffff;
+    border-bottom: 1px solid #f2f2f2;
+}
+
+.category-item-name {
+    font-size: 1rem;
+    color: #1d1d1f;
+}
+
+.delete-category-btn {
+    background: transparent;
+    border: none;
+    color: #ff3b30; /* Red for delete */
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-category-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.category-input-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 15px 20px;
+    background: #ffffff;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.category-input {
+    flex: 1;
+    background: #f2f2f2;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 15px;
+    font-size: 0.95rem;
+    color: #1d1d1f;
+    outline: none;
+}
+
+.add-category-btn {
+    background: #1d1d1f;
+    border: none;
+    color: #ffffff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.add-category-btn svg {
+    width: 20px;
+    height: 20px;
+}
