@@ -1,0 +1,387 @@
+
+/* --- Chat Room Styles --- */
+.chat-room {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 300; /* Higher than modal overlay */
+    background: #f5f5f7; /* Fallback */
+    display: flex;
+    flex-direction: column;
+    animation: slideInRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+/* Wallpaper Layer */
+.chat-room-wallpaper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* Use LINE default color */
+    background: #2596be;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Chat Room Header */
+.chat-room-header {
+    height: 90px;
+    padding-top: 30px; /* Safe area */
+    padding-left: 10px;
+    padding-right: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    z-index: 10;
+    position: absolute; /* Fix header */
+    top: 0;
+    width: 100%;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.chat-back-btn {
+    background: transparent;
+    border: none;
+    color: #1d1d1f;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-room-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header-icon-btn {
+    background: transparent;
+    border: none;
+    color: #1d1d1f;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Chat Content Area */
+.chat-room-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    padding-top: 100px; /* Space for header */
+    padding-bottom: 70px; /* Space for footer */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Ensure content starts from top */
+    justify-content: flex-start;
+}
+
+/* Chat Footer */
+.chat-room-footer {
+    height: 60px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 10px;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    position: absolute; /* Fix footer */
+    bottom: 0;
+    width: 100%;
+    z-index: 10;
+}
+
+.footer-icon-btn {
+    background: transparent;
+    border: none;
+    color: #1d1d1f;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; /* Prevent icons from shrinking */
+}
+
+.footer-icon-btn svg {
+    width: 22px;
+    height: 22px;
+    color: #1d1d1f;
+}
+
+.mic-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* Capsule Input */
+.chat-input-capsule {
+    flex: 1;
+    height: 32px; /* Slightly smaller height */
+    background: #f2f2f2;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    min-width: 0; /* Crucial for flex child to shrink properly */
+}
+
+.chat-input-field {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.95rem;
+}
+
+.input-aa-icon {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #1d1d1f;
+}
+
+.input-smile-icon svg {
+    width: 20px;
+    height: 20px;
+    color: #8e8e93;
+}
+
+.mic-btn svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Message Styles */
+.message-row {
+    display: flex;
+    align-items: flex-end; /* Bottom align for avatars and bubbles */
+    margin-bottom: 15px;
+    gap: 8px;
+    width: 100%;
+}
+
+.message-row.right {
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e5e5ea;
+    color: #8e8e93;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.message-avatar svg {
+    width: 20px;
+    height: 20px;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block; /* Remove bottom spacing */
+}
+
+/* Message Container Structure */
+.message-container {
+    display: flex;
+    align-items: flex-end; /* Bottom align meta with bubble */
+    gap: 5px;
+}
+
+.message-row.right .message-container {
+    flex-direction: row-reverse;
+}
+
+.message-bubble {
+    padding: 10px 14px;
+    border-radius: 20px; /* Fully rounded, no tails */
+    font-size: 0.95rem;
+    line-height: 1.4;
+    position: relative;
+    word-wrap: break-word;
+    max-width: 100%;
+    margin-bottom: 0; /* Prevent unwanted spacing */
+}
+
+.message-row.left .message-bubble {
+    background: #ffffff;
+    color: #1d1d1f;
+}
+
+.message-row.right .message-bubble {
+    background: #1d1d1f; /* Black bubble */
+    color: #ffffff;
+}
+
+.message-meta-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    font-size: 0.65rem;
+    color: #1d1d1f;
+    min-width: 30px; /* Ensure space for time/read */
+}
+
+.message-row.right .message-meta-info {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.message-row.left .message-meta-info {
+    align-items: flex-start;
+}
+
+.meta-read {
+    color: #1d1d1f;
+    margin-bottom: 2px;
+}
+
+
+/* Chat Settings Styles */
+.chat-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f2f2f2;
+}
+
+.chat-profile-avatar-wrapper {
+    position: relative;
+    cursor: pointer;
+}
+
+.chat-profile-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #e5e5ea;
+    color: #8e8e93;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.chat-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-edit-icon {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    background: #000000;
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.chat-profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0; /* Important for flex child to shrink */
+}
+
+.info-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.info-label {
+    font-size: 0.8rem;
+    color: #86868b;
+    width: 45px; /* Fixed width for alignment */
+    flex-shrink: 0;
+}
+
+.info-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.95rem;
+    color: #1d1d1f;
+    padding: 4px 0;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+    outline: none;
+    text-align: left;
+    width: 100%; /* Ensure it takes available width */
+    min-width: 0; /* Allow shrinking */
+}
+
+.info-input:focus {
+    border-bottom-color: #000000;
+}
+
+.info-input::placeholder {
+    color: #c7c7cc;
+}
+
+/* Specific styling for name inputs */
+#chat-settings-realname {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+#chat-settings-remark {
+    font-size: 0.9rem;
+    color: #86868b;
+}
+
+#chat-settings-remark:focus {
+    color: #1d1d1f; /* Darken when editing */
+}
+
+
+/* Hide Aa icon when hidden class is applied */
+.input-aa-icon.hidden {
+    display: none;
+}
+
