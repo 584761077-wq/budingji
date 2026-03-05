@@ -11,6 +11,7 @@
     <meta name="theme-color" content="#fce4ec">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat_styles.css">
+    <link rel="stylesheet" href="worldbook_styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -49,14 +50,6 @@
 
                 <!-- 右侧四个并排软件 -->
                 <div class="apps-grid-right">
-                    <div class="app-icon candy-box">
-                        <div class="icon-inner"></div>
-                        <span class="app-name">相册</span>
-                    </div>
-                    <div class="app-icon candy-box">
-                        <div class="icon-inner"></div>
-                        <span class="app-name">天气</span>
-                    </div>
                     <div class="app-icon candy-box" id="app-line">
                         <div class="icon-inner">
                             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
@@ -65,12 +58,60 @@
                         </div>
                         <span class="app-name">LINE</span>
                     </div>
+                    <div class="app-icon candy-box" id="app-worldbook">
+                        <div class="icon-inner">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+                        </div>
+                        <span class="app-name">世界书</span>
+                    </div>
+                    <div class="app-icon candy-box">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">天气</span>
+                    </div>
                     <div class="app-icon candy-box">
                         <div class="icon-inner"></div>
                         <span class="app-name">设置</span>
                     </div>
                 </div>
             </main>
+
+            <!-- 世界书页面 (INS 极简风) -->
+            <div class="app-modal" id="worldbook-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-worldbook">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">世界书</h2>
+                    <button class="header-btn save-btn" id="save-worldbook">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="worldbook-toolbar">
+                        <div class="toolbar-icons">
+                            <button class="toolbar-icon-btn" title="添加">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            </button>
+                            <button class="toolbar-icon-btn" title="导入">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                            <button class="toolbar-icon-btn" title="导出">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </button>
+                            <button class="toolbar-icon-btn" title="管理">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="worldbook-categories">
+                        <div class="category-tag active">未分类</div>
+                        <div class="category-tag">角色</div>
+                        <div class="category-tag">地点</div>
+                        <div class="category-tag">物品</div>
+                    </div>
+                    <div class="worldbook-list">
+                        <!-- 世界书条目将在这里显示 -->
+                    </div>
+                </div>
+            </div>
 
             <!-- 底部 Dock 栏 -->
             <footer class="dock-container">
@@ -382,6 +423,11 @@
                                                 <input type="text" class="info-input" id="chat-settings-remark" placeholder="输入备注名">
                                             </div>
                                         </div>
+                                    </div>
+                                    
+                                    <div class="settings-section">
+                                        <h4 class="section-title">人设</h4>
+                                        <textarea class="persona-input" id="chat-settings-persona" placeholder="输入或粘贴人设描述..."></textarea>
                                     </div>
                                 </div>
                             </div>
