@@ -347,8 +347,10 @@ body {
 
 /* 底部 Dock 栏 */
 .dock-container {
+    margin-top: auto; /* Push to bottom */
     margin-bottom: 15px;
     padding: 0 15px;
+    width: 100%; /* Ensure full width */
 }
 
 .dock-glass {
