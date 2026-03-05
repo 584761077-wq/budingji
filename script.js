@@ -488,6 +488,9 @@ function initChatSettingsLogic(chatRoomNameEl) {
             remarkInput.value = remarkName;
             personaInput.value = persona;
             
+            // 渲染选中的世界书
+            renderSelectedWorldBooks(realName);
+            
             // ... (existing logic) ...
             
             modal.classList.add('active');
@@ -523,6 +526,12 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 if (persona) {
                     localStorage.setItem('chat_persona_' + newRealName, persona);
                     localStorage.removeItem('chat_persona_' + oldRealName);
+                }
+                // 迁移世界书绑定
+                const wb = localStorage.getItem('chat_worldbooks_' + oldRealName);
+                if (wb) {
+                    localStorage.setItem('chat_worldbooks_' + newRealName, wb);
+                    localStorage.removeItem('chat_worldbooks_' + oldRealName);
                 }
             }
             
@@ -596,6 +605,110 @@ function initChatSettingsLogic(chatRoomNameEl) {
         }
         
         saveGlobalData();
+    }
+
+    initWorldBookBindingLogic(chatRoomNameEl);
+}
+
+// 12. 世界书绑定逻辑
+function initWorldBookBindingLogic(chatRoomNameEl) {
+    const selector = document.getElementById('worldbook-selector');
+    const modal = document.getElementById('worldbook-binding-modal');
+    const closeBtn = document.getElementById('close-worldbook-binding');
+    const saveBtn = document.getElementById('save-worldbook-binding');
+    const listContainer = document.getElementById('worldbook-binding-list');
+    
+    // Open binding modal
+    if (selector) {
+        selector.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            renderBindingList(realName);
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+    }
+
+    // Close binding modal
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+        });
+    }
+
+    // Save selection
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            
+            // Get selected IDs
+            const selectedIds = [];
+            document.querySelectorAll('.binding-item.selected').forEach(item => {
+                selectedIds.push(item.dataset.id);
+            });
+
+            // Save to chat specific settings
+            localStorage.setItem('chat_worldbooks_' + realName, JSON.stringify(selectedIds));
+
+            // Update UI
+            renderSelectedWorldBooks(realName);
+
+            // Close modal
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+        });
+    }
+
+    function renderBindingList(realName) {
+        const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+        
+        listContainer.innerHTML = '';
+        
+        if (allItems.length === 0) {
+            listContainer.innerHTML = '<div style="text-align:center; color:#8e8e93; padding:20px;">暂无世界书条目</div>';
+            return;
+        }
+
+        allItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = `binding-item ${selectedIds.includes(item.id) ? 'selected' : ''}`;
+            div.dataset.id = item.id;
+            div.innerHTML = `
+                <span class="binding-item-name">${item.name}</span>
+                <div class="binding-checkbox"></div>
+            `;
+            
+            div.addEventListener('click', () => {
+                div.classList.toggle('selected');
+            });
+            
+            listContainer.appendChild(div);
+        });
+    }
+}
+
+function renderSelectedWorldBooks(realName) {
+    const display = document.getElementById('selected-worldbooks-display');
+    const placeholder = document.querySelector('.selector-placeholder');
+    const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+    const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    
+    if (display) display.innerHTML = '';
+    
+    if (selectedIds.length > 0) {
+        if (placeholder) placeholder.style.display = 'none';
+        selectedIds.forEach(id => {
+            const item = allItems.find(i => i.id === id);
+            if (item) {
+                const tag = document.createElement('div');
+                tag.className = 'selected-wb-tag';
+                tag.textContent = item.name;
+                if (display) display.appendChild(tag);
+            }
+        });
+    } else {
+        if (placeholder) placeholder.style.display = 'block';
     }
 }
 

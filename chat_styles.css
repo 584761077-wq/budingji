@@ -387,9 +387,9 @@
 
 /* Persona Section */
 .settings-section {
-    margin-top: 15px; /* Reduced from 20px */
-    padding-top: 15px; /* Reduced from 20px */
-    border-top: 1px solid #f2f2f2; /* Kept this one as the single separator */
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #f2f2f2;
 }
 
 .section-title {
@@ -404,21 +404,106 @@
     height: 120px;
     background: #f2f2f2;
     border: none;
-    border-radius: 12px; /* Rounded rectangle */
+    border-radius: 12px;
     padding: 12px;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: #1d1d1f;
-    resize: none; /* Disable resize handle */
+    resize: none;
     outline: none;
     font-family: inherit;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 .persona-input:focus {
-    background: #e5e5ea; /* Slightly darker on focus */
+    background: #e5e5ea;
 }
 
-.persona-input::placeholder {
+/* World Book Selector */
+.worldbook-selector {
+    background: #f2f2f2;
+    border-radius: 12px;
+    padding: 12px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    position: relative;
+}
+
+.selector-placeholder {
     color: #8e8e93;
+    font-size: 0.9rem;
+}
+
+.selected-worldbooks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
+}
+
+.selected-wb-tag {
+    background: #1d1d1f;
+    color: #ffffff;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+}
+
+.selector-arrow {
+    color: #8e8e93;
+    margin-left: 10px;
+}
+
+/* Binding List */
+.binding-list {
+    padding: 20px;
+}
+
+.binding-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px;
+    background: #ffffff;
+    border-bottom: 1px solid #f2f2f2;
+    cursor: pointer;
+}
+
+.binding-item:last-child {
+    border-bottom: none;
+}
+
+.binding-item-name {
+    font-size: 1rem;
+    color: #1d1d1f;
+}
+
+/* Custom Checkbox */
+.binding-checkbox {
+    width: 22px;
+    height: 22px;
+    border: 2px solid #c7c7cc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.binding-item.selected .binding-checkbox {
+    background: #007aff; /* iOS Blue */
+    border-color: #007aff;
+}
+
+.binding-item.selected .binding-checkbox::after {
+    content: '';
+    width: 6px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    margin-top: -2px;
 }
 
