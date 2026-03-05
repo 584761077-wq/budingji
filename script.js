@@ -878,7 +878,6 @@ function loadCategories() {
 
 // 11. 分类管理逻辑
 function initCategoryManagerLogic() {
-    // ... (no change needed here) ...
     const manageBtn = document.getElementById('manage-categories-btn');
     const modal = document.getElementById('category-manager-modal');
     const closeBtn = document.getElementById('close-category-manager');
@@ -886,7 +885,29 @@ function initCategoryManagerLogic() {
     const input = document.getElementById('new-category-input');
     const listContainer = document.querySelector('.category-list');
 
-    // ... (open/close logic) ...
+    // 打开管理页面
+    if (manageBtn) {
+        manageBtn.addEventListener('click', () => {
+            renderCategoryList();
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+    }
+
+    // 关闭页面
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+            
+            // Refresh main view categories and list
+            loadCategories();
+            renderWorldBookList('未分类');
+            
+            // Refresh add item dropdown
+            updateCategoryDropdown();
+        });
+    }
 
     // 添加分类
     if (addBtn) {
@@ -993,7 +1014,7 @@ function renderWorldBookList(filterCategory = '未分类') {
     listContainer.innerHTML = '';
     
     const filteredItems = items.filter(item => {
-        if (filterCategory === '未分类') return true; 
+        // Strict filtering: ONLY show items belonging to the selected category
         return item.category === filterCategory;
     });
 
