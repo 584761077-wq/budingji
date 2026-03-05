@@ -65,15 +65,14 @@ body {
 /* 移动端全屏适配 & PWA 模式 */
 @media screen and (max-width: 500px), (display-mode: standalone) {
     html {
-        height: auto;
-        overflow: auto; /* Free flow */
+        height: 100%;
+        overflow: hidden; /* Lock scroll for app experience */
     }
 
     body {
-        height: auto;
-        min-height: 100vh;
-        overflow: auto; /* Free flow */
-        position: static; /* Free flow */
+        height: 100%;
+        overflow: hidden; /* Lock scroll for app experience */
+        position: fixed; /* Lock scroll for app experience */
         width: 100%;
         margin: 0;
         padding: 0;
