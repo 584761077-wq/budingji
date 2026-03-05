@@ -65,14 +65,14 @@ body {
 /* 移动端全屏适配 & PWA 模式 */
 @media screen and (max-width: 500px), (display-mode: standalone) {
     html {
-        height: 100%;
-        overflow: hidden; /* Lock scroll for app experience */
+        height: 100dvh;
+        overflow: hidden;
     }
 
     body {
-        height: 100%;
-        overflow: hidden; /* Lock scroll for app experience */
-        position: fixed; /* Lock scroll for app experience */
+        height: 100dvh;
+        overflow: hidden;
+        position: fixed;
         width: 100%;
         margin: 0;
         padding: 0;
@@ -82,7 +82,7 @@ body {
     
     .phone-frame {
         width: 100%;
-        height: 100dvh; /* Constrain content height strictly */
+        height: 100dvh;
         max-height: 100dvh;
         border: none;
         border-radius: 0;
@@ -91,25 +91,24 @@ body {
         box-shadow: none;
         display: flex;
         flex-direction: column;
-        overflow: hidden; /* Prevent global scroll inside the app container */
-        position: relative; /* Ensure it stays within layout flow */
+        overflow: hidden;
+        position: relative;
     }
 
-    /* Adjust screen content to fill available space */
+    /* 确保所有全屏页面和模态框都使用 100dvh */
     .screen {
         width: 100%;
-        height: 100%;
-        display: none; /* Hide by default */
-        flex-direction: column;
-        overflow: hidden;
-        position: absolute; /* Fullscreen overlay */
+        height: 100dvh;
+        position: absolute;
         top: 0;
         left: 0;
+        display: none; /* 默认隐藏 */
+        flex-direction: column;
         background: #f5f5f7;
     }
     
     .screen.active {
-        display: flex; /* Only show active screen */
+        display: flex;
         z-index: 10;
     }
 
@@ -147,12 +146,13 @@ body {
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
+        height: 100dvh;
         z-index: 100;
-        padding-top: env(safe-area-inset-top); /* Add safe area to modal top */
-        padding-bottom: env(safe-area-inset-bottom); /* Add safe area to modal bottom */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
         background: #f5f5f7;
-        display: none; /* Managed via JS style.display or class */
+        display: none;
+        flex-direction: column;
     }
     
     .app-modal.active {
