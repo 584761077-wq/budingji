@@ -7,18 +7,26 @@
     <!-- Web App / PWA 全屏配置 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="布.叽叽">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#f5f5f7">
     <meta name="format-detection" content="telephone=no">
     <meta name="apple-touch-fullscreen" content="yes">
+<<<<<<< HEAD
+=======
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/3069/3069172.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/512/3069/3069172.png">
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat_styles.css">
     <link rel="stylesheet" href="worldbook_styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="phone-frame">
-        <div class="screen">
+    <div class="app-shell">
+        <div class="phone-frame" id="phone-screen">
+        <div class="screen active" id="home-screen">
             <!-- 顶部时间区域 -->
             <header class="header-section">
                 <div class="time-display" id="clock">00:00</div>
@@ -76,9 +84,10 @@
                     </div>
                 </div>
             </main>
+        </div>
 
-            <!-- 世界书页面 (INS 极简风) -->
-            <div class="app-modal" id="worldbook-modal" style="display: none;">
+        <!-- 世界书页面 (INS 极简风) -->
+        <div class="app-modal" id="worldbook-modal" style="display: none;">
                 <div class="app-header">
                     <button class="header-btn back-btn" id="close-worldbook">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -165,6 +174,22 @@
                         <button class="add-category-btn" id="add-category-btn">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 世界书绑定选择页面 -->
+            <div class="app-modal" id="worldbook-binding-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-worldbook-binding">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">关联世界书</h2>
+                    <button class="header-btn save-btn" id="save-worldbook-binding">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="binding-list" id="worldbook-binding-list">
+                        <!-- 世界书勾选列表将在这里动态生成 -->
                     </div>
                 </div>
             </div>
@@ -485,6 +510,16 @@
                                         <h4 class="section-title">人设</h4>
                                         <textarea class="persona-input" id="chat-settings-persona" placeholder="输入或粘贴人设描述..."></textarea>
                                     </div>
+                                    
+                                    <!-- World Book Binding Section -->
+                                    <div class="settings-section">
+                                        <h4 class="section-title">世界书</h4>
+                                        <div class="worldbook-selector" id="worldbook-selector">
+                                            <span class="selector-placeholder">选择关联的世界书...</span>
+                                            <div class="selected-worldbooks" id="selected-worldbooks-display"></div>
+                                            <svg class="selector-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -538,6 +573,7 @@
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 

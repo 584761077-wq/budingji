@@ -30,23 +30,44 @@ input, textarea, select {
 html {
     height: 100%;
     width: 100%;
+<<<<<<< HEAD
     overflow: hidden; /* 防止页面整体滚动 */
     touch-action: none; /* 禁止浏览器默认触控行为（如缩放、滚动） */
+=======
+    touch-action: manipulation; /* Allow some default touch actions but prevent double-tap zoom */
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
     background: #f2f2f2;
+<<<<<<< HEAD
     height: 100%;
+=======
+    min-height: 100vh; /* Ensure body covers viewport */
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     width: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
+<<<<<<< HEAD
     overflow: hidden;
     position: fixed; /* 强制固定，防止 iOS 回弹 */
     top: 0;
     left: 0;
     overscroll-behavior: none; /* 禁用拉动刷新 */
+=======
+    margin: 0;
+    overscroll-behavior-y: none; /* Prevent pull-to-refresh on body */
+}
+
+/* App Shell: 限制内部内容高度为视口 */
+.app-shell {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
 }
 
 /* 手机外框 - 桌面预览模式 */
@@ -65,29 +86,75 @@ body {
 
 /* 移动端全屏适配 & PWA 模式 */
 @media screen and (max-width: 500px), (display-mode: standalone) {
-    body {
+    .app-shell {
+        height: 100dvh;
+        width: 100%;
+        overflow: hidden;
         background: #f5f5f7;
+        align-items: flex-start;
     }
     
     .phone-frame {
+<<<<<<< HEAD
         width: 100vw;
         height: 100dvh; /* 使用 dynamic viewport height */
         border: none;
         border-radius: 0;
         padding: 0; /* 移除 padding，真正全屏 */
+=======
+        width: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
         background: transparent;
         box-shadow: none;
         display: flex;
         flex-direction: column;
+<<<<<<< HEAD
+=======
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* 确保所有全屏页面和模态框都使用 100dvh */
+    .screen {
+        width: 100%;
+        height: 100dvh;
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: none; /* 默认隐藏 */
+        flex-direction: column;
+        background: #f5f5f7;
+    }
+    
+    .screen.active {
+        display: flex;
+        z-index: 10;
+    }
+
+    /* Home Screen specific */
+    #home-screen {
+        z-index: 5; /* Base layer */
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     }
 
     /* 调整顶部安全距离 */
     .header-section {
+<<<<<<< HEAD
         margin-top: calc(40px + env(safe-area-inset-top)); /* 适配刘海屏 */
+=======
+        margin-top: max(40px, env(safe-area-inset-top)); /* 适配刘海屏 */
+        flex-shrink: 0; /* Prevent header from shrinking */
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     }
     
     /* 适配底部安全距离 */
     .dock-container {
+<<<<<<< HEAD
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
     }
     
@@ -97,6 +164,58 @@ body {
         height: 100%;
         padding: 10px; /* 恢复内部间距 */
         padding-top: env(safe-area-inset-top); /* 全局安全区域 */
+=======
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+        height: auto; /* 允许高度自适应 */
+        min-height: 90px; /* 保持原有视觉高度 */
+        flex-shrink: 0; /* Prevent dock from shrinking */
+    }
+    
+    /* 修复 iOS 弹性滚动导致的空白 */
+    .main-content {
+        flex: 1; /* Take remaining space */
+        overflow-y: auto; /* Internal scrolling only */
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain; /* 防止滚动链 */
+        padding: 10px;
+    }
+
+    /* Modal Fullscreen - Treat as App */
+    .app-modal {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100dvh;
+        z-index: 100;
+        padding: 0;
+        background: #f5f5f7;
+        display: none;
+        flex-direction: column;
+    }
+    
+    .app-modal.active {
+        display: flex;
+    }
+
+    .app-header,
+    .line-header,
+    .line-chat-header {
+        margin-top: 0;
+        padding-top: env(safe-area-inset-top);
+        height: calc(60px + env(safe-area-inset-top));
+        align-items: flex-end;
+        box-sizing: border-box;
+    }
+
+    .app-modal .app-content {
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    .line-bottom-nav {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+        height: calc(80px + env(safe-area-inset-bottom));
+>>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
         box-sizing: border-box;
     }
 }
@@ -330,8 +449,10 @@ body {
 
 /* 底部 Dock 栏 */
 .dock-container {
+    margin-top: auto; /* Push to bottom */
     margin-bottom: 15px;
     padding: 0 15px;
+    width: 100%; /* Ensure full width */
 }
 
 .dock-glass {
@@ -584,6 +705,7 @@ input:checked + .slider:before {
 /* Range Slider */
 .candy-range {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     height: 4px;
     background: #e5e5ea;
