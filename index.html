@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candy OS</title>
+    <!-- Web App / PWA 全屏配置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#fce4ec">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="phone-frame">
+        <div class="screen">
+            <!-- 顶部时间区域 -->
+            <header class="header-section">
+                <div class="time-display" id="clock">00:00</div>
+                <div class="date-display" id="date">YYYY年MM月DD日</div>
+            </header>
+
+            <!-- 中间主要区域 -->
+            <main class="main-content">
+                <!-- 左侧亚克力立牌 -->
+                <div class="standee-container">
+                    <div class="acrylic-standee" id="standee">
+                        <div class="standee-content">
+                            <!-- 默认占位 SVG -->
+                            <div class="placeholder-icon">
+                                <svg width="80" height="120" viewBox="0 0 100 150" fill="none" stroke="#6d5b68" stroke-width="2" stroke-dasharray="5,5">
+                                    <path d="M50 10 C30 10, 20 30, 20 50 C20 80, 10 90, 10 120 L90 120 C90 90, 80 80, 80 50 C80 30, 70 10, 50 10 Z" />
+                                    <circle cx="50" cy="35" r="15" />
+                                </svg>
+                                <span class="placeholder-text">点击上传立牌</span>
+                            </div>
+                            <img id="standee-img" src="" alt="立牌图片" style="display: none;">
+                        </div>
+                        <input type="file" id="file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+                    </div>
+                    <!-- 新增底座 -->
+                    <div class="standee-base">
+                        <div class="base-top"></div>
+                        <div class="base-side"></div>
+                    </div>
+                </div>
+
+                <!-- 右侧四个并排软件 -->
+                <div class="apps-grid-right">
+                    <div class="app-icon candy-box">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">相册</span>
+                    </div>
+                    <div class="app-icon candy-box">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">天气</span>
+                    </div>
+                    <div class="app-icon candy-box">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">音乐</span>
+                    </div>
+                    <div class="app-icon candy-box">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">设置</span>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 底部 Dock 栏 -->
+            <footer class="dock-container">
+                <div class="dock-glass">
+                    <div class="app-icon dock-icon" id="dock-settings">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">设置</span>
+                    </div>
+                    <div class="app-icon dock-icon">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">信息</span>
+                    </div>
+                    <div class="app-icon dock-icon">
+                        <div class="icon-inner"></div>
+                        <span class="app-name">浏览器</span>
+                    </div>
+                </div>
+            </footer>
+
+            <!-- 设置页面模态框 -->
+            <div class="app-modal" id="settings-modal">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">设置</h2>
+                    <button class="header-btn save-btn" id="save-settings">保存</button>
+                </div>
+                
+                <div class="app-content">
+                    <div class="settings-card">
+                        <h3 class="card-title">API 配置</h3>
+                        <div class="form-group">
+                            <label for="api-url">API 地址</label>
+                            <input type="text" id="api-url" class="candy-input" placeholder="https://api.openai.com/v1">
+                        </div>
+                        <div class="form-group">
+                            <label for="api-key">API Key</label>
+                            <input type="password" id="api-key" class="candy-input" placeholder="sk-...">
+                        </div>
+                        <div class="form-group">
+                            <label for="model-name">模型名称</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="model-name" class="candy-input" placeholder="gpt-3.5-turbo">
+                                <button id="fetch-models" class="candy-btn-small">拉取</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 模型选择列表（默认隐藏，拉取后显示） -->
+                        <div class="model-list-container" id="model-list-container" style="display: none;">
+                            <div class="model-list" id="model-list"></div>
+                        </div>
+
+                        <!-- 新增设置项 -->
+                        <div class="form-group toggle-group">
+                            <label for="stream-toggle">流式输出</label>
+                            <label class="switch">
+                                <input type="checkbox" id="stream-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="temperature-slider">温度 (Temperature): <span id="temp-value">0.7</span></label>
+                            <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="candy-range">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
