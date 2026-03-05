@@ -30,33 +30,17 @@ input, textarea, select {
 html {
     height: 100%;
     width: 100%;
-<<<<<<< HEAD
-    overflow: hidden; /* 防止页面整体滚动 */
-    touch-action: none; /* 禁止浏览器默认触控行为（如缩放、滚动） */
-=======
     touch-action: manipulation; /* Allow some default touch actions but prevent double-tap zoom */
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
     background: #f2f2f2;
-<<<<<<< HEAD
-    height: 100%;
-=======
     min-height: 100vh; /* Ensure body covers viewport */
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     width: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-<<<<<<< HEAD
-    overflow: hidden;
-    position: fixed; /* 强制固定，防止 iOS 回弹 */
-    top: 0;
-    left: 0;
-    overscroll-behavior: none; /* 禁用拉动刷新 */
-=======
     margin: 0;
     overscroll-behavior-y: none; /* Prevent pull-to-refresh on body */
 }
@@ -67,7 +51,6 @@ body {
     width: 100%;
     display: flex;
     align-items: stretch;
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
 }
 
 /* 手机外框 - 桌面预览模式 */
@@ -95,26 +78,16 @@ body {
     }
     
     .phone-frame {
-<<<<<<< HEAD
-        width: 100vw;
-        height: 100dvh; /* 使用 dynamic viewport height */
-        border: none;
-        border-radius: 0;
-        padding: 0; /* 移除 padding，真正全屏 */
-=======
         width: 100%;
         height: 100dvh;
         max-height: 100dvh;
         border: none;
         border-radius: 0;
         padding: 0;
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
         background: transparent;
         box-shadow: none;
         display: flex;
         flex-direction: column;
-<<<<<<< HEAD
-=======
         overflow: hidden;
         position: relative;
     }
@@ -139,32 +112,16 @@ body {
     /* Home Screen specific */
     #home-screen {
         z-index: 5; /* Base layer */
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     }
 
     /* 调整顶部安全距离 */
     .header-section {
-<<<<<<< HEAD
-        margin-top: calc(40px + env(safe-area-inset-top)); /* 适配刘海屏 */
-=======
         margin-top: max(40px, env(safe-area-inset-top)); /* 适配刘海屏 */
         flex-shrink: 0; /* Prevent header from shrinking */
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
     }
     
     /* 适配底部安全距离 */
     .dock-container {
-<<<<<<< HEAD
-        padding-bottom: calc(20px + env(safe-area-inset-bottom));
-    }
-    
-    /* 确保主内容区域可滚动但父容器不滚动 */
-    .screen {
-        width: 100%;
-        height: 100%;
-        padding: 10px; /* 恢复内部间距 */
-        padding-top: env(safe-area-inset-top); /* 全局安全区域 */
-=======
         padding-bottom: max(20px, env(safe-area-inset-bottom));
         height: auto; /* 允许高度自适应 */
         min-height: 90px; /* 保持原有视觉高度 */
@@ -215,7 +172,6 @@ body {
     .line-bottom-nav {
         padding-bottom: max(0px, env(safe-area-inset-bottom));
         height: calc(80px + env(safe-area-inset-bottom));
->>>>>>> dcd1b1a7d37c22b3624e0def794e3ec4ca722f97
         box-sizing: border-box;
     }
 }
