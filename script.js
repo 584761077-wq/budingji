@@ -978,6 +978,62 @@ function initChatRoomLogic() {
         });
     }
 
+    function decodeHtmlEntities(value) {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = value;
+        return textarea.value;
+    }
+
+    function normalizeMessageForModel(content) {
+        if (typeof content !== 'string') return '';
+
+        let normalized = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
+            const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
+            const rawName = altMatch ? altMatch[1] : '未命名表情';
+            const stickerName = decodeHtmlEntities(rawName).trim() || '未命名表情';
+            return `【贴图:${stickerName}】`;
+        });
+
+        normalized = normalized.replace(/<[^>]+>/g, '');
+        return decodeHtmlEntities(normalized).trim();
+    }
+
+    function getAssistantBoundStickers(realName) {
+        const categories = JSON.parse(localStorage.getItem('sticker_categories_v1') || '[]');
+        const targetMap = JSON.parse(localStorage.getItem('sticker_category_targets_v1') || '{}');
+        const stickerMap = new Map();
+
+        categories.forEach((category) => {
+            const targets = targetMap[category.id] || [];
+            if (!targets.includes(realName)) return;
+            if (!Array.isArray(category.emojis)) return;
+
+            category.emojis.forEach((emoji) => {
+                const name = String(emoji.name || '').trim();
+                const url = String(emoji.url || '').trim();
+                if (!name || !/^https?:\/\//i.test(url)) return;
+                if (!stickerMap.has(name)) {
+                    stickerMap.set(name, { name, url, category: category.name || '未分类' });
+                }
+            });
+        });
+
+        return Array.from(stickerMap.values());
+    }
+
+    function convertAssistantStickerTokens(content, allowedStickers) {
+        if (typeof content !== 'string') return '';
+        const byName = new Map(allowedStickers.map(item => [item.name, item]));
+        return content
+            .replace(/\[(?:贴图|STICKER)\s*:\s*([^\]\n]+)\]/gi, (_, rawName) => {
+                const name = String(rawName || '').trim();
+                const sticker = byName.get(name);
+                if (!sticker) return '';
+                return `<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`;
+            })
+            .trim();
+    }
+
     // 触发 AI 回复
     async function triggerAIResponse(realName) {
         // UI Loading 状态
@@ -1012,10 +1068,15 @@ function initChatRoomLogic() {
             const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '10');
             const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
             const currentTurn = fullHistory.length > 0 ? fullHistory[fullHistory.length - 1] : null;
+            const assistantBoundStickers = getAssistantBoundStickers(realName);
+            const assistantStickerRuleText = assistantBoundStickers.length > 0
+                ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
+                : '无';
+
             const contextHistory = fullHistory.slice(Math.max(0, fullHistory.length - limit - 1), -1);
             const contextText = contextHistory.map(msg => {
                 const speaker = msg.role === 'assistant' ? realName : userName;
-                return `${speaker}: ${msg.content}`;
+                return `${speaker}: ${normalizeMessageForModel(msg.content)}`;
             }).join('\n');
 
             const systemPrompt = `
@@ -1049,6 +1110,14 @@ ${userPersona || '无'}
 3. 保持信息饥饿感，不要一次说完。
 4. 每轮必须拆成 2 到 7 条短消息，使用 [SPLIT] 分隔。
 
+[4.5 贴图发送硬规则]
+1. 你只能使用下方“可发送贴图白名单”，绝对禁止编造或发送白名单外贴图。
+2. 需要发送贴图时，必须使用格式 [贴图:名称]，名称必须与白名单完全一致。
+3. 可以发纯文本，也可以文本和 [贴图:名称] 混合。
+4. 用户发送的 【贴图:名称】 代表用户真的发了该贴图，你必须理解其情绪与语义。
+可发送贴图白名单：
+${assistantStickerRuleText}
+
 [5. 深度隐形思维链]
 输出时必须先给出 <think>...</think> 的七步推演，再输出多条消息正文。
 
@@ -1066,7 +1135,7 @@ ${userPersona || '无'}
 消息1[SPLIT]消息2[SPLIT]消息3
 `;
 
-            const roundInput = currentTurn && currentTurn.role === 'user' ? currentTurn.content : '';
+            const roundInput = currentTurn && currentTurn.role === 'user' ? normalizeMessageForModel(currentTurn.content) : '';
             const runtimeInput = `
 [本轮输入]
 ${roundInput || '无'}
@@ -1110,7 +1179,7 @@ ${wbContent || '无'}
             const replyMessages = visibleReply.split(splitToken);
             
             for (let i = 0; i < replyMessages.length; i++) {
-                const msgContent = replyMessages[i].trim();
+                const msgContent = convertAssistantStickerTokens(replyMessages[i].trim(), assistantBoundStickers);
                 if (msgContent) {
                     if (i > 0) {
                         await new Promise(resolve => setTimeout(resolve, 800));
