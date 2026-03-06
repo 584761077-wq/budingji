@@ -124,6 +124,63 @@
     z-index: 10;
 }
 
+/* Chat Action Menu */
+.chat-action-menu {
+    position: absolute;
+    bottom: 70px;
+    left: 10px;
+    width: calc(100% - 20px);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    z-index: 20;
+    animation: slideUpMenu 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slideUpMenu {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, auto);
+    gap: 15px;
+}
+
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.menu-icon {
+    width: 50px;
+    height: 50px;
+    background: #f2f2f2;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1d1d1f;
+    transition: background 0.2s;
+}
+
+.menu-item:active .menu-icon {
+    background: #e5e5ea;
+}
+
+.menu-text {
+    font-size: 0.75rem;
+    color: #1d1d1f;
+    text-align: center;
+}
+
 .footer-icon-btn {
     background: transparent;
     border: none;

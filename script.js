@@ -534,6 +534,64 @@ ${userPersona}
         }
     }
 
+    // 菜单功能逻辑
+    const menuBtn = document.getElementById('chat-menu-btn');
+    const menu = document.getElementById('chat-action-menu');
+    const regenerateBtn = document.getElementById('regenerate-reply-btn');
+
+    if (menuBtn && menu) {
+        // 切换菜单显示
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (menu.style.display === 'none') {
+                menu.style.display = 'block';
+            } else {
+                menu.style.display = 'none';
+            }
+        });
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', (e) => {
+            if (menu.style.display !== 'none' && !menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+
+        // 重回功能
+        if (regenerateBtn) {
+            regenerateBtn.addEventListener('click', async () => {
+                menu.style.display = 'none'; // 关闭菜单
+                
+                const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+                const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+                
+                // 检查是否有消息
+                if (history.length === 0) return;
+
+                // 从后往前查找，移除最近的连续 assistant 消息
+                // 如果最后一条是 user，则直接重试回复（相当于重发）
+                // 如果最后一条是 assistant，则删除这一轮的所有 assistant 消息，然后重试
+                
+                let hasRemoved = false;
+                
+                // 只要最后一条是 assistant，就移除
+                while (history.length > 0 && history[history.length - 1].role === 'assistant') {
+                    history.pop();
+                    hasRemoved = true;
+                }
+
+                // 保存更新后的历史记录
+                localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+                
+                // 重新加载 UI（移除屏幕上的消息）
+                loadChatHistory(realName);
+                
+                // 触发 AI 回复
+                await triggerAIResponse(realName);
+            });
+        }
+    }
+
     // 打开聊天室的通用函数
     function openChatRoom(name) {
         if (!chatRoom) return;
