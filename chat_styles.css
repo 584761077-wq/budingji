@@ -18,56 +18,61 @@
     to { transform: translateX(0); }
 }
 
-/* Wallpaper Layer */
-.chat-room-wallpaper {
+/* Chat Background */
+.chat-room-background {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    /* Use LINE default color */
-    background: #2596be;
+    background: #f5f5f5; /* Light gray background */
     pointer-events: none;
     z-index: -1;
 }
 
 /* Chat Room Header */
 .chat-room-header {
-    height: 90px;
-    padding-top: 30px; /* Safe area */
+    height: 100px; /* Increased height */
+    padding-top: 40px; /* Increased top padding */
     padding-left: 10px;
     padding-right: 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: transparent;
+    background: #ffffff; 
     z-index: 10;
-    position: absolute; /* Fix header */
+    position: absolute; 
     top: 0;
     width: 100%;
+    border-bottom: 1px solid rgba(0,0,0,0.05); 
 }
 
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
+/* Removed header-left as it is no longer used */
 
 .chat-back-btn {
     background: transparent;
     border: none;
-    color: #1d1d1f;
+    color: #1d1d1f; /* Black icon */
     cursor: pointer;
     padding: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px; /* Fixed width for alignment */
 }
 
 .chat-room-name {
     font-size: 1.1rem;
     font-weight: 600;
     color: #1d1d1f;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    width: 60%; /* Limit width to prevent overlap */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-right {
@@ -79,11 +84,12 @@
 .header-icon-btn {
     background: transparent;
     border: none;
-    color: #1d1d1f;
+    color: #1d1d1f; /* Black icon */
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
 }
 
 /* Chat Content Area */
@@ -91,15 +97,14 @@
     flex: 1;
     overflow-y: auto;
     padding: 15px;
-    padding-top: 100px; /* Space for header */
-    padding-bottom: calc(80px + env(safe-area-inset-bottom)); /* Space for footer + safe area */
+    padding-top: 110px; /* Increased space for taller header */
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)); 
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* Ensure content starts from top */
     justify-content: flex-start; 
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    overscroll-behavior: contain; /* Prevent pull-to-refresh */
+    -webkit-overflow-scrolling: touch; 
+    overscroll-behavior: contain; 
 }
 
 /* Chat Footer */
@@ -109,9 +114,9 @@
     background: #ffffff;
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding: 10px 15px; /* More horizontal padding */
     padding-bottom: max(10px, env(safe-area-inset-bottom)); /* Safe area padding */
-    gap: 10px;
+    gap: 12px;
     border-top: 1px solid rgba(0,0,0,0.05);
     position: absolute; /* Fix footer */
     bottom: 0;
@@ -124,7 +129,7 @@
     border: none;
     color: #1d1d1f;
     cursor: pointer;
-    padding: 5px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -132,27 +137,22 @@
 }
 
 .footer-icon-btn svg {
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     color: #1d1d1f;
-}
-
-.mic-btn svg {
-    width: 22px;
-    height: 22px;
 }
 
 /* Capsule Input */
 .chat-input-capsule {
     flex: 1;
-    height: 32px; /* Slightly smaller height */
+    height: 36px; /* Reduced height */
     background: #f2f2f2;
-    border-radius: 16px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
-    padding: 0 10px;
-    gap: 6px;
-    min-width: 0; /* Crucial for flex child to shrink properly */
+    padding: 0 12px;
+    gap: 8px;
+    min-width: 0; 
 }
 
 .chat-input-field {
@@ -160,31 +160,29 @@
     border: none;
     background: transparent;
     outline: none;
-    font-size: 0.95rem;
+    font-size: 0.95rem; /* Slightly smaller font */
+    padding: 0 4px;
 }
 
-.input-aa-icon {
-    font-size: 0.8rem;
-    font-weight: 700;
+/* Smile icon is now a standalone button */
+.smile-btn svg {
+    width: 24px;
+    height: 24px;
     color: #1d1d1f;
 }
 
-.input-smile-icon svg {
-    width: 20px;
-    height: 20px;
-    color: #8e8e93;
-}
-
+/* Specific button styles */
 .mic-btn svg {
     width: 24px;
     height: 24px;
+    color: #1d1d1f; 
 }
 
 /* Message Styles */
 .message-row {
     display: flex;
-    align-items: flex-end; /* Bottom align for avatars and bubbles */
-    margin-bottom: 15px;
+    align-items: flex-end; 
+    margin-bottom: 12px; /* Reduced margin */
     gap: 8px;
     width: 100%;
 }
@@ -194,8 +192,8 @@
 }
 
 .message-avatar {
-    width: 32px;
-    height: 32px;
+    width: 40px; /* Increased size */
+    height: 40px; /* Increased size */
     border-radius: 50%;
     background: #e5e5ea;
     color: #8e8e93;
@@ -206,8 +204,8 @@
 }
 
 .message-avatar svg {
-    width: 20px;
-    height: 20px;
+    width: 24px; /* Increased icon size */
+    height: 24px; /* Increased icon size */
 }
 
 .message-avatar img {
@@ -215,13 +213,13 @@
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
-    display: block; /* Remove bottom spacing */
+    display: block; 
 }
 
 /* Message Container Structure */
 .message-container {
     display: flex;
-    align-items: flex-end; /* Bottom align meta with bubble */
+    align-items: flex-end; 
     gap: 5px;
 }
 
@@ -230,14 +228,14 @@
 }
 
 .message-bubble {
-    padding: 10px 14px;
-    border-radius: 20px; /* Fully rounded, no tails */
-    font-size: 0.95rem;
-    line-height: 1.4;
+    padding: 6px 12px; /* Even smaller vertical padding */
+    border-radius: 18px; 
+    font-size: 0.95rem; /* Restored font size for readability */
+    line-height: 1.3; /* Tighter line height */
     position: relative;
     word-wrap: break-word;
     max-width: 100%;
-    margin-bottom: 0; /* Prevent unwanted spacing */
+    margin-bottom: 0; 
 }
 
 .message-row.left .message-bubble {

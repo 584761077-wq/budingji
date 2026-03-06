@@ -311,31 +311,8 @@ function initChatRoomLogic() {
     // 输入相关元素
     const inputCapsule = document.querySelector('.chat-input-capsule');
     const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
-    const aaIcon = inputCapsule ? inputCapsule.querySelector('.input-aa-icon') : null;
+    // aaIcon removed from HTML, so no need to select it
     const chatContent = document.querySelector('.chat-room-content');
-
-    // 处理输入框 Aa 图标显示逻辑
-    if (inputField && aaIcon) {
-        const toggleAaIcon = () => {
-            if (inputField.value.trim() !== '' || document.activeElement === inputField) {
-                aaIcon.classList.add('hidden');
-            } else {
-                aaIcon.classList.remove('hidden');
-            }
-        };
-
-        inputField.addEventListener('focus', toggleAaIcon);
-        inputField.addEventListener('blur', toggleAaIcon);
-        inputField.addEventListener('input', toggleAaIcon);
-
-        // 回车发送消息
-        inputField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-    }
 
     // 发送消息函数
     function sendMessage() {
@@ -349,12 +326,16 @@ function initChatRoomLogic() {
         const msgRow = document.createElement('div');
         msgRow.className = 'message-row right';
         
-        // 使用固定的用户头像（或从设置中获取）
-        // 这里暂时使用默认的灰色人像SVG
-        const avatarSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+        // 获取当前聊天室关联的 User 头像
+        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
+        
+        const avatarContent = userAvatarSrc 
+            ? `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+            : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
 
         msgRow.innerHTML = `
-            <div class="message-avatar">${avatarSvg}</div>
+            <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
                 <div class="message-bubble">${text}</div>
                 <div class="message-meta-info">
@@ -366,13 +347,19 @@ function initChatRoomLogic() {
 
         chatContent.appendChild(msgRow);
         inputField.value = '';
-        aaIcon.classList.remove('hidden'); // 重置图标显示
         
         // 滚动到底部
         chatContent.scrollTop = chatContent.scrollHeight;
+    }
 
-        // 模拟对方回复（可选）
-        // setTimeout(() => receiveMessage("Hello!", timeStr), 1000);
+    if (inputField) {
+        // 回车发送消息
+        inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
     }
 
     // 接收消息函数（模拟）
