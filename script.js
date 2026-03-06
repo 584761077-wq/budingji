@@ -1989,21 +1989,158 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     const closeBtn = document.getElementById('close-memory-settings');
     const saveBtn = document.getElementById('save-memory-settings');
     const input = document.getElementById('memory-context-limit');
+    const summaryInput = document.getElementById('memory-summary-limit');
+    const runSummaryBtn = document.getElementById('run-memory-summary-btn');
+    const diaryListEl = document.getElementById('memory-diary-list');
+    const diaryDetailOverlay = document.getElementById('memory-diary-detail-overlay');
+    const closeDiaryDetailBtn = document.getElementById('close-memory-diary-detail');
+    const saveDiaryDetailBtn = document.getElementById('save-memory-diary-detail');
+    const diaryDetailTitle = document.getElementById('memory-diary-detail-title');
+    const diaryDetailContent = document.getElementById('memory-diary-detail-content');
+    let activeDiaryId = null;
 
-    // 打开记忆设置
+    const formatTime = (ts) => {
+        const d = new Date(ts);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${y}年${m}月${day}日 ${hh}:${mm}`;
+    };
+
+    const getDiaryKey = (realName) => `chat_memory_diary_${realName}`;
+    const getSummaryLimitKey = (realName) => `chat_summary_limit_${realName}`;
+    const getDiaries = (realName) => JSON.parse(localStorage.getItem(getDiaryKey(realName)) || '[]');
+    const setDiaries = (realName, diaries) => localStorage.setItem(getDiaryKey(realName), JSON.stringify(diaries));
+
+    const normalizeSummaryInput = (value) => Math.max(1, parseInt(String(value || '').trim() || '30', 10) || 30);
+    const escapeHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const normalizeContent = (content) => {
+        if (typeof content !== 'string') return '';
+        const withStickerText = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
+            const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
+            const stickerName = altMatch ? altMatch[1] : '未命名贴图';
+            return `【贴图:${stickerName}】`;
+        });
+        return withStickerText.replace(/<[^>]+>/g, '').trim();
+    };
+
+    const renderDiaryList = (realName) => {
+        if (!diaryListEl) return;
+        const diaries = getDiaries(realName).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+        if (diaries.length === 0) {
+            diaryListEl.innerHTML = '<div class="memory-diary-empty">暂无日记</div>';
+            return;
+        }
+
+        diaryListEl.innerHTML = diaries.map((item) => `
+            <button class="memory-diary-item" type="button" data-id="${item.id}">
+                <span class="memory-diary-time">${formatTime(item.createdAt)}</span>
+                <span class="memory-diary-preview">${escapeHtml((item.content || '').replace(/\s+/g, ' ').trim())}</span>
+            </button>
+        `).join('');
+    };
+
+    const openDiaryDetail = (realName, diaryId) => {
+        const diaries = getDiaries(realName);
+        const diary = diaries.find((item) => item.id === diaryId);
+        if (!diary) return;
+        activeDiaryId = diary.id;
+        diaryDetailTitle.textContent = formatTime(diary.createdAt);
+        diaryDetailContent.value = diary.content || '';
+        diaryDetailOverlay.style.display = 'flex';
+    };
+
+    const closeDiaryDetail = () => {
+        diaryDetailOverlay.style.display = 'none';
+        activeDiaryId = null;
+    };
+
+    const generateDiarySummary = async (realName, batchSize) => {
+        const apiUrl = localStorage.getItem('api_url');
+        const apiKey = localStorage.getItem('api_key');
+        const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+        if (!apiUrl || !apiKey) {
+            throw new Error('请先在设置中配置 API URL 和 Key');
+        }
+
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        if (!Array.isArray(history) || history.length === 0) {
+            throw new Error('当前没有可总结的聊天记录');
+        }
+
+        const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || '用户';
+        const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
+        const recent = history.slice(-batchSize);
+        const chatText = recent.map((msg) => {
+            const speaker = msg.role === 'assistant' ? realName : userName;
+            return `${speaker}: ${normalizeContent(msg.content)}`;
+        }).join('\n');
+
+        const prompt = `
+你是${realName}本人，请严格使用第一人称“我”写一段日记式总结。
+必须符合你的性格、人设和说话风格，不得跳出角色。
+如果你的人设里包含学历、专业背景、知识习惯，写作表达必须体现这些特征。
+写作目标：总结这段聊天里我真实的情绪变化、关键事件、关系变化和后续打算。
+要求：
+1) 输出一段自然中文，不要分点，不要标题，不要解释规则。
+2) 长度 80-220 字。
+3) 不要出现“作为AI”等词。
+
+我的人设资料：
+${charPersona || '无'}
+
+待总结聊天记录：
+${chatText}
+`;
+
+        const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: modelName,
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.6,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`总结失败: ${err}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content?.trim();
+        if (!content) {
+            throw new Error('总结结果为空');
+        }
+        return content;
+    };
+
     if (memoryBtn) {
         memoryBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            
             const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '100';
+            const savedSummaryLimit = localStorage.getItem(getSummaryLimitKey(realName)) || '30';
             input.value = savedLimit;
-            
+            summaryInput.value = savedSummaryLimit;
+            renderDiaryList(realName);
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('active'), 10);
         });
     }
 
-    // 关闭记忆设置
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             modal.classList.remove('active');
@@ -2011,7 +2148,6 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         });
     }
 
-    // 保存记忆设置
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
@@ -2020,7 +2156,10 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             localStorage.setItem('chat_context_limit_' + realName, String(normalizedLimit));
             input.value = String(normalizedLimit);
 
-            // 保存成功动画
+            const normalizedSummaryLimit = normalizeSummaryInput(summaryInput.value);
+            localStorage.setItem(getSummaryLimitKey(realName), String(normalizedSummaryLimit));
+            summaryInput.value = String(normalizedSummaryLimit);
+
             const originalText = saveBtn.textContent;
             saveBtn.textContent = '已存';
             saveBtn.style.backgroundColor = '#333';
@@ -2030,6 +2169,71 @@ function initMemorySettingsLogic(chatRoomNameEl) {
                 modal.classList.remove('active');
                 setTimeout(() => modal.style.display = 'none', 300);
             }, 500);
+        });
+    }
+
+    if (runSummaryBtn) {
+        runSummaryBtn.addEventListener('click', async () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const batchSize = normalizeSummaryInput(summaryInput.value);
+            summaryInput.value = String(batchSize);
+            localStorage.setItem(getSummaryLimitKey(realName), String(batchSize));
+
+            const originalText = runSummaryBtn.textContent;
+            runSummaryBtn.textContent = '总结中...';
+            runSummaryBtn.disabled = true;
+
+            try {
+                const content = await generateDiarySummary(realName, batchSize);
+                const diaries = getDiaries(realName);
+                diaries.push({
+                    id: crypto.randomUUID(),
+                    createdAt: Date.now(),
+                    content
+                });
+                setDiaries(realName, diaries);
+                renderDiaryList(realName);
+            } catch (error) {
+                alert(error.message || '自动总结失败');
+            } finally {
+                runSummaryBtn.textContent = originalText;
+                runSummaryBtn.disabled = false;
+            }
+        });
+    }
+
+    if (diaryListEl) {
+        diaryListEl.addEventListener('click', (e) => {
+            const item = e.target.closest('.memory-diary-item');
+            if (!item) return;
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            openDiaryDetail(realName, item.dataset.id);
+        });
+    }
+
+    if (closeDiaryDetailBtn) {
+        closeDiaryDetailBtn.addEventListener('click', closeDiaryDetail);
+    }
+
+    if (diaryDetailOverlay) {
+        diaryDetailOverlay.addEventListener('click', (e) => {
+            if (e.target === diaryDetailOverlay) {
+                closeDiaryDetail();
+            }
+        });
+    }
+
+    if (saveDiaryDetailBtn) {
+        saveDiaryDetailBtn.addEventListener('click', () => {
+            if (!activeDiaryId) return;
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const diaries = getDiaries(realName);
+            const idx = diaries.findIndex((item) => item.id === activeDiaryId);
+            if (idx === -1) return;
+            diaries[idx].content = diaryDetailContent.value.trim();
+            setDiaries(realName, diaries);
+            renderDiaryList(realName);
+            closeDiaryDetail();
         });
     }
 }

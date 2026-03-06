@@ -651,6 +651,31 @@
                             <label for="memory-context-limit">上下文条数</label>
                             <input type="number" id="memory-context-limit" class="candy-input memory-limit-input" placeholder="100">
                         </div>
+                        <div class="memory-limit-row">
+                            <label for="memory-summary-limit">每次总结条数</label>
+                            <input type="number" id="memory-summary-limit" class="candy-input memory-limit-input" placeholder="30">
+                        </div>
+                        <button class="memory-summary-btn" id="run-memory-summary-btn">立即自动总结</button>
+                    </div>
+                    <div class="settings-card memory-diary-card">
+                        <h3 class="card-title">日记</h3>
+                        <div class="memory-diary-list" id="memory-diary-list"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ins-modal-overlay" id="memory-diary-detail-overlay" style="display: none;">
+                <div class="ins-modal memory-diary-detail-modal">
+                    <div class="ins-modal-header">
+                        <h3 id="memory-diary-detail-title">日记详情</h3>
+                        <button class="ins-modal-close" id="close-memory-diary-detail">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="ins-modal-body">
+                        <textarea id="memory-diary-detail-content" class="edit-message-textarea"></textarea>
+                    </div>
+                    <div class="ins-modal-footer">
+                        <button class="ins-btn-primary" id="save-memory-diary-detail">保存修改</button>
                     </div>
                 </div>
             </div>
