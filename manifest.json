@@ -12,13 +12,15 @@
     "icons": [
         {
             "src": "https://img.heliar.top/file/1772810690199_IMG_6314.jpeg",
-            "sizes": "192x192",
-            "type": "image/png"
+            "sizes": "1042x1010",
+            "type": "image/jpeg",
+            "purpose": "any"
         },
         {
             "src": "https://img.heliar.top/file/1772810690199_IMG_6314.jpeg",
-            "sizes": "512x512",
-            "type": "image/png"
+            "sizes": "1042x1010",
+            "type": "image/jpeg",
+            "purpose": "maskable"
         }
     ]
 }
