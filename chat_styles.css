@@ -657,3 +657,11 @@
     text-align: center;
 }
 
+/* Spinner Animation */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.loading-spinner {
+    animation: spin 1s linear infinite;
+    transform-origin: center;
+}

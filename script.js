@@ -311,98 +311,238 @@ function initChatRoomLogic() {
     // 输入相关元素
     const inputCapsule = document.querySelector('.chat-input-capsule');
     const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
-    // aaIcon removed from HTML, so no need to select it
+    const sendBtn = document.getElementById('trigger-ai-btn');
     const chatContent = document.querySelector('.chat-room-content');
 
-    // 发送消息函数
-    function sendMessage() {
-        const text = inputField.value.trim();
-        if (!text) return;
-
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        // 创建右侧消息（自己发送）
-        const msgRow = document.createElement('div');
-        msgRow.className = 'message-row right';
-        
-        // 获取当前聊天室关联的 User 头像
-        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-        const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
-        
-        const avatarContent = userAvatarSrc 
-            ? `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-            : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
-
-        msgRow.innerHTML = `
-            <div class="message-avatar">${avatarContent}</div>
-            <div class="message-container">
-                <div class="message-bubble">${text}</div>
-                <div class="message-meta-info">
-                    <div class="meta-read">Read</div>
-                    <div class="meta-time">${timeStr}</div>
-                </div>
-            </div>
-        `;
-
-        chatContent.appendChild(msgRow);
-        inputField.value = '';
-        
+    // 加载历史记录
+    function loadChatHistory(realName) {
+        chatContent.innerHTML = '';
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        history.forEach(msg => {
+            appendMessageToUI(msg.role, msg.content, msg.time, realName);
+        });
         // 滚动到底部
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
-    if (inputField) {
-        // 回车发送消息
-        inputField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+    // 保存消息
+    function saveMessage(realName, role, content) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        history.push({ role, content, time: timeStr });
+        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        return timeStr;
     }
 
-    // 接收消息函数（模拟）
-    function receiveMessage(text, timeStr) {
+    // 添加消息到 UI
+    function appendMessageToUI(role, content, timeStr, realName) {
         const msgRow = document.createElement('div');
-        msgRow.className = 'message-row left';
-        const avatarSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
-
-        // 检查是否有自定义头像
-        // 关键修复：使用 chatRoomName.dataset.realName 而不是 textContent
-        // 因为 textContent 可能是备注名，而头像 key 是基于真名的
-        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-        const currentAvatar = localStorage.getItem('chat_avatar_' + realName);
+        msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
         
-        const avatarContent = currentAvatar ? `<img src="${currentAvatar}" alt="avatar">` : avatarSvg;
+        // 头像逻辑
+        let avatarContent = '';
+        if (role === 'user') {
+            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
+            avatarContent = userAvatarSrc 
+                ? `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+        } else {
+            const currentAvatar = localStorage.getItem('chat_avatar_' + realName);
+            const defaultSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            avatarContent = currentAvatar ? `<img src="${currentAvatar}" alt="avatar">` : defaultSvg;
+        }
 
         msgRow.innerHTML = `
             <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
-                <div class="message-bubble">${text}</div>
+                <div class="message-bubble">${content}</div>
                 <div class="message-meta-info">
+                    ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
                     <div class="meta-time">${timeStr}</div>
                 </div>
             </div>
         `;
         chatContent.appendChild(msgRow);
         chatContent.scrollTop = chatContent.scrollHeight;
+    }
+
+    // 回车仅发送上屏（不触发 AI）
+    if (inputField) {
+        inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const text = inputField.value.trim();
+                if (!text) return;
+
+                const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+                const timeStr = saveMessage(realName, 'user', text);
+                appendMessageToUI('user', text, timeStr, realName);
+                inputField.value = '';
+            }
+        });
+    }
+
+    // 点击发送按钮触发 AI
+    if (sendBtn) {
+        sendBtn.addEventListener('click', async () => {
+            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            await triggerAIResponse(realName);
+        });
+    }
+
+    // 触发 AI 回复
+    async function triggerAIResponse(realName) {
+        // UI Loading 状态
+        const originalIcon = sendBtn.innerHTML;
+        sendBtn.innerHTML = `<svg class="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+        sendBtn.disabled = true;
+
+        try {
+            // 1. 获取设置
+            const apiUrl = localStorage.getItem('api_url');
+            const apiKey = localStorage.getItem('api_key');
+            const modelName = localStorage.getItem('model_name');
+            
+            if (!apiUrl || !apiKey) {
+                alert('请先在设置中配置 API URL 和 Key');
+                throw new Error('Missing Config');
+            }
+
+            // 2. 构建上下文
+            // 沉浸式角色扮演 System Prompt
+            const charPersona = localStorage.getItem('chat_persona_' + realName) || "You are " + realName;
+            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || "User";
+            
+            // 世界书
+            const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+            const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+            const wbContent = wbIds.map(id => {
+                const item = allWbItems.find(i => i.id === id);
+                return item ? `${item.name}: ${item.content}` : '';
+            }).join('\n');
+
+            const systemPrompt = `
+# Role Definition
+你不是一个人工智能助手，你是一个专业的“沉浸式角色扮演者”。
+你现在的任务是完全成为以下描述的角色，并通过手机短信/微信与用户（User）进行对话。
+
+---
+### 1. Current Character (当前角色设定)
+[Name]: ${realName}
+[Profile]: ${charPersona} (请从中提取性格、语调、背景等)
+
+### 2. World Book / Lore (世界观与设定)
+[World Info]: 
+${wbContent}
+
+[User Profile]: 
+${userPersona}
+
+### 3. Context (上下文)
+(见下文历史记录)
+
+---
+
+### 4. Immersion Guidelines (沉浸式扮演守则)
+为了让对话在“手机聊天”界面中显得极度真实，你必须遵守以下规则：
+
+**【格式与语感】**
+*   **短文本优先**：手机打字很累，回复尽量简短（10-40字以内），除非你在讲述一个很长的故事。
+*   **口语化**：完全禁止书面语。使用碎片化的句子。允许不加标点，允许用空格代替逗号。
+*   **拟人化瑕疵**：可以适度使用语气词（呃、那个、啊哈、啧）、Emoji 表情（不要滥用，符合人设即可）。
+*   **禁止 AI 腔调**：绝对禁止说“作为一个AI”、“我无法回答”、“根据设定”。如果遇到无法回答的问题，请用角色的口吻去回避、反问或者胡扯。
+*   **多条消息发送**：你可以一次发送 1 条或多条消息。请根据当前对话的情境、角色的性格以及表达的需要，自主决定发送消息的数量。务必模仿真人的发送习惯（例如：激动时可能会连发短句，陈述时可能分段发送），但请避免无意义的刷屏，确保阅读体验舒适。每条消息之间请使用 "|||" 符号分隔。
+
+**【逻辑与互动】**
+*   **信息密度控制**：不要一次性把《世界书》里的设定全倒出来。设定是背景，只在必要时自然流露。
+*   **主动性**：不要总是被动回答。根据与用户的关系，你可以主动发起话题、调侃用户、或者表达你的情绪。
+
+**【思维链】**
+在回复之前，请先在内心思考：
+1. 我现在的身份是谁？我和对方是什么关系？
+2. 根据记忆，我们刚才在聊什么？
+3. 我现在的情绪是怎样的？
+4. 用最像真人的口吻回复。
+
+---
+
+现在，请完全忘记你是一个程序。
+你是 ${realName}。
+开始对话。
+`;
+
+            // 历史记录
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '10');
+            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            // 获取最近的 limit 条记录用于上下文
+            const recentHistory = fullHistory.slice(-limit).map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
+
+            // 组合 Messages
+            const messages = [
+                { role: "system", content: systemPrompt },
+                ...recentHistory
+            ];
+
+            // 3. 调用 API
+            const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName || 'gpt-3.5-turbo',
+                    messages: messages,
+                    temperature: parseFloat(localStorage.getItem('temperature') || '0.7'),
+                    stream: false 
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error('API Error: ' + err);
+            }
+
+            const data = await response.json();
+            const reply = data.choices[0].message.content;
+
+            // 4. 保存并显示回复 (支持多条消息)
+            const replyMessages = reply.split('|||');
+            
+            for (let i = 0; i < replyMessages.length; i++) {
+                const msgContent = replyMessages[i].trim();
+                if (msgContent) {
+                    // 模拟打字延迟
+                    if (i > 0) {
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                    }
+                    const timeStr = saveMessage(realName, 'assistant', msgContent);
+                    appendMessageToUI('assistant', msgContent, timeStr, realName);
+                }
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert('AI 请求失败: ' + error.message);
+        } finally {
+            sendBtn.innerHTML = originalIcon;
+            sendBtn.disabled = false;
+        }
     }
 
     // 打开聊天室的通用函数
     function openChatRoom(name) {
         if (!chatRoom) return;
         
-        // 查找对应的 chat-list-item 以获取 dataset.realName
-        // 这是一个补丁：因为 openChatRoom 的参数 name 可能是显示名（备注名）
-        // 我们需要找到它对应的真名，才能正确加载头像和历史记录
-        // 遍历聊天列表找到匹配的项
         let realName = name;
         const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
         for (const item of chatItems) {
             const itemName = item.querySelector('.chat-item-name').textContent;
             if (itemName === name) {
-                // 优先使用 dataset.realName，如果没有则回退到 name
                 realName = item.dataset.realName || name;
                 break;
             }
@@ -410,16 +550,12 @@ function initChatRoomLogic() {
         
         // 更新聊天室标题和数据集
         chatRoomName.textContent = name;
-        chatRoomName.dataset.realName = realName; // 关键：保存真名到标题元素供设置页使用
+        chatRoomName.dataset.realName = realName;
         
         chatRoom.style.display = 'flex';
-        // 清空之前的消息（演示用，实际应加载历史记录）
-        chatContent.innerHTML = '';
         
-        // 模拟一条对方的消息
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        receiveMessage("你好！", timeStr);
+        // 加载真实历史记录
+        loadChatHistory(realName);
     }
 
     // 绑定事件委托，处理聊天列表点击（包括动态添加的项）
