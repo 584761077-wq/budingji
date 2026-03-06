@@ -102,6 +102,8 @@ function initSettings() {
     const apiUrlInput = document.getElementById('api-url');
     const apiKeyInput = document.getElementById('api-key');
     const modelNameInput = document.getElementById('model-name');
+    const modelSelectTrigger = document.getElementById('model-select-trigger');
+    const modelDropdownArrow = document.getElementById('model-dropdown-arrow');
     const modelListContainer = document.getElementById('model-list-container');
     const modelList = document.getElementById('model-list');
     
@@ -127,14 +129,51 @@ function initSettings() {
         tempValue.textContent = tempSlider.value;
     });
 
+    const toggleModelList = (forceOpen) => {
+        if (!modelList || modelList.children.length === 0) return;
+        const shouldOpen = typeof forceOpen === 'boolean'
+            ? forceOpen
+            : modelListContainer.style.display === 'none';
+        modelListContainer.style.display = shouldOpen ? 'block' : 'none';
+        if (modelSelectTrigger) {
+            modelSelectTrigger.classList.toggle('open', shouldOpen);
+        }
+    };
+
+    if (modelNameInput) {
+        modelNameInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleModelList();
+        });
+    }
+
+    if (modelDropdownArrow) {
+        modelDropdownArrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleModelList();
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!modelListContainer || !modelSelectTrigger) return;
+        if (!modelListContainer.contains(e.target) && !modelSelectTrigger.contains(e.target)) {
+            modelListContainer.style.display = 'none';
+            modelSelectTrigger.classList.remove('open');
+        }
+    });
+
     // 打开设置
     dockSettings.addEventListener('click', () => {
         loadSettings();
+        modelListContainer.style.display = 'none';
+        if (modelSelectTrigger) modelSelectTrigger.classList.remove('open');
         modal.classList.add('active');
     });
 
     // 关闭设置
     closeBtn.addEventListener('click', () => {
+        modelListContainer.style.display = 'none';
+        if (modelSelectTrigger) modelSelectTrigger.classList.remove('open');
         modal.classList.remove('active');
     });
 
@@ -145,6 +184,8 @@ function initSettings() {
         localStorage.setItem('model_name', modelNameInput.value);
         localStorage.setItem('stream_enabled', streamToggle.checked);
         localStorage.setItem('temperature', tempSlider.value);
+        modelListContainer.style.display = 'none';
+        if (modelSelectTrigger) modelSelectTrigger.classList.remove('open');
         
         // 保存成功提示动画
         const originalText = saveBtn.textContent;
@@ -193,12 +234,14 @@ function initSettings() {
                 div.onclick = () => {
                     modelNameInput.value = model.id;
                     modelListContainer.style.display = 'none';
+                    if (modelSelectTrigger) modelSelectTrigger.classList.remove('open');
                 };
                 modelList.appendChild(div);
             });
 
             if (models.length > 0) {
                 modelListContainer.style.display = 'block';
+                if (modelSelectTrigger) modelSelectTrigger.classList.add('open');
             } else {
                 alert('未找到可用模型');
             }
@@ -1153,6 +1196,9 @@ ${wbContent || '无'}
             ];
 
             // 3. 调用 API
+            const streamEnabled = localStorage.getItem('stream_enabled') === 'true';
+            const savedTemperature = parseFloat(localStorage.getItem('temperature') || '0.7');
+            const temperature = Number.isFinite(savedTemperature) ? savedTemperature : 0.7;
             const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
                 method: 'POST',
                 headers: {
@@ -1162,8 +1208,8 @@ ${wbContent || '无'}
                 body: JSON.stringify({
                     model: modelName || 'gpt-3.5-turbo',
                     messages: messages,
-                    temperature: parseFloat(localStorage.getItem('temperature') || '0.7'),
-                    stream: false 
+                    temperature,
+                    stream: streamEnabled
                 })
             });
 
@@ -1172,8 +1218,44 @@ ${wbContent || '无'}
                 throw new Error('API Error: ' + err);
             }
 
-            const data = await response.json();
-            const reply = data.choices[0].message.content || '';
+            let reply = '';
+            if (streamEnabled) {
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new Error('流式响应不可用');
+                }
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                const parseStreamLine = (line) => {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith('data:')) return;
+                    const payload = trimmed.slice(5).trim();
+                    if (!payload || payload === '[DONE]') return;
+                    try {
+                        const chunk = JSON.parse(payload);
+                        const deltaContent = chunk.choices?.[0]?.delta?.content;
+                        const messageContent = chunk.choices?.[0]?.message?.content;
+                        if (typeof deltaContent === 'string') reply += deltaContent;
+                        else if (typeof messageContent === 'string') reply += messageContent;
+                    } catch (e) {
+                    }
+                };
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    lines.forEach(parseStreamLine);
+                }
+                if (buffer) parseStreamLine(buffer);
+            } else {
+                const data = await response.json();
+                reply = data.choices?.[0]?.message?.content || '';
+            }
+
             const visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
@@ -1627,6 +1709,11 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 // 默认头像
                 userAvatarDisplay.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
             }
+
+            delete avatarDisplay.dataset.newAvatar;
+            delete userAvatarDisplay.dataset.newAvatar;
+            avatarInput.value = '';
+            userAvatarInput.value = '';
             
             // 渲染选中的世界书
             renderSelectedWorldBooks(realName);
@@ -1638,6 +1725,10 @@ function initChatSettingsLogic(chatRoomNameEl) {
     // 关闭设置
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
+            delete avatarDisplay.dataset.newAvatar;
+            delete userAvatarDisplay.dataset.newAvatar;
+            avatarInput.value = '';
+            userAvatarInput.value = '';
             modal.classList.remove('active');
         });
     }
@@ -1645,6 +1736,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
     // Chat 头像上传逻辑
     if (avatarWrapper && avatarInput) {
         avatarWrapper.addEventListener('click', () => {
+            avatarInput.value = '';
             avatarInput.click();
         });
 
@@ -1667,6 +1759,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
     // User 头像上传逻辑
     if (userAvatarWrapper && userAvatarInput) {
         userAvatarWrapper.addEventListener('click', () => {
+            userAvatarInput.value = '';
             userAvatarInput.click();
         });
 
@@ -1809,6 +1902,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
             refreshChatUserAvatars(newUserAvatarSrc);
 
             saveGlobalData();
+            avatarInput.value = '';
+            userAvatarInput.value = '';
 
             // 关闭弹窗
             modal.classList.remove('active');
@@ -2062,8 +2157,16 @@ function saveGlobalData() {
 
 // 7. 全局数据加载与持久化
 function initGlobalPersistence() {
+    const placeholderFriends = new Set(['Alice', 'Bob']);
+
     // 1. 恢复好友列表
-    const savedFriends = JSON.parse(localStorage.getItem('global_friends_list'));
+    const rawSavedFriends = JSON.parse(localStorage.getItem('global_friends_list'));
+    const savedFriends = Array.isArray(rawSavedFriends)
+        ? rawSavedFriends.filter(name => !placeholderFriends.has(String(name || '').trim()))
+        : rawSavedFriends;
+    if (Array.isArray(rawSavedFriends) && JSON.stringify(rawSavedFriends) !== JSON.stringify(savedFriends)) {
+        localStorage.setItem('global_friends_list', JSON.stringify(savedFriends));
+    }
     const friendsListContainer = document.getElementById('friends-list');
     
     if (savedFriends && friendsListContainer) {
@@ -2101,12 +2204,20 @@ function initGlobalPersistence() {
     }
 
     // 2. 恢复聊天列表
-    const savedChats = JSON.parse(localStorage.getItem('global_chat_list'));
+    const rawSavedChats = JSON.parse(localStorage.getItem('global_chat_list'));
+    const savedChats = Array.isArray(rawSavedChats)
+        ? rawSavedChats.filter(name => !placeholderFriends.has(String(name || '').trim()))
+        : rawSavedChats;
+    if (Array.isArray(rawSavedChats) && JSON.stringify(rawSavedChats) !== JSON.stringify(savedChats)) {
+        localStorage.setItem('global_chat_list', JSON.stringify(savedChats));
+    }
     const chatListContainer = document.getElementById('line-chat-list');
     
     if (savedChats && chatListContainer) {
         const emptyPlaceholder = chatListContainer.querySelector('.empty-chat-placeholder');
-        if (emptyPlaceholder) emptyPlaceholder.style.display = 'none';
+        if (emptyPlaceholder) {
+            emptyPlaceholder.style.display = savedChats.length > 0 ? 'none' : 'block';
+        }
         
         if (savedChats.length > 0) {
             chatListContainer.innerHTML = ''; 

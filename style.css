@@ -601,6 +601,67 @@ body {
     background: #e5e5ea;
 }
 
+.api-settings-card {
+    padding: 20px;
+}
+
+.api-settings-card .card-title {
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+}
+
+.api-settings-card .form-group {
+    margin-bottom: 14px;
+}
+
+.api-settings-card .form-group label {
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+}
+
+.api-settings-card .candy-input {
+    height: 34px;
+    font-size: 0.85rem;
+    padding: 0 10px;
+}
+
+.api-settings-card .candy-btn-small {
+    height: 34px;
+    font-size: 0.82rem;
+    padding: 0 12px;
+}
+
+.model-input-wrap {
+    position: relative;
+    flex: 1;
+}
+
+.model-input-wrap .candy-input {
+    padding-right: 34px;
+}
+
+.model-dropdown-arrow {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: #86868b;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.model-input-wrap.open .model-dropdown-arrow {
+    transform: translateY(-50%) rotate(180deg);
+    color: #1d1d1f;
+}
+
 /* Toggle 开关 */
 .toggle-group {
     display: flex;

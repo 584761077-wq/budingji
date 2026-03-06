@@ -205,7 +205,7 @@
                 </div>
                 
                 <div class="app-content">
-                    <div class="settings-card">
+                    <div class="settings-card api-settings-card">
                         <h3 class="card-title">API 配置</h3>
                         <div class="form-group">
                             <label for="api-url">API 地址</label>
@@ -218,7 +218,12 @@
                         <div class="form-group">
                             <label for="model-name">模型名称</label>
                             <div class="input-with-btn">
-                                <input type="text" id="model-name" class="candy-input" placeholder="gpt-3.5-turbo">
+                                <div class="model-input-wrap" id="model-select-trigger">
+                                    <input type="text" id="model-name" class="candy-input" placeholder="gpt-3.5-turbo">
+                                    <button type="button" class="model-dropdown-arrow" id="model-dropdown-arrow" aria-label="展开模型列表">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </button>
+                                </div>
                                 <button id="fetch-models" class="candy-btn-small">拉取</button>
                             </div>
                         </div>
