@@ -1065,7 +1065,7 @@ function initChatRoomLogic() {
                 return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
             }).join('\n');
 
-            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '10');
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '100');
             const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
             const currentTurn = fullHistory.length > 0 ? fullHistory[fullHistory.length - 1] : null;
             const assistantBoundStickers = getAssistantBoundStickers(realName);
@@ -1340,8 +1340,9 @@ ${wbContent || '无'}
         contextMenu.style.display = 'none';
         
         // Open Edit Modal
-        editContent.value = currentContextMsg.content;
+        editContent.value = normalizeMessageForModel(currentContextMsg.content);
         editModal.style.display = 'flex';
+        setTimeout(() => editContent.focus(), 0);
     });
 
     // Removed ctx-multi-select listener
@@ -1390,6 +1391,14 @@ ${wbContent || '无'}
     if (closeEditBtn) {
         closeEditBtn.addEventListener('click', () => {
             editModal.style.display = 'none';
+        });
+    }
+
+    if (editModal) {
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) {
+                editModal.style.display = 'none';
+            }
         });
     }
 
@@ -1556,6 +1565,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const modal = document.getElementById('chat-settings-modal');
     const closeBtn = document.getElementById('close-chat-settings');
     const saveBtn = document.getElementById('save-chat-settings');
+    const clearChatBtn = document.getElementById('clear-chat-history-btn');
     
     const avatarWrapper = document.querySelector('.chat-profile-avatar-wrapper');
     const avatarInput = document.getElementById('chat-avatar-input');
@@ -1805,6 +1815,20 @@ function initChatSettingsLogic(chatRoomNameEl) {
         });
     }
 
+    if (clearChatBtn) {
+        clearChatBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const shouldClear = confirm('确定清空当前聊天的全部消息吗？清空后不可恢复。');
+            if (!shouldClear) return;
+
+            localStorage.removeItem('chat_history_' + realName);
+            const chatContent = document.querySelector('.chat-room-content');
+            if (chatContent) {
+                chatContent.innerHTML = '';
+            }
+        });
+    }
+
     // 辅助函数：刷新当前聊天界面中 User 的头像
     function refreshChatUserAvatars(avatarSrc) {
         if (!avatarSrc) return;
@@ -1876,8 +1900,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         memoryBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
             
-            // 读取已保存的设置，默认为空（或者可以设置一个全局默认值，如 20）
-            const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '';
+            const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '100';
             input.value = savedLimit;
             
             modal.style.display = 'flex';
@@ -1897,13 +1920,10 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const limit = input.value.trim();
-
-            if (limit) {
-                localStorage.setItem('chat_context_limit_' + realName, limit);
-            } else {
-                localStorage.removeItem('chat_context_limit_' + realName);
-            }
+            const rawLimit = input.value.trim();
+            const normalizedLimit = Math.max(1, parseInt(rawLimit || '100', 10) || 100);
+            localStorage.setItem('chat_context_limit_' + realName, String(normalizedLimit));
+            input.value = String(normalizedLimit);
 
             // 保存成功动画
             const originalText = saveBtn.textContent;

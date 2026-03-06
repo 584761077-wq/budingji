@@ -7,7 +7,7 @@
     <!-- Web App / PWA 全屏配置 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="布.叽叽">
+    <meta name="apple-mobile-web-app-title" content="布丁酱机">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#f5f5f7">
     <meta name="format-detection" content="telephone=no">
@@ -559,6 +559,9 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="memory-danger-zone">
+                                    <button class="memory-clear-btn" id="clear-chat-history-btn">清空聊天消息</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -639,10 +642,10 @@
                     <button class="header-btn save-btn" id="save-memory-settings">保存</button>
                 </div>
                 <div class="app-content">
-                    <div class="settings-card">
-                        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; flex-direction: row;">
-                            <label for="memory-context-limit" style="margin-bottom: 0;">上下文条数</label>
-                            <input type="number" id="memory-context-limit" class="candy-input" style="width: 100px; text-align: right;" placeholder="20">
+                    <div class="settings-card memory-settings-card">
+                        <div class="memory-limit-row">
+                            <label for="memory-context-limit">上下文条数</label>
+                            <input type="number" id="memory-context-limit" class="candy-input memory-limit-input" placeholder="100">
                         </div>
                     </div>
                 </div>
@@ -719,16 +722,20 @@
         </div>
 
         <!-- 消息编辑弹窗 -->
-        <div class="app-modal" id="edit-message-modal" style="display: none;">
-            <div class="app-header">
-                <button class="header-btn back-btn" id="close-edit-message">
-                    取消
-                </button>
-                <h2 class="header-title">编辑消息</h2>
-                <button class="header-btn save-btn" id="save-edit-message">保存</button>
-            </div>
-            <div class="app-content" style="padding: 20px;">
-                <textarea class="form-textarea" id="edit-message-content" style="height: 200px; font-size: 16px;"></textarea>
+        <div class="ins-modal-overlay" id="edit-message-modal" style="display: none;">
+            <div class="ins-modal edit-message-dialog">
+                <div class="ins-modal-header">
+                    <h3>编辑消息</h3>
+                    <button class="ins-modal-close" id="close-edit-message">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <textarea class="edit-message-textarea" id="edit-message-content"></textarea>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="save-edit-message">保存</button>
+                </div>
             </div>
         </div>
 
