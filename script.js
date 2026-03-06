@@ -869,6 +869,186 @@ function initCharacterImportLogic() {
     }
 }
 
+function getMemoryDiaryKey(realName) {
+    return `chat_memory_diary_${realName}`;
+}
+
+function getSummaryLimitKey(realName) {
+    return `chat_summary_limit_${realName}`;
+}
+
+function getAutoSummaryEnabledKey(realName) {
+    return `chat_auto_summary_enabled_${realName}`;
+}
+
+function getSummaryCursorKey(realName) {
+    return `chat_summary_cursor_${realName}`;
+}
+
+function getMemoryDiaries(realName) {
+    return JSON.parse(localStorage.getItem(getMemoryDiaryKey(realName)) || '[]');
+}
+
+function setMemoryDiaries(realName, diaries) {
+    localStorage.setItem(getMemoryDiaryKey(realName), JSON.stringify(diaries));
+}
+
+function normalizeMemorySummaryInput(value) {
+    return Math.max(1, parseInt(String(value || '').trim() || '30', 10) || 30);
+}
+
+function normalizeMemoryMessageContent(content) {
+    if (typeof content !== 'string') return '';
+    const withStickerText = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
+        const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
+        const stickerName = altMatch ? altMatch[1] : '未命名贴图';
+        return `【贴图:${stickerName}】`;
+    });
+    return withStickerText.replace(/<[^>]+>/g, '').trim();
+}
+
+function buildMemoryLongTermText(realName, maxItems = 20) {
+    const diaries = getMemoryDiaries(realName).sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
+    return diaries
+        .slice(-maxItems)
+        .map((item, idx) => `${idx + 1}. ${(item.content || '').replace(/\s+/g, ' ').trim()}`)
+        .filter(Boolean)
+        .join('\n');
+}
+
+function syncMemoryLongTerm(realName) {
+    localStorage.setItem('chat_long_term_memory_' + realName, buildMemoryLongTermText(realName));
+}
+
+function ensureSummaryCursor(realName) {
+    const cursorKey = getSummaryCursorKey(realName);
+    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    const historyLength = Array.isArray(history) ? history.length : 0;
+    const parsed = parseInt(localStorage.getItem(cursorKey) || '', 10);
+    if (Number.isFinite(parsed)) {
+        const clamped = Math.max(0, Math.min(parsed, historyLength));
+        if (clamped !== parsed) {
+            localStorage.setItem(cursorKey, String(clamped));
+        }
+        return clamped;
+    }
+    const hasDiary = getMemoryDiaries(realName).length > 0;
+    const fallback = hasDiary ? historyLength : 0;
+    localStorage.setItem(cursorKey, String(fallback));
+    return fallback;
+}
+
+async function requestMemoryDiarySummary(realName, messages) {
+    const apiUrl = localStorage.getItem('api_url');
+    const apiKey = localStorage.getItem('api_key');
+    const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    if (!apiUrl || !apiKey) {
+        throw new Error('请先在设置中配置 API URL 和 Key');
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+        throw new Error('当前没有可总结的聊天记录');
+    }
+
+    const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || '用户';
+    const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
+    const chatText = messages.map((msg) => {
+        const speaker = msg.role === 'assistant' ? realName : userName;
+        return `${speaker}: ${normalizeMemoryMessageContent(msg.content)}`;
+    }).join('\n');
+
+    const prompt = `
+你是${realName}本人，请严格使用第一人称“我”写一段日记式总结。
+必须符合你的性格、人设和说话风格，不得跳出角色。
+写作目标：详细总结这段聊天里我真实的情绪变化、关键事件、关系变化、冲突转折和后续打算。
+要求：
+1) 输出一段自然中文，不要分点，不要标题，不要解释规则。
+2) 长度 180-420 字，信息密度高，内容不能空泛。
+3) 必须抓住重点并覆盖关键细节，不遗漏核心事件。
+4) 不要出现“作为AI”等词。
+
+我的人设资料：
+${charPersona || '无'}
+
+待总结聊天记录：
+${chatText}
+`;
+
+    const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.6,
+            stream: false
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`总结失败: ${err}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+        throw new Error('总结结果为空');
+    }
+    return content;
+}
+
+async function createMemoryDiaryEntry(realName, messages) {
+    const content = await requestMemoryDiarySummary(realName, messages);
+    const diaries = getMemoryDiaries(realName);
+    diaries.push({
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        content
+    });
+    setMemoryDiaries(realName, diaries);
+    syncMemoryLongTerm(realName);
+    return content;
+}
+
+async function runManualSummary(realName, batchSize) {
+    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    if (!Array.isArray(history) || history.length === 0) {
+        throw new Error('当前没有可总结的聊天记录');
+    }
+    const cursor = ensureSummaryCursor(realName);
+    const pendingCount = history.length - cursor;
+    if (pendingCount <= 0) {
+        throw new Error('当前没有新的聊天记录可总结');
+    }
+    const normalizedBatch = normalizeMemorySummaryInput(batchSize);
+    const end = Math.min(cursor + normalizedBatch, history.length);
+    const messages = history.slice(cursor, end);
+    const content = await createMemoryDiaryEntry(realName, messages);
+    localStorage.setItem(getSummaryCursorKey(realName), String(end));
+    return content;
+}
+
+async function runAutoSummaryBatches(realName, batchSize) {
+    const normalizedBatch = normalizeMemorySummaryInput(batchSize);
+    let summarized = 0;
+    while (true) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        if (!Array.isArray(history) || history.length === 0) break;
+        const cursor = ensureSummaryCursor(realName);
+        const pendingCount = history.length - cursor;
+        if (pendingCount < normalizedBatch) break;
+        const end = Math.min(cursor + normalizedBatch, history.length);
+        const messages = history.slice(cursor, end);
+        await createMemoryDiaryEntry(realName, messages);
+        localStorage.setItem(getSummaryCursorKey(realName), String(end));
+        summarized += 1;
+    }
+    return summarized;
+}
+
 // 5. 聊天室功能逻辑
 function initChatRoomLogic() {
     const chatRoom = document.getElementById('chat-room');
@@ -1098,7 +1278,8 @@ function initChatRoomLogic() {
             const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
             const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || 'User';
             const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
-            const longTermMemory = localStorage.getItem('chat_long_term_memory_' + realName) || '';
+            const longTermMemory = buildMemoryLongTermText(realName);
+            localStorage.setItem('chat_long_term_memory_' + realName, longTermMemory);
 
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
             const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
@@ -1268,6 +1449,16 @@ ${wbContent || '无'}
                     }
                     const newMsg = saveMessage(realName, 'assistant', msgContent);
                     appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id);
+                }
+            }
+
+            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(realName)) === 'true';
+            if (autoSummaryEnabled) {
+                const summaryLimit = normalizeMemorySummaryInput(localStorage.getItem(getSummaryLimitKey(realName)) || '30');
+                try {
+                    await runAutoSummaryBatches(realName, summaryLimit);
+                } catch (summaryError) {
+                    console.error(summaryError);
                 }
             }
 
@@ -1990,6 +2181,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     const saveBtn = document.getElementById('save-memory-settings');
     const input = document.getElementById('memory-context-limit');
     const summaryInput = document.getElementById('memory-summary-limit');
+    const autoSummaryToggle = document.getElementById('memory-auto-summary-toggle');
     const runSummaryBtn = document.getElementById('run-memory-summary-btn');
     const diaryListEl = document.getElementById('memory-diary-list');
     const diaryDetailOverlay = document.getElementById('memory-diary-detail-overlay');
@@ -2009,12 +2201,6 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         return `${y}年${m}月${day}日 ${hh}:${mm}`;
     };
 
-    const getDiaryKey = (realName) => `chat_memory_diary_${realName}`;
-    const getSummaryLimitKey = (realName) => `chat_summary_limit_${realName}`;
-    const getDiaries = (realName) => JSON.parse(localStorage.getItem(getDiaryKey(realName)) || '[]');
-    const setDiaries = (realName, diaries) => localStorage.setItem(getDiaryKey(realName), JSON.stringify(diaries));
-
-    const normalizeSummaryInput = (value) => Math.max(1, parseInt(String(value || '').trim() || '30', 10) || 30);
     const escapeHtml = (value) => String(value || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -2022,19 +2208,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-    const normalizeContent = (content) => {
-        if (typeof content !== 'string') return '';
-        const withStickerText = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
-            const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
-            const stickerName = altMatch ? altMatch[1] : '未命名贴图';
-            return `【贴图:${stickerName}】`;
-        });
-        return withStickerText.replace(/<[^>]+>/g, '').trim();
-    };
-
     const renderDiaryList = (realName) => {
         if (!diaryListEl) return;
-        const diaries = getDiaries(realName).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+        const diaries = getMemoryDiaries(realName).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
         if (diaries.length === 0) {
             diaryListEl.innerHTML = '<div class="memory-diary-empty">暂无日记</div>';
             return;
@@ -2049,7 +2225,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     };
 
     const openDiaryDetail = (realName, diaryId) => {
-        const diaries = getDiaries(realName);
+        const diaries = getMemoryDiaries(realName);
         const diary = diaries.find((item) => item.id === diaryId);
         if (!diary) return;
         activeDiaryId = diary.id;
@@ -2063,78 +2239,19 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         activeDiaryId = null;
     };
 
-    const generateDiarySummary = async (realName, batchSize) => {
-        const apiUrl = localStorage.getItem('api_url');
-        const apiKey = localStorage.getItem('api_key');
-        const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
-        if (!apiUrl || !apiKey) {
-            throw new Error('请先在设置中配置 API URL 和 Key');
-        }
-
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
-        if (!Array.isArray(history) || history.length === 0) {
-            throw new Error('当前没有可总结的聊天记录');
-        }
-
-        const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || '用户';
-        const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
-        const recent = history.slice(-batchSize);
-        const chatText = recent.map((msg) => {
-            const speaker = msg.role === 'assistant' ? realName : userName;
-            return `${speaker}: ${normalizeContent(msg.content)}`;
-        }).join('\n');
-
-        const prompt = `
-你是${realName}本人，请严格使用第一人称“我”写一段日记式总结。
-必须符合你的性格、人设和说话风格，不得跳出角色。
-如果你的人设里包含学历、专业背景、知识习惯，写作表达必须体现这些特征。
-写作目标：总结这段聊天里我真实的情绪变化、关键事件、关系变化和后续打算。
-要求：
-1) 输出一段自然中文，不要分点，不要标题，不要解释规则。
-2) 长度 80-220 字。
-3) 不要出现“作为AI”等词。
-
-我的人设资料：
-${charPersona || '无'}
-
-待总结聊天记录：
-${chatText}
-`;
-
-        const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: modelName,
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.6,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`总结失败: ${err}`);
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content?.trim();
-        if (!content) {
-            throw new Error('总结结果为空');
-        }
-        return content;
-    };
-
     if (memoryBtn) {
         memoryBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
             const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '100';
             const savedSummaryLimit = localStorage.getItem(getSummaryLimitKey(realName)) || '30';
+            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(realName)) === 'true';
             input.value = savedLimit;
             summaryInput.value = savedSummaryLimit;
+            if (autoSummaryToggle) {
+                autoSummaryToggle.checked = autoSummaryEnabled;
+            }
+            ensureSummaryCursor(realName);
+            syncMemoryLongTerm(realName);
             renderDiaryList(realName);
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('active'), 10);
@@ -2156,9 +2273,12 @@ ${chatText}
             localStorage.setItem('chat_context_limit_' + realName, String(normalizedLimit));
             input.value = String(normalizedLimit);
 
-            const normalizedSummaryLimit = normalizeSummaryInput(summaryInput.value);
+            const normalizedSummaryLimit = normalizeMemorySummaryInput(summaryInput.value);
             localStorage.setItem(getSummaryLimitKey(realName), String(normalizedSummaryLimit));
             summaryInput.value = String(normalizedSummaryLimit);
+            if (autoSummaryToggle) {
+                localStorage.setItem(getAutoSummaryEnabledKey(realName), autoSummaryToggle.checked ? 'true' : 'false');
+            }
 
             const originalText = saveBtn.textContent;
             saveBtn.textContent = '已存';
@@ -2175,7 +2295,7 @@ ${chatText}
     if (runSummaryBtn) {
         runSummaryBtn.addEventListener('click', async () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const batchSize = normalizeSummaryInput(summaryInput.value);
+            const batchSize = normalizeMemorySummaryInput(summaryInput.value);
             summaryInput.value = String(batchSize);
             localStorage.setItem(getSummaryLimitKey(realName), String(batchSize));
 
@@ -2184,14 +2304,7 @@ ${chatText}
             runSummaryBtn.disabled = true;
 
             try {
-                const content = await generateDiarySummary(realName, batchSize);
-                const diaries = getDiaries(realName);
-                diaries.push({
-                    id: crypto.randomUUID(),
-                    createdAt: Date.now(),
-                    content
-                });
-                setDiaries(realName, diaries);
+                await runManualSummary(realName, batchSize);
                 renderDiaryList(realName);
             } catch (error) {
                 alert(error.message || '自动总结失败');
@@ -2227,11 +2340,12 @@ ${chatText}
         saveDiaryDetailBtn.addEventListener('click', () => {
             if (!activeDiaryId) return;
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const diaries = getDiaries(realName);
+            const diaries = getMemoryDiaries(realName);
             const idx = diaries.findIndex((item) => item.id === activeDiaryId);
             if (idx === -1) return;
             diaries[idx].content = diaryDetailContent.value.trim();
-            setDiaries(realName, diaries);
+            setMemoryDiaries(realName, diaries);
+            syncMemoryLongTerm(realName);
             renderDiaryList(realName);
             closeDiaryDetail();
         });
