@@ -568,9 +568,24 @@ function initChatRoomLogic() {
     // 加载历史记录
     function loadChatHistory(realName) {
         chatContent.innerHTML = '';
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        
+        // 数据迁移：确保所有消息都有 ID
+        let hasChanges = false;
+        history = history.map(msg => {
+            if (!msg.id) {
+                msg.id = crypto.randomUUID();
+                hasChanges = true;
+            }
+            return msg;
+        });
+        
+        if (hasChanges) {
+            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        }
+
         history.forEach(msg => {
-            appendMessageToUI(msg.role, msg.content, msg.time, realName);
+            appendMessageToUI(msg.role, msg.content, msg.time, realName, msg.id);
         });
         // 滚动到底部
         chatContent.scrollTop = chatContent.scrollHeight;
@@ -581,15 +596,17 @@ function initChatRoomLogic() {
         const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        history.push({ role, content, time: timeStr });
+        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr };
+        history.push(newMsg);
         localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
-        return timeStr;
+        return newMsg;
     }
 
     // 添加消息到 UI
-    function appendMessageToUI(role, content, timeStr, realName) {
+    function appendMessageToUI(role, content, timeStr, realName, id) {
         const msgRow = document.createElement('div');
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
+        msgRow.dataset.id = id;
         
         // 头像逻辑
         let avatarContent = '';
@@ -614,6 +631,50 @@ function initChatRoomLogic() {
                 </div>
             </div>
         `;
+        
+        // 绑定长按事件
+        const bubble = msgRow.querySelector('.message-bubble');
+        let pressTimer;
+
+        // 触摸设备
+        bubble.addEventListener('touchstart', (e) => {
+            pressTimer = setTimeout(() => {
+                showContextMenu(e, id, content, realName);
+            }, 500); // 500ms 长按
+        });
+
+        bubble.addEventListener('touchend', () => {
+            clearTimeout(pressTimer);
+        });
+
+        bubble.addEventListener('touchmove', () => {
+            clearTimeout(pressTimer); // 移动取消长按
+        });
+
+        // 桌面设备 (鼠标右键或长按模拟)
+        bubble.addEventListener('mousedown', (e) => {
+            // 左键长按
+            if (e.button === 0) {
+                pressTimer = setTimeout(() => {
+                    showContextMenu(e, id, content, realName);
+                }, 500);
+            }
+        });
+
+        bubble.addEventListener('mouseup', () => {
+            clearTimeout(pressTimer);
+        });
+        
+        bubble.addEventListener('mouseleave', () => {
+            clearTimeout(pressTimer);
+        });
+
+        // 阻止默认右键菜单
+        bubble.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showContextMenu(e, id, content, realName);
+        });
+
         chatContent.appendChild(msgRow);
         chatContent.scrollTop = chatContent.scrollHeight;
     }
@@ -627,8 +688,8 @@ function initChatRoomLogic() {
                 if (!text) return;
 
                 const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-                const timeStr = saveMessage(realName, 'user', text);
-                appendMessageToUI('user', text, timeStr, realName);
+                const newMsg = saveMessage(realName, 'user', text);
+                appendMessageToUI('user', text, newMsg.time, realName, newMsg.id);
                 inputField.value = '';
             }
         });
@@ -789,6 +850,130 @@ ${userPersona}
     const menuBtn = document.getElementById('chat-menu-btn');
     const menu = document.getElementById('chat-action-menu');
     const regenerateBtn = document.getElementById('regenerate-reply-btn');
+
+    // Context Menu & Multi-select Logic
+    const contextMenu = document.getElementById('message-context-menu');
+    const editModal = document.getElementById('edit-message-modal');
+    const editContent = document.getElementById('edit-message-content');
+    const saveEditBtn = document.getElementById('save-edit-message');
+    const closeEditBtn = document.getElementById('close-edit-message');
+    
+    // Removed Multi-select variables
+
+    let currentContextMsg = null; // { id, content, realName }
+    // Removed selectedMsgIds
+
+    function showContextMenu(e, id, content, realName) {
+        // Prevent default browser context menu
+        e.preventDefault();
+        
+        currentContextMsg = { id, content, realName };
+        
+        // Calculate position
+        let x = e.clientX || (e.touches && e.touches[0].clientX);
+        let y = e.clientY || (e.touches && e.touches[0].clientY);
+
+        // Adjust for menu width (approx 120px) and height
+        // Center horizontally on click
+        const menuWidth = 120;
+        x -= menuWidth / 2;
+
+        // Ensure within bounds
+        if (x < 10) x = 10;
+        if (x + menuWidth > window.innerWidth - 10) x = window.innerWidth - menuWidth - 10;
+        
+        // Position above by default
+        const menuHeight = 50;
+        y -= menuHeight + 10; 
+        
+        // Flip if too close to top
+        if (y < 10) {
+            y += menuHeight + 40; // Move below
+            contextMenu.classList.add('flipped');
+        } else {
+            contextMenu.classList.remove('flipped');
+        }
+
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.style.display = 'flex';
+
+        // Close menu when clicking outside
+        const closeMenu = (ev) => {
+            if (!contextMenu.contains(ev.target)) {
+                contextMenu.style.display = 'none';
+                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('touchstart', closeMenu);
+            }
+        };
+        // Delay adding listener to avoid immediate close
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+            document.addEventListener('touchstart', closeMenu);
+        }, 100);
+    }
+
+    // Context Menu Actions
+    document.getElementById('ctx-edit').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        
+        // Open Edit Modal
+        editContent.value = currentContextMsg.content;
+        editModal.style.display = 'flex';
+    });
+
+    // Removed ctx-multi-select listener
+
+    document.getElementById('ctx-delete').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        
+        if (confirm('确定删除这条消息吗？')) {
+            const realName = currentContextMsg.realName;
+            let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            history = history.filter(m => m.id !== currentContextMsg.id);
+            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+            loadChatHistory(realName);
+        }
+    });
+
+    // Edit Logic
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', () => {
+            if (!currentContextMsg) return;
+            const newContent = editContent.value.trim();
+            if (!newContent) {
+                alert('内容不能为空');
+                return;
+            }
+
+            // Update Data
+            const realName = currentContextMsg.realName;
+            let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            const msgIndex = history.findIndex(m => m.id === currentContextMsg.id);
+            
+            if (msgIndex !== -1) {
+                history[msgIndex].content = newContent;
+                localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+                
+                // Update UI (Reload history or update DOM)
+                // Reload is safer to sync everything
+                loadChatHistory(realName);
+            }
+
+            editModal.style.display = 'none';
+        });
+    }
+
+    if (closeEditBtn) {
+        closeEditBtn.addEventListener('click', () => {
+            editModal.style.display = 'none';
+        });
+    }
+
+    // Removed Multi-select Logic functions (enterMultiSelectMode, exitMultiSelectMode, toggleMessageSelection, updateSelectCount)
+    // Removed Multi-select Event Listeners
 
     if (menuBtn && menu) {
         // 切换菜单显示

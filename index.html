@@ -316,20 +316,7 @@
                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                         </div>
                                     </div>
-                                    <div class="group-content" id="friends-list">
-                                        <div class="group-subitem">
-                                            <div class="subitem-avatar">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                            </div>
-                                            <span>Alice</span>
-                                        </div>
-                                        <div class="group-subitem">
-                                            <div class="subitem-avatar">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                            </div>
-                                            <span>Bob</span>
-                                        </div>
-                                    </div>
+                                    <div class="group-content" id="friends-list"></div>
                                 </div>
 
                                 <!-- 群分组 -->
@@ -340,20 +327,7 @@
                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                         </div>
                                     </div>
-                                    <div class="group-content" id="groups-list">
-                                        <div class="group-subitem">
-                                            <div class="subitem-avatar">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                            </div>
-                                            <span>Work Team</span>
-                                        </div>
-                                        <div class="group-subitem">
-                                            <div class="subitem-avatar">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                            </div>
-                                            <span>Family</span>
-                                        </div>
-                                    </div>
+                                    <div class="group-content" id="groups-list"></div>
                                 </div>
                             </div>
                         </div>
@@ -671,6 +645,28 @@
                 </div>
             </div>
         </div>
+
+        <!-- 长按消息菜单 -->
+        <div class="message-context-menu" id="message-context-menu" style="display: none;">
+            <div class="menu-item" id="ctx-edit">编辑</div>
+            <div class="menu-item delete" id="ctx-delete">删除</div>
+        </div>
+
+        <!-- 消息编辑弹窗 -->
+        <div class="app-modal" id="edit-message-modal" style="display: none;">
+            <div class="app-header">
+                <button class="header-btn back-btn" id="close-edit-message">
+                    取消
+                </button>
+                <h2 class="header-title">编辑消息</h2>
+                <button class="header-btn save-btn" id="save-edit-message">保存</button>
+            </div>
+            <div class="app-content" style="padding: 20px;">
+                <textarea class="form-textarea" id="edit-message-content" style="height: 200px; font-size: 16px;"></textarea>
+            </div>
+        </div>
+
+
     </div>
 
     <script src="script.js"></script>
