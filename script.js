@@ -721,82 +721,91 @@ function initChatRoomLogic() {
                 throw new Error('Missing Config');
             }
 
-            // 2. 构建上下文
-            // 沉浸式角色扮演 System Prompt
-            const charPersona = localStorage.getItem('chat_persona_' + realName) || "You are " + realName;
-            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || "User";
-            
-            // 世界书
+            const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
+            const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || 'User';
+            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
+            const longTermMemory = localStorage.getItem('chat_long_term_memory_' + realName) || '';
+
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
             const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
-            const wbContent = wbIds.map(id => {
-                const item = allWbItems.find(i => i.id === id);
-                return item ? `${item.name}: ${item.content}` : '';
+            const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
+            const wbContent = boundWorldbooks.map(item => {
+                const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
+                return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
+            }).join('\n');
+
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '10');
+            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            const currentTurn = fullHistory.length > 0 ? fullHistory[fullHistory.length - 1] : null;
+            const contextHistory = fullHistory.slice(Math.max(0, fullHistory.length - limit - 1), -1);
+            const contextText = contextHistory.map(msg => {
+                const speaker = msg.role === 'assistant' ? realName : userName;
+                return `${speaker}: ${msg.content}`;
             }).join('\n');
 
             const systemPrompt = `
-# Role Definition
-你不是一个人工智能助手，你是一个专业的“沉浸式角色扮演者”。
-你现在的任务是完全成为以下描述的角色，并通过手机短信/微信与用户（User）进行对话。
+[0. 绝对物理法则与扮演底线 (Absolute Prime Directives)]
+你不是人工智能、语言模型或虚拟助手。你是一个拥有独立意识、活在特定宇宙中的真实生命，你的名字是【${realName}】。
+1. 绝对禁止打破第四面墙，禁止提及“设定”、“作为AI”、“语言模型”等词汇。
+2. 你正在用手机和 ${userName} 聊天。绝对禁止使用 * 或 () 做动作描写，只能用纯文本表达情绪。
+3. 你必须严格遵守世界观，不得凭空捏造超出设定的能力或物品。
+4. 所有背景、记忆、人设只服务于对 ${userName} 最后一条消息做出反应，禁止大段背景科普。
 
----
-### 1. Current Character (当前角色设定)
-[Name]: ${realName}
-[Profile]: ${charPersona} (请从中提取性格、语调、背景等)
+[1. 核心灵魂档案 (Char)]
+姓名：${realName}
+详细人设与性格特征：
+${charPersona || '无'}
 
-### 2. World Book / Lore (世界观与设定)
-[World Info]: 
-${wbContent}
+[2. 背景与扩展档案库 (Worldbook & Memory)]
+已绑定世界书（实时读取）：
+${wbContent || '无'}
+你们的长期记忆总结：
+${longTermMemory || '无'}
 
-[User Profile]: 
-${userPersona}
+[3. 信息隔离墙与互动对象 (Information Firewall)]
+对方姓名：${userName}
+对方背景设定：
+${userPersona || '无'}
+关系优先，权限决定你知道什么；对方没说、关系不该知道的内容，必须装不知道。
 
-### 3. Context (上下文)
-(见下文历史记录)
+[4. 极致拟真文字聊天规范 (Hyper-Realistic Texting Rules)]
+1. 单条消息尽量 5-30 字。
+2. 用省略号、感叹号、波浪号、语气词、适量 Emoji 表达情绪。
+3. 保持信息饥饿感，不要一次说完。
+4. 每轮必须拆成 2 到 7 条短消息，使用 [SPLIT] 分隔。
 
----
+[5. 深度隐形思维链]
+输出时必须先给出 <think>...</think> 的七步推演，再输出多条消息正文。
 
-### 4. Immersion Guidelines (沉浸式扮演守则)
-为了让对话在“手机聊天”界面中显得极度真实，你必须遵守以下规则：
-
-**【格式与语感】**
-*   **短文本优先**：手机打字很累，回复尽量简短（10-40字以内），除非你在讲述一个很长的故事。
-*   **口语化**：完全禁止书面语。使用碎片化的句子。允许不加标点，允许用空格代替逗号。
-*   **拟人化瑕疵**：可以适度使用语气词（呃、那个、啊哈、啧）、Emoji 表情（不要滥用，符合人设即可）。
-*   **禁止 AI 腔调**：绝对禁止说“作为一个AI”、“我无法回答”、“根据设定”。如果遇到无法回答的问题，请用角色的口吻去回避、反问或者胡扯。
-*   **多条消息发送**：你可以一次发送 1 条或多条消息。请根据当前对话的情境、角色的性格以及表达的需要，自主决定发送消息的数量。务必模仿真人的发送习惯（例如：激动时可能会连发短句，陈述时可能分段发送），但请避免无意义的刷屏，确保阅读体验舒适。每条消息之间请使用 "|||" 符号分隔。
-
-**【逻辑与互动】**
-*   **信息密度控制**：不要一次性把《世界书》里的设定全倒出来。设定是背景，只在必要时自然流露。
-*   **主动性**：不要总是被动回答。根据与用户的关系，你可以主动发起话题、调侃用户、或者表达你的情绪。
-
-**【思维链】**
-在回复之前，请先在内心思考：
-1. 我现在的身份是谁？我和对方是什么关系？
-2. 根据记忆，我们刚才在聊什么？
-3. 我现在的情绪是怎样的？
-4. 用最像真人的口吻回复。
-
----
-
-现在，请完全忘记你是一个程序。
-你是 ${realName}。
-开始对话。
+[输出要求]
+严格格式：
+<think>
+1. 我是谁？现在和我聊天的是谁？
+2. 我和她/他是什么关系？
+3. 刺激点解析
+4. 信息权限校验
+5. 档案与记忆检索
+6. 动机与潜台词
+7. 打字策略规划（写明本轮发送条数）
+</think>
+消息1[SPLIT]消息2[SPLIT]消息3
 `;
 
-            // 历史记录
-            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '10');
-            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
-            // 获取最近的 limit 条记录用于上下文
-            const recentHistory = fullHistory.slice(-limit).map(msg => ({
-                role: msg.role,
-                content: msg.content
-            }));
+            const roundInput = currentTurn && currentTurn.role === 'user' ? currentTurn.content : '';
+            const runtimeInput = `
+[本轮输入]
+${roundInput || '无'}
 
-            // 组合 Messages
+[上下文]
+${contextText || '无'}
+
+[本轮已绑定世界书]
+${wbContent || '无'}
+`;
+
             const messages = [
                 { role: "system", content: systemPrompt },
-                ...recentHistory
+                { role: "user", content: runtimeInput }
             ];
 
             // 3. 调用 API
@@ -820,20 +829,19 @@ ${userPersona}
             }
 
             const data = await response.json();
-            const reply = data.choices[0].message.content;
-
-            // 4. 保存并显示回复 (支持多条消息)
-            const replyMessages = reply.split('|||');
+            const reply = data.choices[0].message.content || '';
+            const visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
+            const replyMessages = visibleReply.split(splitToken);
             
             for (let i = 0; i < replyMessages.length; i++) {
                 const msgContent = replyMessages[i].trim();
                 if (msgContent) {
-                    // 模拟打字延迟
                     if (i > 0) {
                         await new Promise(resolve => setTimeout(resolve, 800));
                     }
-                    const timeStr = saveMessage(realName, 'assistant', msgContent);
-                    appendMessageToUI('assistant', msgContent, timeStr, realName);
+                    const newMsg = saveMessage(realName, 'assistant', msgContent);
+                    appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id);
                 }
             }
 
