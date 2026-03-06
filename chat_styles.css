@@ -139,6 +139,102 @@
     animation: slideUpMenu 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.chat-sticker-menu {
+    position: absolute;
+    bottom: 70px;
+    left: 10px;
+    width: calc(100% - 20px);
+    max-height: 320px;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 14px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    z-index: 20;
+    animation: slideUpMenu 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.chat-sticker-menu-content {
+    max-height: 292px;
+    overflow-y: auto;
+}
+
+.chat-sticker-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-sticker-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.chat-sticker-tab {
+    border: none;
+    background: #f2f2f2;
+    color: #1d1d1f;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 10px;
+    white-space: nowrap;
+}
+
+.chat-sticker-tab.active {
+    background: #1d1d1f;
+    color: #ffffff;
+}
+
+.chat-sticker-panel {
+    max-height: 224px;
+    overflow-y: auto;
+}
+
+.chat-sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 8px;
+}
+
+.sticker-panel-empty {
+    color: #86868b;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 20px 8px;
+}
+
+.sticker-panel-emoji-btn {
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+}
+
+.sticker-panel-emoji-btn img {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 11px;
+    display: block;
+}
+
+.sticker-panel-emoji-label {
+    width: 64px;
+    text-align: center;
+    font-size: 0.72rem;
+    color: #1d1d1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 @keyframes slideUpMenu {
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
@@ -303,6 +399,19 @@
 .message-row.right .message-bubble {
     background: #1d1d1f; /* Black bubble */
     color: #ffffff;
+}
+
+.message-bubble.sticker-bubble {
+    background: transparent !important;
+    padding: 0;
+    border-radius: 0;
+}
+
+.chat-inline-sticker {
+    width: 88px;
+    max-width: 100%;
+    border-radius: 8px;
+    display: block;
 }
 
 .message-meta-info {

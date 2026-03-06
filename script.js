@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initStandee();
     initSettings();
     initLineApp();
+    initStickerApp();
 });
 
 // 1. 时间和日期功能
@@ -300,6 +301,279 @@ function initLineApp() {
     initGlobalPersistence();
     initWorldBookApp();
     initCharacterImportLogic();
+}
+
+function initStickerApp() {
+    const stickerBtn = document.getElementById('sticker-icon-btn');
+    const modal = document.getElementById('sticker-modal');
+    const closeBtn = document.getElementById('close-sticker');
+    const saveBtn = document.getElementById('save-sticker');
+    const openAddBtn = document.getElementById('open-add-sticker-modal');
+    const overlay = document.getElementById('add-sticker-overlay');
+    const cancelAddBtn = document.getElementById('cancel-add-sticker');
+    const confirmAddBtn = document.getElementById('confirm-add-sticker');
+    const categoryNameInput = document.getElementById('sticker-category-name');
+    const emojiInput = document.getElementById('sticker-emoji-input');
+    const categoryGrid = document.getElementById('sticker-category-grid');
+    const detailView = document.getElementById('sticker-detail-view');
+    const detailBackBtn = document.getElementById('sticker-detail-back');
+    const detailTitle = document.getElementById('sticker-detail-title');
+    const emojiGrid = document.getElementById('sticker-emoji-grid');
+    const targetOverlay = document.getElementById('sticker-target-overlay');
+    const cancelTargetBtn = document.getElementById('cancel-sticker-target');
+    const saveTargetBtn = document.getElementById('save-sticker-target');
+    const targetList = document.getElementById('sticker-target-list');
+
+    const storageKey = 'sticker_categories_v1';
+    const targetStorageKey = 'sticker_category_targets_v1';
+    let activeTargetCategoryId = null;
+    const getCategories = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const setCategories = (categories) => localStorage.setItem(storageKey, JSON.stringify(categories));
+    const getTargetMap = () => JSON.parse(localStorage.getItem(targetStorageKey) || '{}');
+    const setTargetMap = (map) => localStorage.setItem(targetStorageKey, JSON.stringify(map));
+
+    const openStickerModal = () => {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+        renderCategoryFolders();
+        showCategoryList();
+    };
+
+    const closeStickerModal = () => {
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    };
+
+    const openAddModal = () => {
+        categoryNameInput.value = '';
+        emojiInput.value = '';
+        overlay.style.display = 'flex';
+    };
+
+    const closeAddModal = () => {
+        overlay.style.display = 'none';
+    };
+
+    const getChatTargets = () => {
+        const friends = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
+        const chats = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
+        const merged = ['我', ...friends, ...chats];
+        const unique = [];
+        const seen = new Set();
+
+        merged.forEach((name) => {
+            const trimmed = String(name || '').trim();
+            if (!trimmed || seen.has(trimmed)) return;
+            seen.add(trimmed);
+            unique.push(trimmed);
+        });
+
+        return unique;
+    };
+
+    const openTargetModal = (categoryId) => {
+        activeTargetCategoryId = categoryId;
+        const targetMap = getTargetMap();
+        const selectedTargets = new Set(targetMap[categoryId] || []);
+        const allTargets = getChatTargets();
+
+        targetList.innerHTML = allTargets.map((target) => `
+            <label class="sticker-target-item">
+                <span class="sticker-target-name">${target}</span>
+                <input type="checkbox" class="sticker-target-checkbox" value="${target}" ${selectedTargets.has(target) ? 'checked' : ''}>
+            </label>
+        `).join('');
+
+        targetOverlay.style.display = 'flex';
+    };
+
+    const closeTargetModal = () => {
+        targetOverlay.style.display = 'none';
+        activeTargetCategoryId = null;
+    };
+
+    const parseEmojiInput = (rawText) => {
+        const parsed = [];
+        const pairRegex = /([^：:,\n\r，]+?)\s*[：:]\s*`?(https?:\/\/[^\s`，,\n\r]+)`?/g;
+        let match;
+
+        while ((match = pairRegex.exec(rawText)) !== null) {
+            const name = match[1].trim();
+            const url = match[2].trim().replace(/[，。,.!?！？]+$/g, '');
+
+            if (name && /^https?:\/\//i.test(url)) {
+                parsed.push({
+                    id: crypto.randomUUID(),
+                    name,
+                    url
+                });
+            }
+        }
+
+        return parsed;
+    };
+
+    const showCategoryList = () => {
+        detailView.style.display = 'none';
+        categoryGrid.style.display = 'grid';
+    };
+
+    const showCategoryDetail = (categoryId) => {
+        const categories = getCategories();
+        const category = categories.find(item => item.id === categoryId);
+        if (!category) return;
+
+        detailTitle.textContent = category.name;
+        categoryGrid.style.display = 'none';
+        detailView.style.display = 'block';
+
+        if (!category.emojis || category.emojis.length === 0) {
+            emojiGrid.innerHTML = '<div class="sticker-empty">该分类暂无表情</div>';
+            return;
+        }
+
+        emojiGrid.innerHTML = category.emojis.map((emoji) => `
+            <div class="sticker-emoji-card">
+                <img src="${emoji.url}" alt="${emoji.name}" class="sticker-emoji-img">
+                <div class="sticker-emoji-name">${emoji.name}</div>
+            </div>
+        `).join('');
+    };
+
+    const renderCategoryFolders = () => {
+        const categories = getCategories();
+
+        if (categories.length === 0) {
+            categoryGrid.innerHTML = '<div class="sticker-empty">还没有分类，先点上面的 + 添加</div>';
+            return;
+        }
+
+        categoryGrid.innerHTML = categories.map((category) => {
+            const cover = category.emojis && category.emojis[0] ? `<img src="${category.emojis[0].url}" alt="${category.name}" class="sticker-folder-cover">` : '<div class="sticker-folder-cover sticker-folder-cover-empty">🙂</div>';
+            return `
+                <div class="sticker-folder-card" data-id="${category.id}">
+                    <div class="sticker-folder-box">${cover}</div>
+                    <div class="sticker-folder-footer">
+                        <div class="sticker-folder-name">${category.name}</div>
+                        <button class="sticker-folder-add-btn" type="button" data-id="${category.id}">添加</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    if (stickerBtn && modal) {
+        stickerBtn.addEventListener('click', openStickerModal);
+    }
+
+    if (closeBtn && modal) {
+        closeBtn.addEventListener('click', closeStickerModal);
+    }
+
+    if (saveBtn && modal) {
+        saveBtn.addEventListener('click', closeStickerModal);
+    }
+
+    if (openAddBtn) {
+        openAddBtn.addEventListener('click', openAddModal);
+    }
+
+    if (cancelAddBtn) {
+        cancelAddBtn.addEventListener('click', closeAddModal);
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeAddModal();
+            }
+        });
+    }
+
+    if (confirmAddBtn) {
+        confirmAddBtn.addEventListener('click', () => {
+            const categoryName = categoryNameInput.value.trim();
+            const emojis = parseEmojiInput(emojiInput.value.trim());
+
+            if (!categoryName) {
+                alert('请填写分类名称');
+                return;
+            }
+
+            if (emojis.length === 0) {
+                alert('请按示例格式粘贴至少一个表情链接');
+                return;
+            }
+
+            const categories = getCategories();
+            const existing = categories.find(item => item.name === categoryName);
+
+            if (existing) {
+                const existingUrls = new Set((existing.emojis || []).map(item => item.url));
+                const newOnes = emojis.filter(item => !existingUrls.has(item.url));
+                existing.emojis = [...(existing.emojis || []), ...newOnes];
+            } else {
+                categories.unshift({
+                    id: crypto.randomUUID(),
+                    name: categoryName,
+                    emojis
+                });
+            }
+
+            setCategories(categories);
+            renderCategoryFolders();
+            closeAddModal();
+        });
+    }
+
+    if (categoryGrid) {
+        categoryGrid.addEventListener('click', (e) => {
+            const addBtn = e.target.closest('.sticker-folder-add-btn');
+            if (addBtn) {
+                const categoryId = addBtn.dataset.id;
+                if (categoryId) {
+                    openTargetModal(categoryId);
+                }
+                return;
+            }
+
+            const folder = e.target.closest('.sticker-folder-card');
+            if (!folder) return;
+            const categoryId = folder.dataset.id;
+            if (categoryId) {
+                showCategoryDetail(categoryId);
+            }
+        });
+    }
+
+    if (detailBackBtn) {
+        detailBackBtn.addEventListener('click', showCategoryList);
+    }
+
+    if (cancelTargetBtn) {
+        cancelTargetBtn.addEventListener('click', closeTargetModal);
+    }
+
+    if (targetOverlay) {
+        targetOverlay.addEventListener('click', (e) => {
+            if (e.target === targetOverlay) {
+                closeTargetModal();
+            }
+        });
+    }
+
+    if (saveTargetBtn) {
+        saveTargetBtn.addEventListener('click', () => {
+            if (!activeTargetCategoryId) return;
+            const checkedTargets = Array.from(document.querySelectorAll('.sticker-target-checkbox:checked')).map((input) => input.value);
+            const targetMap = getTargetMap();
+            targetMap[activeTargetCategoryId] = checkedTargets;
+            setTargetMap(targetMap);
+            closeTargetModal();
+        });
+    }
 }
 
 // 14. 角色卡导入功能 (JSON/PNG)
@@ -607,6 +881,7 @@ function initChatRoomLogic() {
         const msgRow = document.createElement('div');
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
         msgRow.dataset.id = id;
+        const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
         
         // 头像逻辑
         let avatarContent = '';
@@ -624,7 +899,7 @@ function initChatRoomLogic() {
         msgRow.innerHTML = `
             <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
-                <div class="message-bubble">${content}</div>
+                <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''}">${content}</div>
                 <div class="message-meta-info">
                     ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
                     <div class="meta-time">${timeStr}</div>
@@ -858,6 +1133,9 @@ ${wbContent || '无'}
     const menuBtn = document.getElementById('chat-menu-btn');
     const menu = document.getElementById('chat-action-menu');
     const regenerateBtn = document.getElementById('regenerate-reply-btn');
+    const stickerBtn = document.getElementById('chat-sticker-btn');
+    const stickerMenu = document.getElementById('chat-sticker-menu');
+    const stickerMenuContent = document.getElementById('chat-sticker-menu-content');
 
     // Context Menu & Multi-select Logic
     const contextMenu = document.getElementById('message-context-menu');
@@ -869,7 +1147,73 @@ ${wbContent || '无'}
     // Removed Multi-select variables
 
     let currentContextMsg = null; // { id, content, realName }
+    const stickerStorageKey = 'sticker_categories_v1';
+    const stickerTargetStorageKey = 'sticker_category_targets_v1';
+    let activeStickerCategoryId = null;
     // Removed selectedMsgIds
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function closeStickerMenu() {
+        if (stickerMenu) {
+            stickerMenu.style.display = 'none';
+        }
+    }
+
+    function getAvailableStickerCategories(realName) {
+        const categories = JSON.parse(localStorage.getItem(stickerStorageKey) || '[]');
+        const targetMap = JSON.parse(localStorage.getItem(stickerTargetStorageKey) || '{}');
+        return categories.filter(category => {
+            if (!category || !Array.isArray(category.emojis) || category.emojis.length === 0) return false;
+            const targets = targetMap[category.id] || [];
+            return targets.includes('我') || targets.includes(realName);
+        });
+    }
+
+    function renderStickerMenu(realName) {
+        if (!stickerMenuContent) return;
+        const categories = getAvailableStickerCategories(realName);
+
+        if (categories.length === 0) {
+            activeStickerCategoryId = null;
+            stickerMenuContent.innerHTML = '<div class="sticker-panel-empty">未绑定可用贴图分类</div>';
+            return;
+        }
+
+        if (!categories.some(category => category.id === activeStickerCategoryId)) {
+            activeStickerCategoryId = categories[0].id;
+        }
+
+        const activeCategory = categories.find(category => category.id === activeStickerCategoryId) || categories[0];
+        const tabs = categories.map(category => `
+            <button class="chat-sticker-tab ${category.id === activeCategory.id ? 'active' : ''}" type="button" data-category-id="${escapeHtml(category.id)}">
+                ${escapeHtml(category.name)}
+            </button>
+        `).join('');
+
+        const emojis = activeCategory.emojis.map(emoji => `
+            <button class="sticker-panel-emoji-btn" type="button" data-name="${escapeHtml(emoji.name)}" data-url="${escapeHtml(emoji.url)}">
+                <img src="${escapeHtml(emoji.url)}" alt="${escapeHtml(emoji.name)}">
+                <span class="sticker-panel-emoji-label">${escapeHtml(emoji.name)}</span>
+            </button>
+        `).join('');
+
+        stickerMenuContent.innerHTML = `
+            <div class="chat-sticker-layout">
+                <div class="chat-sticker-tabs">${tabs}</div>
+                <div class="chat-sticker-panel">
+                    <div class="chat-sticker-grid">${emojis}</div>
+                </div>
+            </div>
+        `;
+    }
 
     function showContextMenu(e, id, content, realName) {
         // Prevent default browser context menu
@@ -987,6 +1331,7 @@ ${wbContent || '无'}
         // 切换菜单显示
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            closeStickerMenu();
             if (menu.style.display === 'none') {
                 menu.style.display = 'block';
             } else {
@@ -1036,9 +1381,60 @@ ${wbContent || '无'}
         }
     }
 
+    if (stickerBtn && stickerMenu) {
+        stickerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            stickerMenu.dataset.realName = realName;
+            renderStickerMenu(realName);
+            menu.style.display = 'none';
+            if (stickerMenu.style.display === 'none') {
+                stickerMenu.style.display = 'block';
+            } else {
+                stickerMenu.style.display = 'none';
+            }
+        });
+    }
+
+    if (stickerMenu) {
+        stickerMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tabBtn = e.target.closest('.chat-sticker-tab');
+            if (tabBtn) {
+                const categoryId = tabBtn.dataset.categoryId;
+                if (categoryId) {
+                    activeStickerCategoryId = categoryId;
+                    const realName = stickerMenu.dataset.realName || chatRoomName.dataset.realName || chatRoomName.textContent;
+                    renderStickerMenu(realName);
+                }
+                return;
+            }
+
+            const stickerBtnEl = e.target.closest('.sticker-panel-emoji-btn');
+            if (!stickerBtnEl) return;
+
+            const stickerName = stickerBtnEl.dataset.name || '表情';
+            const stickerUrl = stickerBtnEl.dataset.url || '';
+            if (!/^https?:\/\//i.test(stickerUrl)) return;
+
+            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const stickerContent = `<img src="${stickerUrl}" alt="${escapeHtml(stickerName)}" class="chat-inline-sticker">`;
+            const newMsg = saveMessage(realName, 'user', stickerContent);
+            appendMessageToUI('user', stickerContent, newMsg.time, realName, newMsg.id);
+            closeStickerMenu();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (stickerMenu.style.display !== 'none' && !stickerMenu.contains(e.target) && (!stickerBtn || !stickerBtn.contains(e.target))) {
+                closeStickerMenu();
+            }
+        });
+    }
+
     // 打开聊天室的通用函数
     function openChatRoom(name) {
         if (!chatRoom) return;
+        closeStickerMenu();
         
         let realName = name;
         const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
@@ -1078,6 +1474,7 @@ ${wbContent || '无'}
             if (chatRoom) {
                 chatRoom.style.display = 'none';
             }
+            closeStickerMenu();
         });
     }
 
