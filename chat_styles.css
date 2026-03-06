@@ -275,13 +275,25 @@
 
 
 /* Chat Settings Styles */
+.settings-card {
+    /* Reset settings-card to be just a wrapper or specific card style */
+    padding: 0;
+    margin-bottom: 20px;
+}
+
+/* New specific card style for Chat section */
+.chat-settings-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+}
+
 .chat-profile-row {
     display: flex;
     align-items: center;
     gap: 20px;
-    /* Removed padding-bottom and border-bottom for tighter layout */
-    /* padding-bottom: 20px; */
-    /* border-bottom: 1px solid #f2f2f2; */
 }
 
 .chat-profile-avatar-wrapper {
@@ -384,6 +396,67 @@
     color: #1d1d1f; /* Darken when editing */
 }
 
+
+/* Compact User Profile Styles */
+.user-settings-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-top: 10px;
+}
+
+.chat-profile-row.compact-profile {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.chat-profile-avatar-wrapper.small-avatar {
+    width: 60px;
+    height: 60px;
+}
+
+.chat-profile-avatar-wrapper.small-avatar .chat-profile-avatar {
+    width: 60px;
+    height: 60px;
+}
+
+.settings-section.compact-section {
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: none;
+}
+
+.settings-section.compact-section .persona-input {
+    height: 60px; /* Even smaller height */
+    font-size: 0.9rem;
+    padding: 8px;
+    background: #f9f9f9; /* Slightly different background to distinguish */
+}
+
+.form-group.preset-group {
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.form-select.preset-select {
+    flex: 1;
+    height: 32px;
+    font-size: 0.85rem;
+    padding: 0 10px;
+    background-color: #f2f2f2;
+    border-radius: 8px;
+}
+
+.candy-btn-small.preset-btn {
+    width: auto;
+    padding: 0 12px;
+    height: 32px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+}
 
 /* Persona Section */
 .settings-section {

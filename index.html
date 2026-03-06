@@ -464,7 +464,7 @@
                                 <button class="header-btn save-btn" id="save-chat-settings">保存</button>
                             </div>
                             <div class="app-content">
-                                <div class="settings-card">
+                                <div class="chat-settings-card">
                                     <h3 class="card-title">Chat</h3>
                                     <div class="chat-profile-row">
                                         <div class="chat-profile-avatar-wrapper">
@@ -500,6 +500,44 @@
                                             <span class="selector-placeholder">选择关联的世界书...</span>
                                             <div class="selected-worldbooks" id="selected-worldbooks-display"></div>
                                             <svg class="selector-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- User Profile Section -->
+                                <div class="user-settings-card">
+                                    <h3 class="card-title">User</h3>
+                                    <div class="chat-profile-row compact-profile">
+                                        <div class="chat-profile-avatar-wrapper small-avatar">
+                                            <div class="chat-profile-avatar" id="user-settings-avatar">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                            </div>
+                                            <input type="file" id="user-avatar-input" accept="image/*" style="display: none;">
+                                            <div class="avatar-edit-icon">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            </div>
+                                        </div>
+                                        <div class="chat-profile-info">
+                                            <div class="info-row">
+                                                <span class="info-label">真名</span>
+                                                <input type="text" class="info-input" id="user-settings-realname" placeholder="输入真名">
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">备注名</span>
+                                                <input type="text" class="info-input" id="user-settings-remark" placeholder="输入备注名">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-section compact-section">
+                                        <textarea class="persona-input" id="user-settings-persona" placeholder="输入User人设..."></textarea>
+                                    </div>
+                                    <div class="settings-section compact-section">
+                                        <div class="form-group preset-group">
+                                            <select class="form-select preset-select">
+                                                <option value="">选择预设...</option>
+                                                <option value="default">默认</option>
+                                            </select>
+                                            <button class="candy-btn-small preset-btn">应用</button>
                                         </div>
                                     </div>
                                 </div>

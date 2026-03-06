@@ -474,41 +474,137 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const remarkInput = document.getElementById('chat-settings-remark');
     const personaInput = document.getElementById('chat-settings-persona');
 
+    // User Profile Elements
+    const userAvatarWrapper = document.querySelector('.chat-profile-avatar-wrapper.small-avatar');
+    const userAvatarInput = document.getElementById('user-avatar-input');
+    const userAvatarDisplay = document.getElementById('user-settings-avatar');
+    
+    const userRealNameInput = document.getElementById('user-settings-realname');
+    const userRemarkInput = document.getElementById('user-settings-remark');
+    const userPersonaInput = document.getElementById('user-settings-persona');
+
     // 打开设置
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
             const currentName = chatRoomNameEl.textContent;
             
-            // ... (existing logic for name/remark/avatar) ...
+            // 获取真名
             const realName = chatRoomNameEl.dataset.realName || currentName;
+            
+            // 获取 Chat 已保存的数据
             const remarkName = localStorage.getItem('chat_remark_' + realName) || '';
             const persona = localStorage.getItem('chat_persona_' + realName) || '';
+            const avatarSrc = localStorage.getItem('chat_avatar_' + realName);
 
             realNameInput.value = realName;
             remarkInput.value = remarkName;
             personaInput.value = persona;
             
+            // 显示 Chat 当前头像
+            if (avatarSrc) {
+                avatarDisplay.innerHTML = `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            } else {
+                // 默认头像
+                avatarDisplay.innerHTML = `<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            }
+
+            // 获取 User 已保存的数据 (针对当前聊天室)
+            // Key 格式: chat_user_{field}_{realName}
+            const userRealName = localStorage.getItem('chat_user_realname_' + realName) || '';
+            const userRemark = localStorage.getItem('chat_user_remark_' + realName) || '';
+            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
+            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
+
+            userRealNameInput.value = userRealName;
+            userRemarkInput.value = userRemark;
+            userPersonaInput.value = userPersona;
+
+            // 显示 User 当前头像
+            if (userAvatarSrc) {
+                userAvatarDisplay.innerHTML = `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            } else {
+                // 默认头像
+                userAvatarDisplay.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            }
+            
             // 渲染选中的世界书
             renderSelectedWorldBooks(realName);
-            
-            // ... (existing logic) ...
             
             modal.classList.add('active');
         });
     }
 
-    // ... (existing close/avatar logic) ...
+    // 关闭设置
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+    }
+
+    // Chat 头像上传逻辑
+    if (avatarWrapper && avatarInput) {
+        avatarWrapper.addEventListener('click', () => {
+            avatarInput.click();
+        });
+
+        avatarInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const src = event.target.result;
+                    // 更新预览
+                    avatarDisplay.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    // 标记有新头像
+                    avatarDisplay.dataset.newAvatar = src;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // User 头像上传逻辑
+    if (userAvatarWrapper && userAvatarInput) {
+        userAvatarWrapper.addEventListener('click', () => {
+            userAvatarInput.click();
+        });
+
+        userAvatarInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const src = event.target.result;
+                    // 更新预览
+                    userAvatarDisplay.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    // 标记有新头像
+                    userAvatarDisplay.dataset.newAvatar = src;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
 
     // 保存设置
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            // ... (existing logic) ...
             const oldRealName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
             const newRealName = realNameInput.value.trim();
             const newRemark = remarkInput.value.trim();
             const newPersona = personaInput.value.trim();
             
-            // ... (existing validation and name saving) ...
+            if (!newRealName) {
+                alert('真名不能为空');
+                return;
+            }
+
+            // --- 保存 Chat 设置 ---
+            // 保存备注
+            if (newRemark) {
+                localStorage.setItem('chat_remark_' + newRealName, newRemark);
+            } else {
+                localStorage.removeItem('chat_remark_' + newRealName);
+            }
 
             // 保存人设
             if (newPersona) {
@@ -517,28 +613,115 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 localStorage.removeItem('chat_persona_' + newRealName);
             }
 
-            // ... (existing updateLists and avatar saving) ...
-            
-            // 如果改了真名，需要迁移旧数据 (包括人设)
-            if (oldRealName !== newRealName) {
-                // ... (existing migration) ...
-                const persona = localStorage.getItem('chat_persona_' + oldRealName);
-                if (persona) {
-                    localStorage.setItem('chat_persona_' + newRealName, persona);
-                    localStorage.removeItem('chat_persona_' + oldRealName);
+            // 保存 Chat 头像
+            let newAvatarSrc = null;
+            if (avatarDisplay.dataset.newAvatar) {
+                newAvatarSrc = avatarDisplay.dataset.newAvatar;
+                localStorage.setItem('chat_avatar_' + newRealName, newAvatarSrc);
+                delete avatarDisplay.dataset.newAvatar;
+            } else {
+                // 获取已有头像（可能迁移过来）
+                newAvatarSrc = localStorage.getItem('chat_avatar_' + newRealName);
+                if (!newAvatarSrc && oldRealName !== newRealName) {
+                    newAvatarSrc = localStorage.getItem('chat_avatar_' + oldRealName);
+                    if (newAvatarSrc) {
+                        localStorage.setItem('chat_avatar_' + newRealName, newAvatarSrc);
+                    }
                 }
+            }
+
+            // --- 保存 User 设置 ---
+            const newUserRealName = userRealNameInput.value.trim();
+            const newUserRemark = userRemarkInput.value.trim();
+            const newUserPersona = userPersonaInput.value.trim();
+
+            if (newUserRealName) {
+                localStorage.setItem('chat_user_realname_' + newRealName, newUserRealName);
+            } else {
+                localStorage.removeItem('chat_user_realname_' + newRealName);
+            }
+            if (newUserRemark) {
+                localStorage.setItem('chat_user_remark_' + newRealName, newUserRemark);
+            } else {
+                localStorage.removeItem('chat_user_remark_' + newRealName);
+            }
+            if (newUserPersona) {
+                localStorage.setItem('chat_user_persona_' + newRealName, newUserPersona);
+            } else {
+                localStorage.removeItem('chat_user_persona_' + newRealName);
+            }
+
+            // 保存 User 头像
+            let newUserAvatarSrc = null;
+            if (userAvatarDisplay.dataset.newAvatar) {
+                newUserAvatarSrc = userAvatarDisplay.dataset.newAvatar;
+                localStorage.setItem('chat_user_avatar_' + newRealName, newUserAvatarSrc);
+                delete userAvatarDisplay.dataset.newAvatar;
+            } else {
+                // 尝试迁移或获取
+                newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + newRealName);
+                if (!newUserAvatarSrc && oldRealName !== newRealName) {
+                    newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + oldRealName);
+                    if (newUserAvatarSrc) {
+                        localStorage.setItem('chat_user_avatar_' + newRealName, newUserAvatarSrc);
+                    }
+                }
+            }
+            
+            // 更新当前聊天室标题
+            chatRoomNameEl.textContent = newRemark || newRealName;
+            chatRoomNameEl.dataset.realName = newRealName;
+            
+            // 如果改了真名，需要迁移旧数据
+            if (oldRealName !== newRealName) {
                 // 迁移世界书绑定
                 const wb = localStorage.getItem('chat_worldbooks_' + oldRealName);
                 if (wb) {
                     localStorage.setItem('chat_worldbooks_' + newRealName, wb);
                     localStorage.removeItem('chat_worldbooks_' + oldRealName);
                 }
+                
+                // 迁移 User 数据
+                const uReal = localStorage.getItem('chat_user_realname_' + oldRealName);
+                if (uReal) localStorage.setItem('chat_user_realname_' + newRealName, uReal);
+                const uRem = localStorage.getItem('chat_user_remark_' + oldRealName);
+                if (uRem) localStorage.setItem('chat_user_remark_' + newRealName, uRem);
+                const uPer = localStorage.getItem('chat_user_persona_' + oldRealName);
+                if (uPer) localStorage.setItem('chat_user_persona_' + newRealName, uPer);
+                const uAva = localStorage.getItem('chat_user_avatar_' + oldRealName);
+                if (uAva) localStorage.setItem('chat_user_avatar_' + newRealName, uAva);
+
+                // 清理旧数据 (Chat & User)
+                localStorage.removeItem('chat_remark_' + oldRealName);
+                localStorage.removeItem('chat_persona_' + oldRealName);
+                localStorage.removeItem('chat_avatar_' + oldRealName);
+                localStorage.removeItem('chat_user_realname_' + oldRealName);
+                localStorage.removeItem('chat_user_remark_' + oldRealName);
+                localStorage.removeItem('chat_user_persona_' + oldRealName);
+                localStorage.removeItem('chat_user_avatar_' + oldRealName);
             }
+
+            // 更新列表
+            updateLists(oldRealName, newRealName, newRemark, newAvatarSrc);
             
+            // 刷新当前聊天界面的 User 头像 (如果有更新)
+            refreshChatUserAvatars(newUserAvatarSrc);
+
             saveGlobalData();
 
             // 关闭弹窗
             modal.classList.remove('active');
+        });
+    }
+
+    // 辅助函数：刷新当前聊天界面中 User 的头像
+    function refreshChatUserAvatars(avatarSrc) {
+        if (!avatarSrc) return;
+        const chatContent = document.querySelector('.chat-room-content');
+        // 找到所有右侧消息的头像
+        const rightRows = chatContent.querySelectorAll('.message-row.right .message-avatar');
+        rightRows.forEach(div => {
+            div.innerHTML = `<img src="${avatarSrc}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         });
     }
 
@@ -549,12 +732,10 @@ function initChatSettingsLogic(chatRoomNameEl) {
         const friendItems = document.querySelectorAll('#friends-list .group-subitem');
         friendItems.forEach(item => {
             const span = item.querySelector('span');
-            const currentItemName = span.textContent;
-            
-            const oldRemark = localStorage.getItem('chat_remark_' + oldName);
-            const oldDisplayName = oldRemark || oldName;
+            // 获取 item 对应的真实名字
+            const itemRealName = item.dataset.realName || span.textContent;
 
-            if (currentItemName === oldDisplayName) {
+            if (itemRealName === oldName) {
                 span.textContent = displayName;
                 // 更新 DOM attribute 以便下次识别真名
                 item.dataset.realName = newName; 
@@ -571,11 +752,9 @@ function initChatSettingsLogic(chatRoomNameEl) {
         const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
         chatItems.forEach(item => {
             const nameDiv = item.querySelector('.chat-item-name');
-            const currentItemName = nameDiv.textContent;
-            const oldRemark = localStorage.getItem('chat_remark_' + oldName);
-            const oldDisplayName = oldRemark || oldName;
+            const itemRealName = item.dataset.realName || nameDiv.textContent;
 
-            if (currentItemName === oldDisplayName) {
+            if (itemRealName === oldName) {
                 nameDiv.textContent = displayName;
                 // 更新 DOM attribute
                 item.dataset.realName = newName;
@@ -587,24 +766,6 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 }
             }
         });
-        
-        // 如果改了真名，需要迁移旧数据的 key
-        if (oldName !== newName) {
-            // 迁移备注
-            const remark = localStorage.getItem('chat_remark_' + oldName);
-            if (remark) {
-                localStorage.setItem('chat_remark_' + newName, remark);
-                localStorage.removeItem('chat_remark_' + oldName);
-            }
-            // 迁移头像
-            const avatar = localStorage.getItem('chat_avatar_' + oldName);
-            if (avatar) {
-                localStorage.setItem('chat_avatar_' + newName, avatar);
-                localStorage.removeItem('chat_avatar_' + oldName);
-            }
-        }
-        
-        saveGlobalData();
     }
 
     initWorldBookBindingLogic(chatRoomNameEl);
