@@ -299,6 +299,257 @@ function initLineApp() {
     initChatRoomLogic();
     initGlobalPersistence();
     initWorldBookApp();
+    initCharacterImportLogic();
+}
+
+// 14. 角色卡导入功能 (JSON/PNG)
+function initCharacterImportLogic() {
+    const importBtn = document.getElementById('import-character-btn');
+    const fileInput = document.getElementById('import-character-input');
+    
+    if (!importBtn || !fileInput) return;
+
+    importBtn.addEventListener('click', () => {
+        fileInput.value = ''; // Reset input
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            let characterData = null;
+            let avatarSrc = null;
+
+            if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                // 处理 JSON
+                const text = await readFileAsText(file);
+                characterData = JSON.parse(text);
+                // JSON 导入通常不带头像，或者有 avatar 字段但需要处理
+            } else if (file.type === 'image/png' || file.name.endsWith('.png')) {
+                // 处理 PNG (Tavern Card)
+                avatarSrc = await readFileAsDataURL(file);
+                const arrayBuffer = await readFileAsArrayBuffer(file);
+                characterData = extractTavernCardData(arrayBuffer);
+            }
+
+            if (!characterData) {
+                alert('无法解析角色数据。请确保文件是有效的 Tavern Card (PNG) 或 JSON 格式。');
+                return;
+            }
+
+            // 执行导入
+            importCharacter(characterData, avatarSrc);
+
+        } catch (err) {
+            console.error(err);
+            alert('导入失败: ' + err.message);
+        }
+    });
+
+    function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    }
+
+    function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // 简易 PNG 解析器，提取 tEXt 块中的 chara 数据
+    function extractTavernCardData(buffer) {
+        const view = new DataView(buffer);
+        // PNG Header: 89 50 4E 47 0D 0A 1A 0A
+        if (view.getUint32(0) !== 0x89504E47 || view.getUint32(4) !== 0x0D0A1A0A) {
+            throw new Error('Not a valid PNG file');
+        }
+
+        let offset = 8;
+        const textDecoder = new TextDecoder('utf-8');
+
+        while (offset < buffer.byteLength) {
+            const length = view.getUint32(offset);
+            const type = textDecoder.decode(new Uint8Array(buffer, offset + 4, 4));
+            
+            if (type === 'tEXt') {
+                const data = new Uint8Array(buffer, offset + 8, length);
+                // tEXt format: keyword + null separator + text
+                let nullIndex = -1;
+                for (let i = 0; i < length; i++) {
+                    if (data[i] === 0) {
+                        nullIndex = i;
+                        break;
+                    }
+                }
+
+                if (nullIndex !== -1) {
+                    const keyword = textDecoder.decode(data.slice(0, nullIndex));
+                    const text = textDecoder.decode(data.slice(nullIndex + 1));
+
+                    if (keyword === 'chara' || keyword === 'ccv3') {
+                        // Found it! Decode Base64
+                        try {
+                            const jsonStr = atob(text);
+                            return JSON.parse(jsonStr);
+                        } catch (e) {
+                            console.error('Failed to decode chara data', e);
+                        }
+                    }
+                }
+            }
+
+            // Move to next chunk: length + type(4) + data(length) + crc(4)
+            offset += length + 12;
+        }
+        return null;
+    }
+
+    function importCharacter(data, avatarSrc) {
+        // 兼容 V1 和 V2 格式
+        // V2: { spec: 'chara_card_v2', data: { name, ... } }
+        // V1: { name, ... }
+        
+        let charData = data;
+        if (data.spec === 'chara_card_v2' && data.data) {
+            charData = data.data;
+        } else if (data.data) {
+            // Some weird formats
+            charData = data.data;
+        }
+
+        const name = charData.name;
+        if (!name) {
+            alert('导入失败：找不到角色名字');
+            return;
+        }
+
+        // 1. 保存角色基本信息
+        // 构建人设 Prompt
+        let persona = charData.description || '';
+        if (charData.personality) {
+            persona += '\n\n[Personality]\n' + charData.personality;
+        }
+        if (charData.mes_example) {
+            persona += '\n\n[Example Dialogue]\n' + charData.mes_example;
+        }
+        if (charData.scenario) {
+            persona += '\n\n[Scenario]\n' + charData.scenario;
+        }
+
+        localStorage.setItem('chat_persona_' + name, persona);
+        
+        // 2. 保存头像
+        if (avatarSrc) {
+            localStorage.setItem('chat_avatar_' + name, avatarSrc);
+        }
+
+        // 3. 处理世界书 (Character Book)
+        if (charData.character_book && charData.character_book.entries) {
+            importWorldBook(name, charData.character_book);
+        }
+
+        // 4. 处理开场白 (First Message)
+        if (charData.first_mes) {
+            // 检查是否已有历史记录，没有才添加
+            const history = JSON.parse(localStorage.getItem('chat_history_' + name) || '[]');
+            if (history.length === 0) {
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                history.push({
+                    role: 'assistant',
+                    content: charData.first_mes,
+                    time: timeStr
+                });
+                localStorage.setItem('chat_history_' + name, JSON.stringify(history));
+            }
+        }
+
+        // 5. 添加到好友列表和聊天列表 (如果不存在)
+        addCharacterToLists(name, avatarSrc);
+
+        alert(`角色 "${name}" 导入成功！`);
+    }
+
+    function importWorldBook(charName, bookData) {
+        const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        
+        // 自动创建一个分类
+        const categoryName = `导入-${charName}`;
+        if (!categories.includes(categoryName)) {
+            categories.push(categoryName);
+            localStorage.setItem('worldbook_categories', JSON.stringify(categories));
+        }
+
+        const newIds = [];
+        
+        bookData.entries.forEach(entry => {
+            // Tavern entries: { keys: [], content: "", ... }
+            if (!entry.enabled) return; // Skip disabled
+
+            const newItem = {
+                id: crypto.randomUUID(), // 需要确保环境支持，或者用简易随机数
+                name: entry.comment || (entry.keys ? entry.keys[0] : '未命名条目'),
+                category: categoryName,
+                content: `[Keywords: ${entry.keys.join(', ')}]\n${entry.content}`
+            };
+            
+            allItems.push(newItem);
+            newIds.push(newItem.id);
+        });
+
+        localStorage.setItem('worldbook_items', JSON.stringify(allItems));
+
+        // 自动绑定到该角色
+        const existingBindings = JSON.parse(localStorage.getItem('chat_worldbooks_' + charName) || '[]');
+        const updatedBindings = [...new Set([...existingBindings, ...newIds])];
+        localStorage.setItem('chat_worldbooks_' + charName, JSON.stringify(updatedBindings));
+    }
+
+    function addCharacterToLists(name, avatarSrc) {
+        // 检查是否已在好友列表
+        const friendsList = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
+        if (!friendsList.includes(name)) {
+            friendsList.unshift(name);
+            localStorage.setItem('global_friends_list', JSON.stringify(friendsList));
+        }
+
+        // 检查是否已在聊天列表
+        const chatList = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
+        if (!chatList.includes(name)) {
+            chatList.unshift(name);
+            localStorage.setItem('global_chat_list', JSON.stringify(chatList));
+        }
+
+        // 刷新 UI
+        // 简单暴力：重新加载页面或重新调用 initGlobalPersistence
+        // 为了体验，我们手动插入 DOM，或者调用现有的 initGlobalPersistence (需要清空容器)
+        const friendsContainer = document.getElementById('friends-list');
+        const chatContainer = document.getElementById('line-chat-list');
+        if (friendsContainer) friendsContainer.innerHTML = '';
+        if (chatContainer) chatContainer.innerHTML = '';
+        
+        initGlobalPersistence();
+    }
 }
 
 // 5. 聊天室功能逻辑
