@@ -438,9 +438,18 @@
 
 .selected-worldbooks {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     flex: 1;
+    overflow-x: auto;
+    min-width: 0; /* 防止 flex 子项溢出 */
+    scrollbar-width: none; /* Firefox 隐藏滚动条 */
+    -ms-overflow-style: none; /* IE/Edge 隐藏滚动条 */
+    padding-right: 5px;
+}
+
+.selected-worldbooks::-webkit-scrollbar {
+    display: none; /* Chrome/Safari 隐藏滚动条 */
 }
 
 .selected-wb-tag {
@@ -449,6 +458,8 @@
     font-size: 0.8rem;
     padding: 4px 10px;
     border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .selector-arrow {
