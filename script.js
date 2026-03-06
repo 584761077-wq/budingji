@@ -756,6 +756,63 @@ function initChatSettingsLogic(chatRoomNameEl) {
     }
 
     initWorldBookBindingLogic(chatRoomNameEl);
+    initMemorySettingsLogic(chatRoomNameEl);
+}
+
+// 13. 记忆设置逻辑
+function initMemorySettingsLogic(chatRoomNameEl) {
+    const memoryBtn = document.getElementById('memory-settings-btn');
+    const modal = document.getElementById('memory-settings-modal');
+    const closeBtn = document.getElementById('close-memory-settings');
+    const saveBtn = document.getElementById('save-memory-settings');
+    const input = document.getElementById('memory-context-limit');
+
+    // 打开记忆设置
+    if (memoryBtn) {
+        memoryBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            
+            // 读取已保存的设置，默认为空（或者可以设置一个全局默认值，如 20）
+            const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '';
+            input.value = savedLimit;
+            
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        });
+    }
+
+    // 关闭记忆设置
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
+        });
+    }
+
+    // 保存记忆设置
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const limit = input.value.trim();
+
+            if (limit) {
+                localStorage.setItem('chat_context_limit_' + realName, limit);
+            } else {
+                localStorage.removeItem('chat_context_limit_' + realName);
+            }
+
+            // 保存成功动画
+            const originalText = saveBtn.textContent;
+            saveBtn.textContent = '已存';
+            saveBtn.style.backgroundColor = '#333';
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.backgroundColor = '#000000';
+                modal.classList.remove('active');
+                setTimeout(() => modal.style.display = 'none', 300);
+            }, 500);
+        });
+    }
 }
 
 // 12. 世界书绑定逻辑

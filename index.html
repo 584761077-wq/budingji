@@ -523,7 +523,7 @@
                                 <!-- Advanced Settings Section -->
                                 <h3 class="card-title" style="margin-top: 25px; padding-left: 5px;">设置</h3>
                                 <div class="advanced-settings-card">
-                                    <div class="settings-list-item">
+                                    <div class="settings-list-item" id="memory-settings-btn">
                                         <div class="item-content">
                                             <div class="item-icon-container">
                                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
@@ -614,6 +614,25 @@
                 <div class="app-content">
                     <div class="binding-list" id="worldbook-binding-list">
                         <!-- 世界书勾选列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 记忆设置页面 -->
+            <div class="app-modal" id="memory-settings-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-memory-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">记忆设置</h2>
+                    <button class="header-btn save-btn" id="save-memory-settings">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card">
+                        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; flex-direction: row;">
+                            <label for="memory-context-limit" style="margin-bottom: 0;">上下文条数</label>
+                            <input type="number" id="memory-context-limit" class="candy-input" style="width: 100px; text-align: right;" placeholder="20">
+                        </div>
                     </div>
                 </div>
             </div>
