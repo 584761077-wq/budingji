@@ -1706,10 +1706,11 @@ function initChatRoomLogic() {
         if (!isChatRoomOpenFor(realName)) return;
 
         const msgRow = document.createElement('div');
+        const quote = extra && extra.quote ? extra.quote : null;
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
+        if (quote) msgRow.classList.add('has-quote');
         msgRow.dataset.id = id;
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
-        const quote = extra && extra.quote ? extra.quote : null;
         const quotePreview = quote ? truncateQuoteText(quote.text) : '';
         
         // 头像逻辑

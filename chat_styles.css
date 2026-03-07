@@ -379,6 +379,10 @@
     width: 100%;
 }
 
+.message-row.has-quote {
+    align-items: flex-start;
+}
+
 .message-row.right {
     flex-direction: row-reverse;
 }
