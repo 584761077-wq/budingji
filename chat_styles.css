@@ -397,8 +397,8 @@
 }
 
 .message-row.right .message-bubble {
-    background: #1d1d1f; /* Black bubble */
-    color: #ffffff;
+    background: #e5e5ea;
+    color: #1d1d1f;
 }
 
 .message-bubble.sticker-bubble {
