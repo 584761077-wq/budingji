@@ -323,6 +323,8 @@ body {
     background-position: bottom center;
     transition: transform 0.2s;
     padding-bottom: 8px; /* Space for base overlap */
+    position: relative;
+    z-index: 2; /* Higher than base */
 }
 
 .stand-figure:active {
