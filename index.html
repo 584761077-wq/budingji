@@ -626,12 +626,12 @@
                                             <span class="item-title">时间设置</span>
                                         </div>
                                     </div>
-                                    <div class="settings-list-item">
+                                    <div class="settings-list-item" id="memory-token-settings-btn">
                                         <div class="item-content">
                                             <div class="item-icon-container">
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"></path><path d="M12 3v9h9"></path><line x1="8" y1="17" x2="10" y2="17"></line><line x1="14" y1="17" x2="16" y2="17"></line></svg>
                                             </div>
-                                            <span class="item-title">表情设置</span>
+                                            <span class="item-title">内存设置</span>
                                         </div>
                                     </div>
                                 </div>
@@ -738,6 +738,21 @@
                     <div class="settings-card memory-diary-card">
                         <h3 class="card-title">日记</h3>
                         <div class="memory-diary-list" id="memory-diary-list"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="app-modal" id="memory-token-settings-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-memory-token-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">内存设置</h2>
+                    <button class="header-btn save-btn" id="save-memory-token-settings">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card memory-token-settings-card">
+                        <h3 class="card-title">Token来源详细分布</h3>
+                        <div class="memory-token-distribution" id="memory-token-distribution"></div>
                     </div>
                 </div>
             </div>

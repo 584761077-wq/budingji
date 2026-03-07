@@ -3027,8 +3027,13 @@ function initChatSettingsLogic(chatRoomNameEl) {
 function initMemorySettingsLogic(chatRoomNameEl) {
     const memoryBtn = document.getElementById('memory-settings-btn');
     const modal = document.getElementById('memory-settings-modal');
+    const memoryTokenBtn = document.getElementById('memory-token-settings-btn');
+    const memoryTokenModal = document.getElementById('memory-token-settings-modal');
     const closeBtn = document.getElementById('close-memory-settings');
     const saveBtn = document.getElementById('save-memory-settings');
+    const closeMemoryTokenBtn = document.getElementById('close-memory-token-settings');
+    const saveMemoryTokenBtn = document.getElementById('save-memory-token-settings');
+    const memoryTokenDistributionEl = document.getElementById('memory-token-distribution');
     const input = document.getElementById('memory-context-limit');
     const summaryInput = document.getElementById('memory-summary-limit');
     const autoSummaryToggle = document.getElementById('memory-auto-summary-toggle');
@@ -3057,6 +3062,97 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+
+    const estimateTokens = (text) => {
+        const raw = String(text || '');
+        if (!raw.trim()) return 0;
+        const chineseCharCount = (raw.match(/[\u4e00-\u9fff]/g) || []).length;
+        const latinWordCount = (raw.match(/[a-zA-Z0-9_]+/g) || []).length;
+        const punctuationCount = (raw.match(/[^\s\u4e00-\u9fff\w]/g) || []).length;
+        return chineseCharCount + Math.ceil(latinWordCount * 1.3) + Math.ceil(punctuationCount * 0.3);
+    };
+
+    const buildTokenStats = (realName) => {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        const safeHistory = Array.isArray(history) ? history : [];
+        const personaText = localStorage.getItem('chat_persona_' + realName) || '';
+        const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || 'User';
+        const limit = Math.max(1, parseInt(localStorage.getItem('chat_context_limit_' + realName) || '100', 10) || 100);
+        const contextHistory = safeHistory.slice(Math.max(0, safeHistory.length - limit - 1), -1);
+        const contextText = contextHistory.map((msg) => {
+            const speaker = msg.role === 'assistant' ? realName : userName;
+            return `${speaker}: ${normalizeMemoryMessageContent(msg.content)}`;
+        }).join('\n');
+
+        const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+        const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const safeWbIds = Array.isArray(wbIds) ? wbIds : [];
+        const safeWbItems = Array.isArray(allWbItems) ? allWbItems : [];
+        const boundWorldbooks = safeWbIds.map((id) => safeWbItems.find((item) => String(item.id) === String(id))).filter(Boolean);
+        const worldbookText = boundWorldbooks.map((item) => {
+            const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
+            return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
+        }).join('\n');
+
+        const diaries = getMemoryDiaries(realName);
+        const diaryText = buildMemoryLongTermText(realName);
+        const imageMessages = safeHistory.filter((item) => String(item.role || '') === 'user' && /<img\b/i.test(String(item.content || '')));
+        const imageText = imageMessages.map((item) => normalizeMemoryMessageContent(item.content)).join('\n');
+
+        return [
+            { key: 'persona', label: '人设TK', tokens: estimateTokens(personaText), count: personaText.trim() ? 1 : 0 },
+            { key: 'worldbook', label: '已绑定世界书TK', tokens: estimateTokens(worldbookText), count: boundWorldbooks.length },
+            { key: 'context', label: '设置的上下文TK', tokens: estimateTokens(contextText), count: contextHistory.length },
+            { key: 'diary', label: '总结的日记TK', tokens: estimateTokens(diaryText), count: diaries.length },
+            { key: 'image', label: '发送的图片TK', tokens: estimateTokens(imageText), count: imageMessages.length }
+        ];
+    };
+
+    const renderTokenDistribution = (realName) => {
+        if (!memoryTokenDistributionEl) return;
+        const sections = buildTokenStats(realName);
+        const roleList = sections.filter((item) => item.tokens > 0 || item.count > 0);
+        const totalTokens = sections.reduce((sum, item) => sum + item.tokens, 0);
+        const totalMessages = sections.reduce((sum, item) => sum + item.count, 0);
+
+        if (totalTokens === 0 && totalMessages === 0) {
+            memoryTokenDistributionEl.innerHTML = '<div class="memory-token-empty">当前角色暂无聊天记录</div>';
+            return;
+        }
+
+        memoryTokenDistributionEl.innerHTML = `
+            <div class="memory-token-summary">
+                <div class="memory-token-summary-item">
+                    <span class="memory-token-summary-label">总Token估算</span>
+                    <span class="memory-token-summary-value">${totalTokens}</span>
+                </div>
+                <div class="memory-token-summary-item">
+                    <span class="memory-token-summary-label">总来源条目</span>
+                    <span class="memory-token-summary-value">${totalMessages}</span>
+                </div>
+            </div>
+            <div class="memory-token-role-list">
+                ${roleList.map((item) => {
+                    const ratio = totalTokens > 0 ? Math.round((item.tokens / totalTokens) * 1000) / 10 : 0;
+                    return `
+                        <div class="memory-token-role-item">
+                            <div class="memory-token-role-header">
+                                <span class="memory-token-role-name">${item.label}</span>
+                                <span class="memory-token-role-ratio">${ratio}%</span>
+                            </div>
+                            <div class="memory-token-bar-track">
+                                <div class="memory-token-bar-fill" style="width: ${Math.max(0, Math.min(ratio, 100))}%;"></div>
+                            </div>
+                            <div class="memory-token-role-meta">
+                                <span>Token: ${item.tokens}</span>
+                                <span>条目: ${item.count}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    };
 
     const renderDiaryList = (realName) => {
         if (!diaryListEl) return;
@@ -3136,6 +3232,26 @@ function initMemorySettingsLogic(chatRoomNameEl) {
                 saveBtn.style.backgroundColor = '#000000';
                 closeAppModal(modal);
             }, 500);
+        });
+    }
+
+    if (memoryTokenBtn) {
+        memoryTokenBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            renderTokenDistribution(realName);
+            openAppModal(memoryTokenModal);
+        });
+    }
+
+    if (closeMemoryTokenBtn) {
+        closeMemoryTokenBtn.addEventListener('click', () => {
+            closeAppModal(memoryTokenModal);
+        });
+    }
+
+    if (saveMemoryTokenBtn) {
+        saveMemoryTokenBtn.addEventListener('click', () => {
+            closeAppModal(memoryTokenModal);
         });
     }
 
