@@ -209,6 +209,18 @@
                 <div class="app-content">
                     <div class="settings-card api-settings-card">
                         <h3 class="card-title">API 配置</h3>
+                        <!-- API 预设管理 -->
+                        <div class="form-group preset-group" style="display: flex; gap: 8px; align-items: flex-end; margin-bottom: 15px;">
+                            <div style="flex: 1;">
+                                <label for="api-preset-select" style="margin-bottom: 4px; display: block; font-size: 0.85rem; color: #86868b;">配置预设</label>
+                                <select id="api-preset-select" class="candy-input" style="width: 100%; height: 38px; padding: 0 10px;">
+                                    <option value="">选择预设...</option>
+                                </select>
+                            </div>
+                            <button id="save-api-preset-btn" class="candy-btn-small" style="height: 38px; margin-bottom: 0;">保存</button>
+                            <button id="manage-api-preset-btn" class="candy-btn-small" style="height: 38px; margin-bottom: 0;">管理</button>
+                        </div>
+
                         <div class="form-group">
                             <label for="api-url">API 地址</label>
                             <input type="text" id="api-url" class="candy-input" placeholder="https://api.openai.com/v1">
@@ -247,6 +259,24 @@
                         <div class="form-group">
                             <label for="temperature-slider">温度 (Temperature): <span id="temp-value">0.7</span></label>
                             <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="candy-range">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API 预设管理模态框 -->
+            <div class="app-modal" id="api-preset-manager-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-api-preset-manager">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">管理预设</h2>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card">
+                        <div id="api-preset-list" class="preset-list" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Items will be injected here -->
                         </div>
                     </div>
                 </div>

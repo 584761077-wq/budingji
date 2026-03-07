@@ -334,6 +334,147 @@ function initSettings() {
     const tempSlider = document.getElementById('temperature-slider');
     const tempValue = document.getElementById('temp-value');
 
+    // --- API 预设功能开始 ---
+    const apiPresetSelect = document.getElementById('api-preset-select');
+    const saveApiPresetBtn = document.getElementById('save-api-preset-btn');
+    const manageApiPresetBtn = document.getElementById('manage-api-preset-btn');
+    const apiPresetModal = document.getElementById('api-preset-manager-modal');
+    const closeApiPresetManagerBtn = document.getElementById('close-api-preset-manager');
+    const apiPresetList = document.getElementById('api-preset-list');
+
+    // 加载 API 预设
+    function loadApiPresets() {
+        const presets = JSON.parse(localStorage.getItem('api_presets') || '[]');
+        // 保留第一项 "选择预设..."
+        apiPresetSelect.innerHTML = '<option value="">选择预设...</option>';
+        presets.forEach((preset, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = preset.name;
+            apiPresetSelect.appendChild(option);
+        });
+    }
+
+    // 保存 API 预设
+    if (saveApiPresetBtn) {
+        saveApiPresetBtn.addEventListener('click', () => {
+            const name = prompt('请输入预设名称:');
+            if (!name) return;
+            
+            const presets = JSON.parse(localStorage.getItem('api_presets') || '[]');
+            const existingIndex = presets.findIndex(p => p.name === name);
+            
+            const newPreset = {
+                name: name,
+                url: apiUrlInput.value,
+                key: apiKeyInput.value,
+                model: modelNameInput.value
+            };
+
+            if (existingIndex >= 0) {
+                if (!confirm(`预设 "${name}" 已存在，是否覆盖？`)) return;
+                presets[existingIndex] = newPreset;
+            } else {
+                presets.push(newPreset);
+            }
+            
+            localStorage.setItem('api_presets', JSON.stringify(presets));
+            loadApiPresets();
+            // 选中刚保存的预设
+            const newIndex = presets.findIndex(p => p.name === name);
+            if (newIndex >= 0) apiPresetSelect.value = newIndex;
+            
+            alert('预设已保存');
+        });
+    }
+
+    // 应用 API 预设
+    if (apiPresetSelect) {
+        apiPresetSelect.addEventListener('change', () => {
+            const index = apiPresetSelect.value;
+            if (index === '') return;
+            
+            const presets = JSON.parse(localStorage.getItem('api_presets') || '[]');
+            const preset = presets[index];
+            if (preset) {
+                if (preset.url) apiUrlInput.value = preset.url;
+                if (preset.key) apiKeyInput.value = preset.key;
+                if (preset.model) modelNameInput.value = preset.model;
+            }
+        });
+    }
+
+    // 管理 API 预设 (打开模态框)
+    if (manageApiPresetBtn) {
+        manageApiPresetBtn.addEventListener('click', () => {
+            renderApiPresetList();
+            if (apiPresetModal) {
+                apiPresetModal.style.display = 'block';
+                // 强制重绘以触发 transition
+                apiPresetModal.offsetHeight; 
+                apiPresetModal.classList.add('active');
+            }
+        });
+    }
+
+    // 关闭管理模态框
+    if (closeApiPresetManagerBtn) {
+        closeApiPresetManagerBtn.addEventListener('click', () => {
+            if (apiPresetModal) {
+                apiPresetModal.classList.remove('active');
+                setTimeout(() => {
+                    apiPresetModal.style.display = 'none';
+                }, 300); // 假设 transition 是 0.3s
+                loadApiPresets();
+            }
+        });
+    }
+
+    // 渲染预设列表
+    function renderApiPresetList() {
+        const presets = JSON.parse(localStorage.getItem('api_presets') || '[]');
+        if (!apiPresetList) return;
+        
+        apiPresetList.innerHTML = '';
+        
+        if (presets.length === 0) {
+            apiPresetList.innerHTML = '<div style="text-align: center; color: #86868b; padding: 20px;">暂无预设</div>';
+            return;
+        }
+
+        presets.forEach((preset, index) => {
+            const item = document.createElement('div');
+            item.className = 'preset-item';
+            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f5f5f7; border-radius: 12px; margin-bottom: 8px;';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = preset.name;
+            nameSpan.style.fontWeight = '500';
+            nameSpan.style.color = '#1d1d1f';
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '删除';
+            deleteBtn.className = 'candy-btn-small';
+            deleteBtn.style.cssText = 'background-color: #ff3b30; color: white; padding: 4px 12px; font-size: 12px; border: none; border-radius: 14px; cursor: pointer;';
+            
+            deleteBtn.addEventListener('click', () => {
+                if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                    presets.splice(index, 1);
+                    localStorage.setItem('api_presets', JSON.stringify(presets));
+                    renderApiPresetList();
+                }
+            });
+
+            item.appendChild(nameSpan);
+            item.appendChild(deleteBtn);
+            apiPresetList.appendChild(item);
+        });
+    }
+
+    // 初始化加载
+    loadApiPresets();
+    // --- API 预设功能结束 ---
+
     // 从 localStorage 加载设置
     function loadSettings() {
         apiUrlInput.value = localStorage.getItem('api_url') || '';
