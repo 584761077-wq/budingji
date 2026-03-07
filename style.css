@@ -486,6 +486,11 @@ body {
     z-index: 1200;
 }
 
+/* 修复：确保日记详情弹窗在记忆设置页面（z-index: 1200）之上显示 */
+#memory-diary-detail-overlay {
+    z-index: 1300;
+}
+
 /* 设置页面 Header */
 .app-header {
     height: 60px;
