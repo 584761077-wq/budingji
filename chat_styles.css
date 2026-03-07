@@ -418,8 +418,8 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    font-size: 0.65rem;
-    color: #1d1d1f;
+    font-size: 0.58rem;
+    color: #a1a1a6;
     min-width: 30px; /* Ensure space for time/read */
 }
 
@@ -433,7 +433,7 @@
 }
 
 .meta-read {
-    color: #1d1d1f;
+    color: #a1a1a6;
     margin-bottom: 2px;
 }
 

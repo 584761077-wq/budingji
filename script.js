@@ -1238,6 +1238,7 @@ function initChatRoomLogic() {
     const chatRoomName = document.getElementById('chat-room-name');
     const backBtn = document.getElementById('chat-room-back');
     const chatList = document.getElementById('line-chat-list');
+    const toastStack = document.getElementById('incoming-message-toast-stack');
     
     // 输入相关元素
     const inputCapsule = document.querySelector('.chat-input-capsule');
@@ -1272,6 +1273,63 @@ function initChatRoomLogic() {
         });
         // 滚动到底部
         chatContent.scrollTop = chatContent.scrollHeight;
+    }
+
+    function isChatRoomOpenFor(realName) {
+        if (!chatRoom || chatRoom.style.display === 'none') return false;
+        const currentRealName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        return currentRealName === realName;
+    }
+
+    function toPlainMessageText(content) {
+        if (typeof content !== 'string') return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        const text = (temp.textContent || temp.innerText || '').trim();
+        if (text) return text;
+        if (content.includes('chat-inline-sticker')) return '发送了一条贴图消息';
+        return '';
+    }
+
+    function showIncomingMessageToast(realName, content) {
+        if (!toastStack) return;
+        if (isChatRoomOpenFor(realName)) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'ins-message-toast';
+        const preview = toPlainMessageText(content) || '你收到了一条新消息';
+        const title = localStorage.getItem('chat_remark_' + realName) || realName;
+        toast.innerHTML = `
+            <div class="ins-message-toast-title">${title}</div>
+            <div class="ins-message-toast-content">${preview}</div>
+        `;
+        toastStack.prepend(toast);
+        while (toastStack.children.length > 3) {
+            toastStack.removeChild(toastStack.lastElementChild);
+        }
+        setTimeout(() => {
+            toast.remove();
+        }, 2800);
+    }
+
+    function increaseUnread(realName) {
+        const nextUnread = setUnreadCount(realName, getUnreadCount(realName) + 1);
+        const row = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${CSS.escape(realName)}"]`);
+        if (row) {
+            renderUnreadBadge(row, nextUnread);
+        } else {
+            refreshAllUnreadBadges();
+        }
+    }
+
+    function clearUnread(realName) {
+        setUnreadCount(realName, 0);
+        const row = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${CSS.escape(realName)}"]`);
+        if (row) {
+            renderUnreadBadge(row, 0);
+        } else {
+            refreshAllUnreadBadges();
+        }
     }
 
     // 保存消息
@@ -1641,6 +1699,11 @@ ${wbContent || '无'}
                         await new Promise(resolve => setTimeout(resolve, 800));
                     }
                     const newMsg = saveMessage(realName, 'assistant', msgContent);
+                    const shouldUnread = !isChatRoomOpenFor(realName);
+                    if (shouldUnread) {
+                        increaseUnread(realName);
+                        showIncomingMessageToast(realName, msgContent);
+                    }
                     appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id);
                 }
             }
@@ -2094,6 +2157,7 @@ ${wbContent || '无'}
         // 更新聊天室标题和数据集
         chatRoomName.textContent = name;
         chatRoomName.dataset.realName = realName;
+        clearUnread(realName);
         
         chatRoom.style.display = 'flex';
         
@@ -2743,6 +2807,44 @@ function renderSelectedWorldBooks(realName) {
     }
 }
 
+function getUnreadCountKey(realName) {
+    return `chat_unread_count_${realName}`;
+}
+
+function getUnreadCount(realName) {
+    return parseInt(localStorage.getItem(getUnreadCountKey(realName)) || '0', 10) || 0;
+}
+
+function setUnreadCount(realName, count) {
+    const normalized = Math.max(0, parseInt(String(count), 10) || 0);
+    localStorage.setItem(getUnreadCountKey(realName), String(normalized));
+    return normalized;
+}
+
+function renderUnreadBadge(item, unreadCount) {
+    if (!item) return;
+    let badge = item.querySelector('.chat-item-unread');
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'chat-item-unread hidden';
+        item.appendChild(badge);
+    }
+    if (unreadCount > 0) {
+        badge.classList.remove('hidden');
+        badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+    } else {
+        badge.classList.add('hidden');
+        badge.textContent = '';
+    }
+}
+
+function refreshAllUnreadBadges() {
+    document.querySelectorAll('#line-chat-list .chat-list-item').forEach((item) => {
+        const realName = item.dataset.realName || item.querySelector('.chat-item-name')?.textContent || '';
+        renderUnreadBadge(item, getUnreadCount(realName));
+    });
+}
+
 // 保存全局数据（好友列表和聊天列表的结构）
 function saveGlobalData() {
     // 保存好友列表
@@ -2836,6 +2938,7 @@ function initGlobalPersistence() {
                 const item = document.createElement('div');
                 item.className = 'chat-list-item';
                 item.dataset.realName = realName;
+                const unreadCount = getUnreadCount(realName);
                 
                 let avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
                 if (avatar) {
@@ -2850,11 +2953,14 @@ function initGlobalPersistence() {
                         <div class="chat-item-name">${displayName}</div>
                         <div class="chat-item-msg">点击开始聊天</div>
                     </div>
+                    <div class="chat-item-unread ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount > 99 ? '99+' : unreadCount}</div>
                 `;
                 chatListContainer.appendChild(item);
             });
         }
     }
+
+    refreshAllUnreadBadges();
 }
 
 // 8. 添加好友/聊天逻辑
@@ -2953,6 +3059,7 @@ function initAddFriendLogic() {
                     <div class="chat-item-name">${displayName}</div>
                     <div class="chat-item-msg">开始聊天吧</div>
                 </div>
+                <div class="chat-item-unread hidden"></div>
             `;
             if (chatList) {
                 chatList.insertBefore(chatItem, chatList.firstChild);
