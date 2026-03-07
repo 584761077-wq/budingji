@@ -1473,7 +1473,7 @@ function initChatRoomLogic() {
         }
 
         history.forEach(msg => {
-            appendMessageToUI(msg.role, msg.content, msg.time, realName, msg.id);
+            appendMessageToUI(msg.role, msg.content, msg.time, realName, msg.id, msg);
         });
         // 滚动到底部
         chatContent.scrollTop = chatContent.scrollHeight;
@@ -1537,18 +1537,18 @@ function initChatRoomLogic() {
     }
 
     // 保存消息
-    function saveMessage(realName, role, content) {
+    function saveMessage(realName, role, content, extra = {}) {
         const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr };
+        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ...extra };
         history.push(newMsg);
         localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
         return newMsg;
     }
 
     // 添加消息到 UI
-    function appendMessageToUI(role, content, timeStr, realName, id) {
+    function appendMessageToUI(role, content, timeStr, realName, id, extra = {}) {
         // 防止串台：只有当前打开的聊天室是该角色时才上屏
         if (!isChatRoomOpenFor(realName)) return;
 
@@ -1580,6 +1580,57 @@ function initChatRoomLogic() {
                 </div>
             </div>
         `;
+
+        // 心绪精灵逻辑 (Mood Sprite)
+        // 仅当包含 sprite 数据且未被 dismissed (除非被收藏) 时显示
+        if (role === 'assistant' && extra && extra.sprite) {
+             const isDismissed = extra.sprite.isDismissed;
+             const isFavorited = extra.sprite.isFavorited;
+
+             if (!isDismissed || isFavorited) {
+                 // 将精灵附加到 message-row，而不是 avatar 内部，以便更自由地飘动
+                 // 计算随机位置 (基于 message-row 的相对坐标)
+                 const spriteEl = document.createElement('div');
+                 spriteEl.className = 'mood-sprite';
+                 spriteEl.style.backgroundColor = extra.sprite.color || '#FFD700';
+                 spriteEl.textContent = '✦'; 
+                 spriteEl.title = `心情: ${extra.sprite.mood}`;
+                 
+                 // 随机位置逻辑：
+                 // X: 从头像右侧 (约50px) 到 屏幕宽度的 60% 左右，避免太靠右
+                 // Y: 在当前行高度范围内上下浮动
+                 const randomX = 50 + Math.random() * 150; // 50px ~ 200px
+                 const randomY = Math.random() * 40 - 20;  // -20px ~ 20px
+                 
+                 // 初始位置 (头像处)
+                 spriteEl.style.left = '40px';
+                 spriteEl.style.top = '10px';
+                 spriteEl.style.opacity = '0';
+                 spriteEl.style.transform = 'scale(0.5)';
+
+                 msgRow.appendChild(spriteEl);
+
+                 // 触发动画
+                 // 使用 setTimeout 确保 DOM 插入后再改变样式触发 transition
+                 setTimeout(() => {
+                     spriteEl.style.transition = 'all 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                     spriteEl.style.left = `${randomX}px`;
+                     spriteEl.style.top = `${10 + randomY}px`;
+                     spriteEl.style.opacity = '1';
+                     spriteEl.style.transform = 'scale(1) rotate(360deg)';
+                     
+                     // 动画结束后，添加漂浮动画
+                     setTimeout(() => {
+                         spriteEl.style.animation = 'popOutFloat 4s ease-in-out infinite alternate';
+                     }, 1500);
+                 }, 50);
+
+                 spriteEl.addEventListener('click', (e) => {
+                     e.stopPropagation();
+                     showSpriteModal(extra.sprite, realName, id, spriteEl);
+                 });
+             }
+        }
         
         // 绑定长按事件
         const bubble = msgRow.querySelector('.message-bubble');
@@ -1804,7 +1855,14 @@ ${userPersona || '无'}
 5. 严禁编造白名单中不存在的贴图名称，否则将被自动忽略。
 ${assistantStickerRuleText}
 
-[5. 深度隐形思维链]
+[5.5 心绪精灵 (Mood Sprite)]
+在每轮回复的末尾，你必须生成一个“心绪精灵”的数据，用来展示你此刻的真实内心状态。
+格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
+<mood_sprite mood="开心/生气/悲伤/..." color="#RRGGBB">
+这里写你的真实内心独白，可以是直白、吐槽、搞笑、深情或阴阳怪气，也可以直接表露欲望，可以玩梗，可以使用颜文字。
+</mood_sprite>
+
+[5.6 深度隐形思维链]
 输出时必须先给出 <think>...</think> 的七步推演，再输出多条消息正文。
 
 [输出要求]
@@ -1819,6 +1877,7 @@ ${assistantStickerRuleText}
 7. 打字策略规划（写明本轮发送条数）
 </think>
 消息1[SPLIT]消息2[SPLIT]消息3
+<mood_sprite mood="..." color="...">...</mood_sprite>
 `;
 
             const roundInput = currentTurn && currentTurn.role === 'user' ? normalizeMessageForModel(currentTurn.content) : '';
@@ -1899,7 +1958,28 @@ ${wbContent || '无'}
                 reply = data.choices?.[0]?.message?.content || '';
             }
 
-            const visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            let visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            
+            // Extract Sprite Data (Loop to handle multiple sprites if needed, but usually one per turn)
+            let spriteData = null;
+            // Use global flag 'g' to replace all occurrences, but capture the last one or accumulate?
+            // User requirement: "每一轮都要生成". If AI generates multiple messages with SPLIT, 
+            // the prompt says "At the end of each turn". So usually one sprite at the very end.
+            // But if AI messes up and puts sprite in the middle, we should catch it.
+            // Let's use a loop to extract all sprite tags and use the last one found, removing all from text.
+            
+            const spriteRegex = /<mood_sprite\s+mood=["']([^"']+)["']\s+color=["']([^"']+)["']\s*>([\s\S]*?)<\/mood_sprite>/gi;
+            let match;
+            while ((match = spriteRegex.exec(visibleReply)) !== null) {
+                spriteData = {
+                    mood: match[1],
+                    color: match[2],
+                    content: match[3].trim()
+                };
+            }
+            // Remove all tags from visible text
+            visibleReply = visibleReply.replace(spriteRegex, '').trim();
+
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
             let hasVisibleMessage = false;
@@ -1911,13 +1991,17 @@ ${wbContent || '无'}
                     if (i > 0) {
                         await new Promise(resolve => setTimeout(resolve, 800));
                     }
-                    const newMsg = saveMessage(realName, 'assistant', msgContent);
+                    
+                    const isLast = i === replyMessages.length - 1;
+                    const extra = (isLast && spriteData) ? { sprite: spriteData } : {};
+
+                    const newMsg = saveMessage(realName, 'assistant', msgContent, extra);
                     const shouldUnread = !isChatRoomOpenFor(realName);
                     if (shouldUnread) {
                         increaseUnread(realName);
                         showIncomingMessageToast(realName, msgContent);
                     }
-                    appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id);
+                    appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id, extra);
                 }
             }
 
@@ -2405,6 +2489,149 @@ ${wbContent || '无'}
             closeStickerMenu();
         });
     }
+
+    // Mood Sprite Modal Logic
+    const spriteModal = document.createElement('div');
+    spriteModal.className = 'mood-sprite-modal';
+    spriteModal.style.display = 'none';
+    spriteModal.innerHTML = `
+        <div class="mood-sprite-content">
+            <div class="mood-sprite-header">
+                <span class="mood-sprite-title">内心独白</span>
+                <div class="mood-sprite-controls">
+                    <button class="mood-sprite-fav" title="收藏便签">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                        </svg>
+                    </button>
+                    <button class="mood-sprite-close">×</button>
+                </div>
+            </div>
+            <div class="mood-sprite-body"></div>
+        </div>
+    `;
+    document.body.appendChild(spriteModal);
+
+    const spriteCloseBtn = spriteModal.querySelector('.mood-sprite-close');
+    const spriteFavBtn = spriteModal.querySelector('.mood-sprite-fav');
+    const spriteBody = spriteModal.querySelector('.mood-sprite-body');
+
+    let currentSpriteContext = null; // { realName, msgId, spriteEl, isFavorited }
+
+    function showSpriteModal(spriteData, realName, msgId, spriteEl) {
+        if (!spriteData) return;
+        
+        // Ensure modal exists
+        if (!document.body.contains(spriteModal)) {
+            document.body.appendChild(spriteModal);
+        }
+
+        currentSpriteContext = {
+            realName,
+            msgId,
+            spriteEl,
+            isFavorited: !!spriteData.isFavorited
+        };
+
+        const charName = localStorage.getItem('chat_remark_' + realName) || realName;
+        spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的内心`;
+        spriteBody.textContent = spriteData.content;
+        spriteBody.style.borderLeft = `4px solid ${spriteData.color || '#ccc'}`;
+        
+        // Update Fav Button State
+        if (currentSpriteContext.isFavorited) {
+            spriteFavBtn.classList.add('active');
+        } else {
+            spriteFavBtn.classList.remove('active');
+        }
+
+        spriteModal.style.display = 'flex';
+        // Add animation class
+        const content = spriteModal.querySelector('.mood-sprite-content');
+        content.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    }
+
+    function handleSpriteClose() {
+        if (!currentSpriteContext) {
+            spriteModal.style.display = 'none';
+            return;
+        }
+
+        const { realName, msgId, spriteEl, isFavorited } = currentSpriteContext;
+
+        if (!isFavorited) {
+            // Not favorited -> Disappear logic
+            if (spriteEl && spriteEl.parentNode) {
+                // Fade out animation
+                spriteEl.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                spriteEl.style.opacity = '0';
+                spriteEl.style.transform = 'scale(0)';
+                setTimeout(() => {
+                    if (spriteEl.parentNode) {
+                        spriteEl.parentNode.removeChild(spriteEl);
+                    }
+                }, 500);
+            }
+
+            // Update storage to mark as dismissed
+            updateMessageExtra(realName, msgId, (extra) => {
+                if (extra.sprite) {
+                    extra.sprite.isDismissed = true;
+                }
+                return extra;
+            });
+        }
+
+        spriteModal.style.display = 'none';
+        currentSpriteContext = null;
+    }
+
+    function toggleSpriteFavorite() {
+        if (!currentSpriteContext) return;
+        
+        currentSpriteContext.isFavorited = !currentSpriteContext.isFavorited;
+        
+        // Update UI
+        if (currentSpriteContext.isFavorited) {
+            spriteFavBtn.classList.add('active');
+        } else {
+            spriteFavBtn.classList.remove('active');
+        }
+
+        // Update Storage
+        updateMessageExtra(currentSpriteContext.realName, currentSpriteContext.msgId, (extra) => {
+            if (extra.sprite) {
+                extra.sprite.isFavorited = currentSpriteContext.isFavorited;
+                // If favorited, ensure it's not dismissed
+                if (currentSpriteContext.isFavorited) {
+                    delete extra.sprite.isDismissed;
+                }
+            }
+            return extra;
+        });
+    }
+
+    // Helper to safely update message extra data
+    function updateMessageExtra(realName, msgId, callback) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        const index = history.findIndex(m => m.id === msgId);
+        if (index !== -1) {
+            const msg = history[index];
+            msg.extra = msg.extra || {};
+            msg.extra = callback(msg.extra);
+            history[index] = msg;
+            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        }
+    }
+
+    spriteCloseBtn.addEventListener('click', handleSpriteClose);
+    spriteFavBtn.addEventListener('click', toggleSpriteFavorite);
+
+    spriteModal.addEventListener('click', (e) => {
+        if (e.target === spriteModal) {
+            handleSpriteClose();
+        }
+    });
 
     initChatSettingsLogic(chatRoomName);
 }

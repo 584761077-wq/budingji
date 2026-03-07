@@ -831,3 +831,157 @@
     animation: spin 1s linear infinite;
     transform-origin: center;
 }
+
+/* --- Mood Sprite & Modal --- */
+.message-row {
+    position: relative; /* Ensure sprites can be positioned relative to the row */
+}
+
+.mood-sprite {
+    position: absolute;
+    /* Initial position at avatar (left side for assistant) */
+    left: 40px; 
+    top: 10px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: #FFD700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    z-index: 15;
+    /* Use forwards to keep final state */
+    animation: popOutFloat 4s ease-in-out infinite alternate;
+    transition: transform 0.3s;
+}
+
+.mood-sprite:hover {
+    transform: scale(1.2) rotate(10deg) !important;
+    z-index: 20;
+}
+
+/* Keyframes for floating animation after popping out */
+@keyframes popOutFloat {
+    0% { transform: translateY(0px); }
+    100% { transform: translateY(-8px); }
+}
+
+/* Initial Pop Animation (handled by JS setting style) */
+
+/* Mood Sprite Modal */
+.mood-sprite-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.mood-sprite-content {
+    background: #fffbd6; /* Sticky note color */
+    width: 80%;
+    max-width: 320px;
+    padding: 20px;
+    border-radius: 2px;
+    box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
+    position: relative;
+    transform: rotate(-1deg);
+    font-family: 'Comic Sans MS', 'Nunito', cursive, sans-serif;
+}
+
+.mood-sprite-content::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30%;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.mood-sprite-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px dashed rgba(0,0,0,0.1);
+    padding-bottom: 8px;
+}
+
+.mood-sprite-title {
+    font-weight: bold;
+    color: #555;
+    font-size: 1.1rem;
+}
+
+.mood-sprite-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mood-sprite-fav {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #ccc; /* Default gray */
+    padding: 0;
+    transition: transform 0.2s, color 0.2s;
+}
+
+.mood-sprite-fav svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    stroke: #888;
+    stroke-width: 1.5;
+}
+
+.mood-sprite-fav.active {
+    color: #ff9500; /* Star yellow/orange */
+}
+
+.mood-sprite-fav.active svg {
+    fill: #ff9500;
+    stroke: #ff9500;
+}
+
+.mood-sprite-fav:hover {
+    transform: scale(1.1);
+}
+
+.mood-sprite-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #888;
+    line-height: 1;
+}
+
+.mood-sprite-body {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap;
+    padding-left: 10px;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.8) rotate(-5deg); opacity: 0; }
+    100% { transform: scale(1) rotate(-1deg); opacity: 1; }
+}
+
