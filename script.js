@@ -1,10 +1,66 @@
 document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initStandee();
+    initApiErrorModal();
     initSettings();
     initLineApp();
     initStickerApp();
 });
+
+function openAppModal(modal) {
+    if (!modal) return;
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        modal.classList.add('active');
+    });
+}
+
+function closeAppModal(modal) {
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => {
+        if (!modal.classList.contains('active')) {
+            modal.style.display = 'none';
+        }
+    }, 300);
+}
+
+function showApiErrorModal(message) {
+    const overlay = document.getElementById('api-error-modal');
+    const messageEl = document.getElementById('api-error-message');
+    if (!overlay || !messageEl) {
+        alert(message || 'API 报错');
+        return;
+    }
+    messageEl.textContent = String(message || 'API 报错');
+    overlay.style.display = 'flex';
+}
+
+function hideApiErrorModal() {
+    const overlay = document.getElementById('api-error-modal');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+}
+
+function initApiErrorModal() {
+    const overlay = document.getElementById('api-error-modal');
+    const closeBtn = document.getElementById('close-api-error-modal');
+    const confirmBtn = document.getElementById('confirm-api-error-modal');
+    if (!overlay || overlay.dataset.bound === 'true') return;
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideApiErrorModal);
+    }
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', hideApiErrorModal);
+    }
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            hideApiErrorModal();
+        }
+    });
+    overlay.dataset.bound = 'true';
+}
 
 // 1. 时间和日期功能
 function initClock() {
@@ -204,7 +260,7 @@ function initSettings() {
         const apiKey = apiKeyInput.value;
 
         if (!apiUrl || !apiKey) {
-            alert('请先填写 API 地址和 Key');
+            showApiErrorModal('请先填写 API 地址和 Key');
             return;
         }
 
@@ -220,7 +276,10 @@ function initSettings() {
                 }
             });
 
-            if (!response.ok) throw new Error('Failed to fetch');
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || `模型拉取失败（${response.status}）`);
+            }
 
             const data = await response.json();
             const models = data.data || []; // 假设返回结构为 { data: [{id: '...'}, ...] }
@@ -243,12 +302,12 @@ function initSettings() {
                 modelListContainer.style.display = 'block';
                 if (modelSelectTrigger) modelSelectTrigger.classList.add('open');
             } else {
-                alert('未找到可用模型');
+                throw new Error('未找到可用模型');
             }
 
         } catch (error) {
             console.error(error);
-            alert('拉取失败，请检查配置');
+            showApiErrorModal(error.message || '拉取失败，请检查配置');
         } finally {
             fetchBtn.textContent = '拉取';
         }
@@ -1271,8 +1330,7 @@ function initChatRoomLogic() {
             const modelName = localStorage.getItem('model_name');
             
             if (!apiUrl || !apiKey) {
-                alert('请先在设置中配置 API URL 和 Key');
-                throw new Error('Missing Config');
+                throw new Error('请先在设置中配置 API URL 和 Key');
             }
 
             const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
@@ -1336,8 +1394,8 @@ ${userPersona || '无'}
 
 [4.5 贴图发送硬规则]
 1. 你只能使用下方“可发送贴图白名单”，绝对禁止编造或发送白名单外贴图。
-2. 需要发送贴图时，必须使用格式 [贴图:名称]，名称必须与白名单完全一致。
-3. 可以发纯文本，也可以文本和 [贴图:名称] 混合。
+2. 每一条输出消息都必须使用格式 [贴图:名称]，名称必须与白名单完全一致。
+3. 严禁纯文本，严禁文本和 [贴图:名称] 混合，只能发送贴图消息。
 4. 用户发送的 【贴图:名称】 代表用户真的发了该贴图，你必须理解其情绪与语义。
 可发送贴图白名单：
 ${assistantStickerRuleText}
@@ -1440,16 +1498,22 @@ ${wbContent || '无'}
             const visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
+            let hasVisibleMessage = false;
             
             for (let i = 0; i < replyMessages.length; i++) {
                 const msgContent = convertAssistantStickerTokens(replyMessages[i].trim(), assistantBoundStickers);
                 if (msgContent) {
+                    hasVisibleMessage = true;
                     if (i > 0) {
                         await new Promise(resolve => setTimeout(resolve, 800));
                     }
                     const newMsg = saveMessage(realName, 'assistant', msgContent);
                     appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id);
                 }
+            }
+
+            if (!hasVisibleMessage) {
+                throw new Error('API 未返回可显示文字');
             }
 
             const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(realName)) === 'true';
@@ -1459,12 +1523,13 @@ ${wbContent || '无'}
                     await runAutoSummaryBatches(realName, summaryLimit);
                 } catch (summaryError) {
                     console.error(summaryError);
+                    showApiErrorModal(summaryError.message || '自动总结失败');
                 }
             }
 
         } catch (error) {
             console.error(error);
-            alert('AI 请求失败: ' + error.message);
+            showApiErrorModal(error.message || 'AI 请求失败');
         } finally {
             sendBtn.innerHTML = originalIcon;
             sendBtn.disabled = false;
@@ -2253,15 +2318,13 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             ensureSummaryCursor(realName);
             syncMemoryLongTerm(realName);
             renderDiaryList(realName);
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('active'), 10);
+            openAppModal(modal);
         });
     }
 
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            modal.classList.remove('active');
-            setTimeout(() => modal.style.display = 'none', 300);
+            closeAppModal(modal);
         });
     }
 
@@ -2286,8 +2349,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             setTimeout(() => {
                 saveBtn.textContent = originalText;
                 saveBtn.style.backgroundColor = '#000000';
-                modal.classList.remove('active');
-                setTimeout(() => modal.style.display = 'none', 300);
+                closeAppModal(modal);
             }, 500);
         });
     }
@@ -2307,7 +2369,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
                 await runManualSummary(realName, batchSize);
                 renderDiaryList(realName);
             } catch (error) {
-                alert(error.message || '自动总结失败');
+                showApiErrorModal(error.message || '自动总结失败');
             } finally {
                 runSummaryBtn.textContent = originalText;
                 runSummaryBtn.disabled = false;
@@ -2365,16 +2427,14 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
         selector.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
             renderBindingList(realName);
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('active'), 10);
+            openAppModal(modal);
         });
     }
 
     // Close binding modal
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            modal.classList.remove('active');
-            setTimeout(() => modal.style.display = 'none', 300);
+            closeAppModal(modal);
         });
     }
 
@@ -2396,8 +2456,7 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
             renderSelectedWorldBooks(realName);
 
             // Close modal
-            modal.classList.remove('active');
-            setTimeout(() => modal.style.display = 'none', 300);
+            closeAppModal(modal);
         });
     }
 
@@ -2688,25 +2747,21 @@ function initWorldBookApp() {
     // 打开世界书
     if (appWorldBook) {
         appWorldBook.addEventListener('click', () => {
-            modal.style.display = 'flex'; // Use flex to match modal styling
-            setTimeout(() => modal.classList.add('active'), 10); // Add active class for animation if needed
+            openAppModal(modal);
         });
     }
 
     // 关闭世界书
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            modal.classList.remove('active');
-            setTimeout(() => modal.style.display = 'none', 300); // Wait for animation
+            closeAppModal(modal);
         });
     }
 
     // 保存功能 (暂时只是关闭)
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            // TODO: Implement save logic
-            modal.classList.remove('active');
-            setTimeout(() => modal.style.display = 'none', 300);
+            closeAppModal(modal);
         });
     }
 
