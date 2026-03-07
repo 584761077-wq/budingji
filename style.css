@@ -313,7 +313,8 @@ body {
     align-items: center;
     justify-content: flex-end;
     position: relative;
-    cursor: pointer;
+    cursor: default; /* Changed from pointer since click is split */
+    perspective: 1000px; /* 添加透视效果，让旋转更真实 */
     /* Ensure it matches the height of the grid */
 }
 
@@ -330,6 +331,20 @@ body {
     padding-bottom: 8px; /* Space for base overlap */
     position: relative;
     z-index: 10; /* Higher than base */
+    cursor: pointer; /* Add pointer for rotation interaction */
+    transform-origin: center bottom; /* 设置旋转轴为底部中心 */
+    transform-style: preserve-3d; /* 保持 3D 空间 */
+}
+
+/* 旋转动画类 */
+.spin-animation {
+    /* 快速连贯的转一圈，类似角色转身 */
+    animation: spin-smooth 1.2s ease-in-out; 
+}
+
+@keyframes spin-smooth {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(360deg); }
 }
 
 .stand-figure:active {

@@ -232,6 +232,9 @@ function initStandWidget() {
     const standContainer = document.getElementById('stand-container');
     const standFigure = document.getElementById('stand-figure');
     const fileInput = document.getElementById('stand-file-input');
+    // 获取底座元素 (假设在 HTML 中它是 .stand-base)
+    // 根据 index.html 结构: <div class="stand-base"></div>
+    const standBase = standContainer ? standContainer.querySelector('.stand-base') : null;
 
     if (!standContainer || !standFigure || !fileInput) return;
 
@@ -247,9 +250,48 @@ function initStandWidget() {
         }
     };
 
-    standContainer.addEventListener('click', () => {
-        fileInput.click();
+    // 修改：点击底座上传图片
+    if (standBase) {
+        standBase.addEventListener('click', (e) => {
+            e.stopPropagation(); // 防止冒泡触发其他可能的点击
+            fileInput.click();
+        });
+        standBase.style.cursor = 'pointer'; // 确保底座有点击手势
+    }
+
+    // 修改：点击立牌本体旋转
+    standFigure.addEventListener('click', () => {
+        // 如果正在显示 placeholder（即未上传图片），则仍然触发上传
+        const placeholder = standFigure.querySelector('.stand-placeholder');
+        if (placeholder && placeholder.style.display !== 'none') {
+            fileInput.click();
+            return;
+        }
+
+        // 移除动画类以便重新触发
+        standFigure.classList.remove('spin-animation');
+        // 强制重绘
+        void standFigure.offsetWidth;
+        // 添加动画类
+        standFigure.classList.add('spin-animation');
     });
+
+    // 如果之前绑定了 container 的点击，需要移除或确保不冲突。
+    // 原代码是 standContainer.addEventListener('click', ...)
+    // 我们现在不再绑定 standContainer 的整体点击，而是分拆。
+
+    // 为了兼容，如果用户点击了 placeholder (上传立牌提示)，也应该触发上传
+    const placeholder = standFigure.querySelector('.stand-placeholder');
+    if (placeholder) {
+        // 由于 standFigure 已经绑定了点击，这里不需要重复绑定，
+        // 逻辑已经在 standFigure 的 click handler 中处理了。
+        // 但为了保险起见，保持 placeholder 自身的明确行为也是好的，
+        // 不过由于 bubble event，standFigure 的 handler 也会收到。
+        // 我们在 standFigure handler 里已经判断了 placeholder 的显隐。
+        // 所以这里其实可以移除，或者为了明确指引，保留但注意冒泡。
+        // 实际上，如果 placeholder 在 standFigure 内部，点击 placeholder 会冒泡到 standFigure。
+        // 所以 standFigure 的 handler 会被触发。
+    }
 
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
