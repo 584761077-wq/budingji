@@ -718,6 +718,12 @@ function initStickerApp() {
     const closeBtn = document.getElementById('close-sticker');
     const saveBtn = document.getElementById('save-sticker');
     const openAddBtn = document.getElementById('open-add-sticker-modal');
+    const importBtn = document.getElementById('import-sticker-btn');
+    const importInput = document.getElementById('sticker-import-input');
+    const importModal = document.getElementById('sticker-import-modal');
+    const importModalClose = document.getElementById('close-sticker-import-modal');
+    const importModalSave = document.getElementById('confirm-sticker-import-btn');
+    const importCategoryInput = document.getElementById('sticker-import-category-input');
     const overlay = document.getElementById('add-sticker-overlay');
     const cancelAddBtn = document.getElementById('cancel-add-sticker');
     const confirmAddBtn = document.getElementById('confirm-add-sticker');
@@ -824,6 +830,8 @@ function initStickerApp() {
         return parsed;
     };
 
+    let pendingStickerImport = null;
+
     const showCategoryList = () => {
         detailView.style.display = 'none';
         categoryGrid.style.display = 'grid';
@@ -887,6 +895,92 @@ function initStickerApp() {
 
     if (openAddBtn) {
         openAddBtn.addEventListener('click', openAddModal);
+    }
+
+    if (importBtn && importInput) {
+        importBtn.addEventListener('click', () => {
+            importInput.value = '';
+            importInput.click();
+        });
+    }
+
+    if (importInput) {
+        importInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await parseStickerFile(file);
+                const emojis = parseEmojiInput(text);
+                if (emojis.length === 0) {
+                    throw new Error('未解析到有效表情链接');
+                }
+                pendingStickerImport = emojis;
+                if (importCategoryInput) {
+                    importCategoryInput.value = '';
+                }
+                if (importModal) {
+                    importModal.style.display = 'flex';
+                    setTimeout(() => importModal.classList.add('active'), 10);
+                }
+                setTimeout(() => {
+                    if (importCategoryInput) importCategoryInput.focus();
+                }, 0);
+            } catch (error) {
+                showApiErrorModal(error.message || '导入失败');
+            } finally {
+                importInput.value = '';
+            }
+        });
+    }
+
+    const closeImportModal = () => {
+        if (!importModal) return;
+        importModal.classList.remove('active');
+        setTimeout(() => {
+            if (importModal) importModal.style.display = 'none';
+        }, 300);
+        pendingStickerImport = null;
+    };
+
+    if (importModalClose) {
+        importModalClose.addEventListener('click', closeImportModal);
+    }
+
+    if (importModal) {
+        importModal.addEventListener('click', (e) => {
+            if (e.target === importModal) closeImportModal();
+        });
+    }
+
+    if (importModalSave) {
+        importModalSave.addEventListener('click', () => {
+            if (!pendingStickerImport) return;
+            const categoryName = importCategoryInput ? importCategoryInput.value.trim() : '';
+            if (!categoryName) {
+                showApiErrorModal('请填写分类名称');
+                return;
+            }
+
+            const categories = getCategories();
+            const existing = categories.find(item => item.name === categoryName);
+            if (existing) {
+                const existingUrls = new Set((existing.emojis || []).map(item => item.url));
+                const newOnes = pendingStickerImport.filter(item => !existingUrls.has(item.url));
+                existing.emojis = [...(existing.emojis || []), ...newOnes];
+            } else {
+                categories.unshift({
+                    id: crypto.randomUUID(),
+                    name: categoryName,
+                    emojis: pendingStickerImport
+                });
+            }
+
+            setCategories(categories);
+            renderCategoryFolders();
+            showCategoryList();
+            closeImportModal();
+        });
     }
 
     if (cancelAddBtn) {
@@ -981,6 +1075,38 @@ function initStickerApp() {
             targetMap[activeTargetCategoryId] = checkedTargets;
             setTargetMap(targetMap);
             closeTargetModal();
+        });
+    }
+
+    async function parseStickerFile(file) {
+        const ext = file.name.toLowerCase();
+        if (ext.endsWith('.docx')) {
+            if (!window.mammoth || !window.mammoth.extractRawText) {
+                throw new Error('未找到 docx 解析器');
+            }
+            const arrayBuffer = await readFileAsArrayBuffer(file);
+            const result = await window.mammoth.extractRawText({ arrayBuffer });
+            return String(result.value || '').trim();
+        }
+        const text = await readFileAsText(file);
+        return String(text || '').trim();
+    }
+
+    function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    }
+
+    function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
         });
     }
 }
@@ -3860,6 +3986,7 @@ function initWorldBookApp() {
 
     initAddWorldBookItemLogic();
     initCategoryManagerLogic();
+    initWorldBookImportLogic();
     
     // Initial render
     renderWorldBookList('未分类');
@@ -4007,6 +4134,158 @@ function updateCategoryDropdown() {
     } else {
         select.value = '未分类';
     }
+}
+
+function initWorldBookImportLogic() {
+    const importBtn = document.getElementById('import-worldbook-btn');
+    const fileInput = document.getElementById('import-worldbook-input');
+    const importModal = document.getElementById('worldbook-import-modal');
+    const closeBtn = document.getElementById('close-worldbook-import-modal');
+    const saveBtn = document.getElementById('confirm-worldbook-import-btn');
+    const categoryInput = document.getElementById('worldbook-import-category-input');
+    const nameInput = document.getElementById('worldbook-import-name-input');
+
+    if (!importBtn || !fileInput || !importModal || !closeBtn || !saveBtn || !categoryInput || !nameInput) return;
+
+    let pendingImport = null;
+
+    importBtn.addEventListener('click', () => {
+        fileInput.value = '';
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        try {
+            const parsed = await parseWorldbookFile(file);
+            const filename = file.name.replace(/\.[^.]+$/, '') || '导入内容';
+            pendingImport = { name: filename, content: parsed };
+            updateWorldbookImportCategoryOptions();
+            nameInput.value = filename;
+            importModal.style.display = 'flex';
+            setTimeout(() => importModal.classList.add('active'), 10);
+            setTimeout(() => categoryInput.focus(), 0);
+        } catch (error) {
+            showApiErrorModal(error.message || '导入失败');
+        } finally {
+            fileInput.value = '';
+        }
+    });
+
+    const closeImportModal = () => {
+        importModal.classList.remove('active');
+        setTimeout(() => {
+            importModal.style.display = 'none';
+        }, 300);
+        pendingImport = null;
+    };
+
+    closeBtn.addEventListener('click', closeImportModal);
+    importModal.addEventListener('click', (e) => {
+        if (e.target === importModal) closeImportModal();
+    });
+
+    saveBtn.addEventListener('click', () => {
+        if (!pendingImport) return;
+        const categoryName = String(categoryInput.value || '').trim();
+        const worldbookName = nameInput.value.trim();
+        if (!categoryName) {
+            showApiErrorModal('请填写分类名称');
+            return;
+        }
+        if (!worldbookName) {
+            showApiErrorModal('请填写世界书名称');
+            return;
+        }
+
+        const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        if (categoryName !== '未分类' && !categories.includes(categoryName)) {
+            showApiErrorModal('分类不存在，请先创建分类');
+            return;
+        }
+
+        const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        items.push({
+            id: crypto.randomUUID(),
+            name: worldbookName,
+            category: categoryName,
+            content: pendingImport.content
+        });
+        localStorage.setItem('worldbook_items', JSON.stringify(items));
+
+        loadCategories();
+        setActiveWorldbookCategory(categoryName);
+        renderWorldBookList(categoryName);
+        updateCategoryDropdown();
+        updateWorldbookImportCategoryOptions();
+        closeImportModal();
+    });
+
+    async function parseWorldbookFile(file) {
+        const ext = file.name.toLowerCase();
+        if (ext.endsWith('.docx')) {
+            if (!window.mammoth || !window.mammoth.extractRawText) {
+                throw new Error('未找到 docx 解析器');
+            }
+            const arrayBuffer = await readFileAsArrayBuffer(file);
+            const result = await window.mammoth.extractRawText({ arrayBuffer });
+            const text = String(result.value || '').trim();
+            if (!text) {
+                throw new Error('文件内容为空');
+            }
+            return text;
+        }
+
+        const text = await readFileAsText(file);
+        const cleaned = String(text || '').trim();
+        if (!cleaned) {
+            throw new Error('文件内容为空');
+        }
+        return cleaned;
+    }
+
+    function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    }
+
+    function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function updateWorldbookImportCategoryOptions() {
+        if (!categoryInput) return;
+        const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        const currentVal = categoryInput.value || '未分类';
+        let html = `<option value="未分类">未分类</option>`;
+        categories.forEach(cat => {
+            html += `<option value="${cat}">${cat}</option>`;
+        });
+        categoryInput.innerHTML = html;
+        if (categories.includes(currentVal) || currentVal === '未分类') {
+            categoryInput.value = currentVal;
+        } else {
+            categoryInput.value = '未分类';
+        }
+    }
+}
+
+function setActiveWorldbookCategory(categoryName) {
+    const tags = document.querySelectorAll('.worldbook-categories .category-tag');
+    tags.forEach(tag => {
+        tag.classList.toggle('active', tag.textContent === categoryName);
+    });
 }
 
 // 渲染世界书列表

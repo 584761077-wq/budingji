@@ -100,7 +100,7 @@
                             <button class="toolbar-icon-btn" id="add-worldbook-item-btn" title="添加">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                             </button>
-                            <button class="toolbar-icon-btn" title="导入">
+                            <button class="toolbar-icon-btn" id="import-worldbook-btn" title="导入">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             </button>
                             <button class="toolbar-icon-btn" title="导出">
@@ -119,6 +119,7 @@
                         <!-- 世界书条目将在这里显示 -->
                     </div>
                 </div>
+                <input type="file" id="import-worldbook-input" accept=".txt,.md,.markdown,.docx" style="display: none;">
             </div>
 
             <!-- 添加世界书条目页面 -->
@@ -173,6 +174,31 @@
                         <button class="add-category-btn" id="add-category-btn">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         </button>
+                    </div>
+                </div>
+            </div>
+            <div class="ins-modal-overlay" id="worldbook-import-modal" style="display: none;">
+                <div class="ins-modal">
+                    <div class="ins-modal-header">
+                        <h3>导入世界书</h3>
+                        <button class="ins-modal-close" id="close-worldbook-import-modal">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="ins-modal-body">
+                        <div class="ins-input-group">
+                            <label for="worldbook-import-category-input">分类名称</label>
+                            <select id="worldbook-import-category-input" class="form-select">
+                                <option value="未分类">未分类</option>
+                            </select>
+                        </div>
+                        <div class="ins-input-group">
+                            <label for="worldbook-import-name-input">世界书名称</label>
+                            <input type="text" id="worldbook-import-name-input" placeholder="输入世界书名称">
+                        </div>
+                    </div>
+                    <div class="ins-modal-footer">
+                        <button class="ins-btn-primary" id="confirm-worldbook-import-btn">保存</button>
                     </div>
                 </div>
             </div>
@@ -639,6 +665,32 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="advanced-settings-card">
+                                    <div class="settings-list-item">
+                                        <div class="item-content">
+                                            <div class="item-icon-container">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l2 2"></path></svg>
+                                            </div>
+                                            <span class="item-title">占位一</span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-list-item">
+                                        <div class="item-content">
+                                            <div class="item-icon-container">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 12h8"></path></svg>
+                                            </div>
+                                            <span class="item-title">占位二</span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-list-item">
+                                        <div class="item-content">
+                                            <div class="item-icon-container">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path></svg>
+                                            </div>
+                                            <span class="item-title">占位三</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="memory-danger-zone">
                                     <button class="memory-clear-btn" id="clear-chat-history-btn">清空聊天消息</button>
                                 </div>
@@ -789,6 +841,9 @@
                         <button class="toolbar-icon-btn" id="open-add-sticker-modal" title="添加表情">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         </button>
+                        <button class="toolbar-icon-btn" id="import-sticker-btn" title="导入表情">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
                     </div>
                     <div class="sticker-category-grid" id="sticker-category-grid"></div>
                     <div class="sticker-detail-view" id="sticker-detail-view" style="display: none;">
@@ -822,6 +877,25 @@
                         </div>
                     </div>
                 </div>
+                <div class="ins-modal-overlay" id="sticker-import-modal" style="display: none;">
+                    <div class="ins-modal">
+                        <div class="ins-modal-header">
+                            <h3>导入表情分类</h3>
+                            <button class="ins-modal-close" id="close-sticker-import-modal">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <div class="ins-modal-body">
+                            <div class="ins-input-group">
+                                <label for="sticker-import-category-input">表情包分类名称</label>
+                                <input type="text" id="sticker-import-category-input" placeholder="例如：打工日常">
+                            </div>
+                        </div>
+                        <div class="ins-modal-footer">
+                            <button class="ins-btn-primary" id="confirm-sticker-import-btn">保存</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="ins-modal-overlay" id="sticker-target-overlay" style="display: none;">
                     <div class="ins-modal">
                         <div class="ins-modal-header">
@@ -839,6 +913,7 @@
                     </div>
                 </div>
             </div>
+            <input type="file" id="sticker-import-input" accept=".txt,.md,.markdown,.docx" style="display: none;">
         </div>
 
         <!-- 长按消息菜单 -->
@@ -988,6 +1063,7 @@
 
     </div>
 
+    <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
