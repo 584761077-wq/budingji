@@ -2617,8 +2617,25 @@ ${wbContent || '无'}
         const index = history.findIndex(m => m.id === msgId);
         if (index !== -1) {
             const msg = history[index];
-            msg.extra = msg.extra || {};
-            msg.extra = callback(msg.extra);
+            // Since saveMessage spreads extra properties into the root of the object,
+            // we should pass the whole msg object to the callback, or normalize it.
+            // But to fix the specific issue with 'sprite' property which is at root:
+            
+            // We construct a proxy object that represents the 'extra' data including root properties like 'sprite'
+            let extraProxy = {
+                sprite: msg.sprite,
+                ...msg.extra
+            };
+
+            const updatedExtra = callback(extraProxy);
+            
+            // Apply changes back to msg
+            if (updatedExtra.sprite) {
+                msg.sprite = updatedExtra.sprite;
+            }
+            // If there are other extra properties, we might need to handle them, 
+            // but currently we only care about sprite.
+            
             history[index] = msg;
             localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
         }
