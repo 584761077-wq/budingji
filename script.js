@@ -1860,6 +1860,8 @@ ${assistantStickerRuleText}
 格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
 <mood_sprite mood="开心/生气/悲伤/..." color="#RRGGBB">
 这里写你的真实内心独白，可以是直白、吐槽、搞笑、深情或阴阳怪气，也可以直接表露欲望，可以玩梗，可以使用颜文字。
+---
+这里写一句绝对不能给任何人看的秘密，必须直白、有趣、幽默、有新意，或者极其露骨的吐槽。
 </mood_sprite>
 
 [5.6 深度隐形思维链]
@@ -1971,10 +1973,24 @@ ${wbContent || '无'}
             const spriteRegex = /<mood_sprite\s+mood=["']([^"']+)["']\s+color=["']([^"']+)["']\s*>([\s\S]*?)<\/mood_sprite>/gi;
             let match;
             while ((match = spriteRegex.exec(visibleReply)) !== null) {
+                const rawContent = match[3].trim();
+                let mainContent = rawContent;
+                let secretContent = '';
+
+                // Split by separator '---' or similar
+                const separatorRegex = /\n\s*-{3,}\s*\n/i;
+                const splitMatch = rawContent.split(separatorRegex);
+                
+                if (splitMatch.length > 1) {
+                    mainContent = splitMatch[0].trim();
+                    secretContent = splitMatch[1].trim();
+                }
+
                 spriteData = {
                     mood: match[1],
                     color: match[2],
-                    content: match[3].trim()
+                    content: mainContent,
+                    secret: secretContent
                 };
             }
             // Remove all tags from visible text
@@ -2534,8 +2550,21 @@ ${wbContent || '无'}
         };
 
         const charName = localStorage.getItem('chat_remark_' + realName) || realName;
-        spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的内心`;
-        spriteBody.textContent = spriteData.content;
+        spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的随笔`;
+        
+        // Build Content
+        let html = `<div>${spriteData.content}</div>`;
+        if (spriteData.secret) {
+             html += `
+                <div style="margin-top: 15px; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 10px;">
+                    <span style="text-decoration: line-through; color: #888; font-size: 0.9em;">
+                        ${spriteData.secret}
+                    </span>
+                </div>
+             `;
+        }
+
+        spriteBody.innerHTML = html;
         spriteBody.style.borderLeft = `4px solid ${spriteData.color || '#ccc'}`;
         
         // Update Fav Button State
