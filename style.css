@@ -200,14 +200,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 0 10px;
+    padding: 0 24px;
 }
 
 .hero-chat-row {
-    width: 100%;
+    width: 92%;
     display: flex;
     align-items: center;
     gap: 10px;
+    margin: 0 auto;
 }
 
 .hero-chat-row.right-row {
@@ -215,8 +216,8 @@ body {
 }
 
 .hero-avatar-btn {
-    width: 46px;
-    height: 46px;
+    width: 58px;
+    height: 58px;
     border: none;
     border-radius: 50%;
     padding: 0;
@@ -226,8 +227,8 @@ body {
 }
 
 .hero-avatar {
-    width: 46px;
-    height: 46px;
+    width: 58px;
+    height: 58px;
     border-radius: 50%;
     border: 1px solid rgba(0, 0, 0, 0.06);
     background: linear-gradient(135deg, #f2f2f2, #e5e5ea);
@@ -240,8 +241,8 @@ body {
 }
 
 .hero-avatar svg {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     color: #8e8e93;
 }
 
@@ -288,139 +289,6 @@ body {
     gap: 20px;
     padding: 40px 10px 0;
     align-items: flex-start;
-}
-
-/* 左侧立牌容器 */
-.standee-container {
-    flex: 1.2;
-    height: 175px; 
-    perspective: 1000px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end; /* 让内容在底部（即贴着底座） */
-    position: relative;
-    z-index: 10;
-    margin-top: 0; 
-}
-
-/* 立牌本体（透明背景） */
-.acrylic-standee {
-    width: 100%;
-    /* 占据剩余空间，但留出底座位置，或者直接让底座覆盖在底部 */
-    flex: 1; 
-    display: flex;
-    justify-content: center;
-    align-items: flex-end; /* 图片底部对齐 */
-    cursor: pointer;
-    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    transform-origin: bottom center;
-    margin-bottom: -10px; /* 插入底座 */
-    z-index: 2;
-    overflow: visible; /* 允许超出，防止剪裁 */
-    background: transparent !important; /* 强制透明 */
-    border: none !important; /* 强制无边框 */
-    box-shadow: none !important; /* 强制无阴影 */
-}
-
-.acrylic-standee::before {
-    display: none;
-}
-
-.acrylic-standee.rotating {
-    transform: rotateY(360deg);
-}
-
-.standee-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end; /* 让图片沉底，紧贴底座 */
-    align-items: center;
-    position: relative;
-}
-
-/* 占位符样式 */
-.placeholder-icon {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.3;
-    height: 100%; 
-    width: 100%;
-    cursor: pointer; /* 占位符也是可点击上传 */
-}
-
-.placeholder-text {
-    font-size: 0.8rem;
-    color: var(--color-secondary);
-    margin-top: 10px;
-}
-
-#standee-img {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%; 
-    object-fit: contain; 
-    object-position: bottom center; /* 关键：让图片始终沉底对齐 */
-    border-radius: 0;
-    filter: drop-shadow(0 10px 15px rgba(0,0,0,0.15));
-    display: block;
-    margin-bottom: 0; /* 确保无下边距 */
-}
-
-/* 拟态底座 - INS风 */
-.standee-base {
-    width: 80%;
-    height: 25px;
-    position: relative;
-    z-index: 1;
-    cursor: pointer; /* 底座可点击 */
-}
-
-.base-top {
-    width: 100%;
-    height: 25px;
-    background: #ffffff;
-    border-radius: 50%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    box-shadow: inset 0 -2px 5px rgba(0,0,0,0.03);
-    border: 1px solid rgba(0,0,0,0.05);
-    z-index: 2;
-}
-
-/* 底座侧面厚度 */
-.base-side {
-    width: 100%;
-    height: 15px;
-    background: #e5e5ea;
-    position: absolute;
-    top: 12px;
-    left: 0;
-    border-radius: 0 0 50% 50% / 0 0 100% 100%; /* 椭圆下半部分 */
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-    z-index: 1;
-}
-
-/* 给底座加一点光晕 */
-.standee-base::after {
-    content: '';
-    position: absolute;
-    bottom: -5px;
-    left: 10%;
-    width: 80%;
-    height: 10px;
-    border-radius: 50%;
-    background: #000000;
-    filter: blur(15px);
-    opacity: 0.1;
-    z-index: 0;
 }
 
 /* 右侧应用区域 */

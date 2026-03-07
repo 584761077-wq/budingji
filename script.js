@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     initHeroChatWidget();
-    initStandee();
     initApiErrorModal();
     initSettings();
     initLineApp();
@@ -225,66 +224,6 @@ function initHeroChatWidget() {
     });
 
     renderAll();
-}
-
-// 2. 亚克力立牌功能
-function initStandee() {
-    const standeeContainer = document.querySelector('.standee-container');
-    const standee = document.getElementById('standee');
-    const standeeBase = document.querySelector('.standee-base');
-    const fileInput = document.getElementById('file-input');
-    const standeeImg = document.getElementById('standee-img');
-
-    // 点击底座触发上传
-    standeeBase.addEventListener('click', (e) => {
-        e.stopPropagation(); 
-        fileInput.click();
-    });
-    
-    // 点击容器空白处（div）触发上传
-    standee.addEventListener('click', (e) => {
-        // 如果点击的是图片本身，不要触发上传（由图片的点击事件处理旋转）
-        if (e.target.id === 'standee-img' && standeeImg.src !== '') {
-            return;
-        }
-        fileInput.click();
-    });
-
-    // 点击图片触发旋转
-    standeeImg.addEventListener('click', (e) => {
-        if (standeeImg.src !== '') {
-            e.stopPropagation(); // 阻止冒泡到容器（防止触发上传）
-            rotateStandee();
-        }
-    });
-
-    // 文件选择处理
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                standeeImg.src = event.target.result;
-                standeeImg.style.display = 'block';
-                // 隐藏占位符
-                const placeholder = document.querySelector('.placeholder-icon');
-                if (placeholder) placeholder.style.display = 'none';
-                
-                // 上传后自动旋转一下展示效果
-                rotateStandee();
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    // 旋转函数
-    function rotateStandee() {
-        // 移除class以允许重新触发动画
-        standee.classList.remove('rotating');
-        // 强制重绘
-        void standee.offsetWidth;
-        standee.classList.add('rotating');
-    }
 }
 
 // 3. 设置页面功能
