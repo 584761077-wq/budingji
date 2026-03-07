@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSettings();
     initLineApp();
     initStickerApp();
+    initAppearanceSettings();
 });
 
 function openAppModal(modal) {
@@ -3227,4 +3228,82 @@ function openWorldBookItem(id) {
 function getRandomColor() {
     const colors = ['#FF9F0A', '#30D158', '#0A84FF', '#BF5AF2', '#FF375F', '#AC8E68', '#64D2FF'];
     return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// 13. 外观设置 App 功能
+function initAppearanceSettings() {
+    const appAppearance = document.getElementById('dock-appearance');
+    const appearanceModal = document.getElementById('appearance-modal');
+    const closeAppearanceBtn = document.getElementById('close-appearance');
+    const saveAppearanceBtn = document.getElementById('save-appearance');
+    const uploadWallpaperBtn = document.getElementById('upload-wallpaper-btn');
+    const wallpaperFileInput = document.getElementById('wallpaper-file-input');
+    const homeScreen = document.getElementById('home-screen');
+
+    // 监听壁纸文件选择
+    if (wallpaperFileInput) {
+        wallpaperFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imageDataUrl = event.target.result;
+                
+                // 应用壁纸
+                if (homeScreen) {
+                    homeScreen.style.backgroundImage = `url('${imageDataUrl}')`;
+                    homeScreen.style.backgroundSize = 'cover';
+                    homeScreen.style.backgroundPosition = 'center';
+                    homeScreen.style.backgroundRepeat = 'no-repeat';
+                }
+
+                // 保存到本地存储
+                try {
+                    localStorage.setItem('home_wallpaper', imageDataUrl);
+                } catch (err) {
+                    console.error('Failed to save wallpaper to localStorage:', err);
+                    alert('图片太大，无法保存到本地存储，但本次会话有效。');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // 加载保存的壁纸
+    const savedWallpaper = localStorage.getItem('home_wallpaper');
+    if (savedWallpaper && homeScreen) {
+        homeScreen.style.backgroundImage = `url('${savedWallpaper}')`;
+        homeScreen.style.backgroundSize = 'cover';
+        homeScreen.style.backgroundPosition = 'center';
+        homeScreen.style.backgroundRepeat = 'no-repeat';
+    }
+
+    // 打开外观设置
+    if (appAppearance && appearanceModal) {
+        appAppearance.addEventListener('click', () => {
+            openAppModal(appearanceModal);
+        });
+    }
+
+    // 关闭外观设置
+    if (closeAppearanceBtn && appearanceModal) {
+        closeAppearanceBtn.addEventListener('click', () => {
+            closeAppModal(appearanceModal);
+        });
+    }
+
+    // 保存外观设置
+    if (saveAppearanceBtn && appearanceModal) {
+        saveAppearanceBtn.addEventListener('click', () => {
+            closeAppModal(appearanceModal);
+        });
+    }
+
+    // 上传壁纸按钮
+    if (uploadWallpaperBtn && wallpaperFileInput) {
+        uploadWallpaperBtn.addEventListener('click', () => {
+            wallpaperFileInput.click();
+        });
+    }
 }

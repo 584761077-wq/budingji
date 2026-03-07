@@ -185,9 +185,9 @@
                         <div class="icon-inner"></div>
                         <span class="app-name">设置</span>
                     </div>
-                    <div class="app-icon dock-icon">
+                    <div class="app-icon dock-icon" id="dock-appearance">
                         <div class="icon-inner"></div>
-                        <span class="app-name">信息</span>
+                        <span class="app-name">外观设置</span>
                     </div>
                     <div class="app-icon dock-icon">
                         <div class="icon-inner"></div>
@@ -247,6 +247,26 @@
                         <div class="form-group">
                             <label for="temperature-slider">温度 (Temperature): <span id="temp-value">0.7</span></label>
                             <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="candy-range">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 外观设置页面模态框 -->
+            <div class="app-modal" id="appearance-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-appearance">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">外观设置</h2>
+                    <button class="header-btn save-btn" id="save-appearance">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card">
+                        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>更换桌面壁纸</label>
+                            <button class="candy-btn-small" id="upload-wallpaper-btn">上传图片</button>
+                            <input type="file" id="wallpaper-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
                         </div>
                     </div>
                 </div>
