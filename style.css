@@ -112,6 +112,7 @@ body {
     /* Home Screen specific */
     #home-screen {
         z-index: 5; /* Base layer */
+        background: transparent;
     }
 
     /* 调整顶部安全距离 */
@@ -185,6 +186,10 @@ body {
     display: flex;
     flex-direction: column;
     position: relative;
+}
+
+#home-screen {
+    background: transparent;
 }
 
 /* 顶部时间 */
@@ -425,7 +430,7 @@ body {
 
 .dock-glass {
     height: 80px;
-    background: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.35);
     backdrop-filter: blur(20px);
     border-radius: 24px;
     display: flex;
@@ -433,7 +438,7 @@ body {
     align-items: center;
     padding: 10px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    border: 1px solid rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.45);
 }
 
 .dock-icon .icon-inner {

@@ -3239,8 +3239,19 @@ function initAppearanceSettings() {
     const uploadWallpaperBtn = document.getElementById('upload-wallpaper-btn');
     const wallpaperFileInput = document.getElementById('wallpaper-file-input');
     const homeScreen = document.getElementById('home-screen');
+    const phoneScreen = document.getElementById('phone-screen');
 
-    // 监听壁纸文件选择
+    const applyWallpaper = (imageDataUrl) => {
+        if (!imageDataUrl || !phoneScreen) return;
+        phoneScreen.style.backgroundImage = `url('${imageDataUrl}')`;
+        phoneScreen.style.backgroundSize = 'cover';
+        phoneScreen.style.backgroundPosition = 'center';
+        phoneScreen.style.backgroundRepeat = 'no-repeat';
+        if (homeScreen) {
+            homeScreen.style.background = 'transparent';
+        }
+    };
+
     if (wallpaperFileInput) {
         wallpaperFileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -3249,16 +3260,8 @@ function initAppearanceSettings() {
             const reader = new FileReader();
             reader.onload = (event) => {
                 const imageDataUrl = event.target.result;
-                
-                // 应用壁纸
-                if (homeScreen) {
-                    homeScreen.style.backgroundImage = `url('${imageDataUrl}')`;
-                    homeScreen.style.backgroundSize = 'cover';
-                    homeScreen.style.backgroundPosition = 'center';
-                    homeScreen.style.backgroundRepeat = 'no-repeat';
-                }
+                applyWallpaper(imageDataUrl);
 
-                // 保存到本地存储
                 try {
                     localStorage.setItem('home_wallpaper', imageDataUrl);
                 } catch (err) {
@@ -3267,40 +3270,33 @@ function initAppearanceSettings() {
                 }
             };
             reader.readAsDataURL(file);
+            wallpaperFileInput.value = '';
         });
     }
 
-    // 加载保存的壁纸
     const savedWallpaper = localStorage.getItem('home_wallpaper');
-    if (savedWallpaper && homeScreen) {
-        homeScreen.style.backgroundImage = `url('${savedWallpaper}')`;
-        homeScreen.style.backgroundSize = 'cover';
-        homeScreen.style.backgroundPosition = 'center';
-        homeScreen.style.backgroundRepeat = 'no-repeat';
+    if (savedWallpaper) {
+        applyWallpaper(savedWallpaper);
     }
 
-    // 打开外观设置
     if (appAppearance && appearanceModal) {
         appAppearance.addEventListener('click', () => {
             openAppModal(appearanceModal);
         });
     }
 
-    // 关闭外观设置
     if (closeAppearanceBtn && appearanceModal) {
         closeAppearanceBtn.addEventListener('click', () => {
             closeAppModal(appearanceModal);
         });
     }
 
-    // 保存外观设置
     if (saveAppearanceBtn && appearanceModal) {
         saveAppearanceBtn.addEventListener('click', () => {
             closeAppModal(appearanceModal);
         });
     }
 
-    // 上传壁纸按钮
     if (uploadWallpaperBtn && wallpaperFileInput) {
         uploadWallpaperBtn.addEventListener('click', () => {
             wallpaperFileInput.click();
