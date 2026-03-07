@@ -463,6 +463,10 @@
                         <div class="chat-room-content">
                             <!-- 消息将在这里显示 -->
                         </div>
+                        <div class="chat-reply-preview" id="chat-reply-preview" style="display: none;">
+                            <div class="chat-reply-preview-text" id="chat-reply-preview-text"></div>
+                            <button class="chat-reply-preview-close" id="chat-reply-preview-close" type="button">取消</button>
+                        </div>
 
                         <!-- 底部栏 -->
                         <div class="chat-room-footer">
@@ -839,8 +843,9 @@
 
         <!-- 长按消息菜单 -->
         <div class="message-context-menu" id="message-context-menu" style="display: none;">
-            <div class="menu-item" id="ctx-edit">编辑</div>
-            <div class="menu-item delete" id="ctx-delete">删除</div>
+            <div class="menu-item ctx-menu-item" id="ctx-edit">编辑</div>
+            <div class="menu-item ctx-menu-item" id="ctx-quote">引用</div>
+            <div class="menu-item ctx-menu-item delete" id="ctx-delete">删除</div>
         </div>
 
         <div class="multi-select-bar" id="multi-select-bar" style="display: none;">

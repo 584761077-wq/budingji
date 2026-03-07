@@ -1519,7 +1519,7 @@ input:checked + .slider:before {
     to { opacity: 1; transform: scale(1); }
 }
 
-.menu-item {
+.message-context-menu .ctx-menu-item {
     padding: 8px 16px; /* Compact padding */
     font-size: 0.9rem;
     font-weight: 500;
@@ -1530,15 +1530,15 @@ input:checked + .slider:before {
     transition: background 0.2s;
 }
 
-.menu-item:last-child {
+.message-context-menu .ctx-menu-item:last-child {
     border-right: none;
 }
 
-.menu-item:active {
+.message-context-menu .ctx-menu-item:active {
     background: rgba(255,255,255,0.1);
 }
 
-.menu-item.delete {
+.message-context-menu .ctx-menu-item.delete {
     color: #ff453a; /* iOS red */
 }
 

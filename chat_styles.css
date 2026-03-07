@@ -107,6 +107,45 @@
     overscroll-behavior: contain; 
 }
 
+.chat-reply-preview {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    min-height: 32px;
+    border: 1px solid #d1d1d6;
+    background: #ffffff;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    z-index: 11;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.chat-reply-preview-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.78rem;
+    color: #1d1d1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-reply-preview-close {
+    border: none;
+    background: #f2f2f2;
+    color: #1d1d1f;
+    border-radius: 999px;
+    height: 24px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
 /* Chat Footer */
 .chat-room-footer {
     height: auto;
@@ -405,6 +444,23 @@
     background: transparent !important;
     padding: 0;
     border-radius: 0;
+}
+
+.message-quote-anchor {
+    border: 1px solid #d1d1d6;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 4px 7px;
+}
+
+.quoted-target .message-bubble {
+    box-shadow: 0 0 0 2px #1d1d1f inset;
 }
 
 .chat-inline-sticker {
@@ -835,6 +891,22 @@
 /* --- Mood Sprite & Modal --- */
 .message-row {
     position: relative; /* Ensure sprites can be positioned relative to the row */
+}
+
+.message-main {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.message-row.right .message-main {
+    align-items: flex-end;
+}
+
+.message-row.left .message-main {
+    align-items: flex-start;
 }
 
 .mood-sprite {

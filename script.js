@@ -1428,10 +1428,14 @@ function initChatRoomLogic() {
     const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
     const sendBtn = document.getElementById('trigger-ai-btn');
     const chatContent = document.querySelector('.chat-room-content');
+    const replyPreview = document.getElementById('chat-reply-preview');
+    const replyPreviewText = document.getElementById('chat-reply-preview-text');
+    const replyPreviewClose = document.getElementById('chat-reply-preview-close');
     
     // 聊天状态管理
     const chatStates = {}; // key: realName, value: { isSending: boolean }
     const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';
+    let pendingQuote = null;
 
     function updateSendButtonState(realName) {
         if (!sendBtn) return;
@@ -1492,7 +1496,30 @@ function initChatRoomLogic() {
         const text = (temp.textContent || temp.innerText || '').trim();
         if (text) return text;
         if (content.includes('chat-inline-sticker')) return '发送了一条贴图消息';
+        if (/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/i.test(content)) return '发送了一张本地图片';
         return '';
+    }
+
+    function truncateQuoteText(text) {
+        const raw = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!raw) return '引用消息';
+        return raw.length > 40 ? `${raw.slice(0, 40)}…` : raw;
+    }
+
+    function updateReplyPreviewUI() {
+        if (!replyPreview || !replyPreviewText) return;
+        if (!pendingQuote) {
+            replyPreview.style.display = 'none';
+            replyPreviewText.textContent = '';
+            return;
+        }
+        replyPreview.style.display = 'flex';
+        replyPreviewText.textContent = `引用：${truncateQuoteText(pendingQuote.text)}`;
+    }
+
+    function clearPendingQuote() {
+        pendingQuote = null;
+        updateReplyPreviewUI();
     }
 
     function showIncomingMessageToast(realName, content) {
@@ -1556,6 +1583,8 @@ function initChatRoomLogic() {
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
         msgRow.dataset.id = id;
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
+        const quote = extra && extra.quote ? extra.quote : null;
+        const quotePreview = quote ? truncateQuoteText(quote.text) : '';
         
         // 头像逻辑
         let avatarContent = '';
@@ -1573,7 +1602,10 @@ function initChatRoomLogic() {
         msgRow.innerHTML = `
             <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
-                <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''}">${content}</div>
+                <div class="message-main">
+                    <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''}">${content}</div>
+                    ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
+                </div>
                 <div class="message-meta-info">
                     ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
                     <div class="meta-time">${timeStr}</div>
@@ -1634,14 +1666,28 @@ function initChatRoomLogic() {
         
         // 绑定长按事件
         const bubble = msgRow.querySelector('.message-bubble');
+        const quoteAnchor = msgRow.querySelector('.message-quote-anchor');
         let pressTimer;
+
+        if (quoteAnchor) {
+            quoteAnchor.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetId = quoteAnchor.dataset.quoteId;
+                if (!targetId) return;
+                const targetRow = Array.from(chatContent.querySelectorAll('.message-row')).find((row) => row.dataset.id === targetId);
+                if (!targetRow) return;
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetRow.classList.add('quoted-target');
+                setTimeout(() => targetRow.classList.remove('quoted-target'), 1300);
+            });
+        }
 
         // 触摸设备
         bubble.addEventListener('touchstart', (e) => {
             if (isMultiSelectMode) return;
             pressTimer = setTimeout(() => {
                 if (isMultiSelectMode) return;
-                showContextMenu(e, id, content, realName);
+                showContextMenu(e, id, content, realName, role, timeStr);
             }, 500); // 500ms 长按
         });
 
@@ -1660,7 +1706,7 @@ function initChatRoomLogic() {
             if (e.button === 0) {
                 pressTimer = setTimeout(() => {
                     if (isMultiSelectMode) return;
-                    showContextMenu(e, id, content, realName);
+                    showContextMenu(e, id, content, realName, role, timeStr);
                 }, 500);
             }
         });
@@ -1677,7 +1723,7 @@ function initChatRoomLogic() {
         bubble.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (isMultiSelectMode) return;
-            showContextMenu(e, id, content, realName);
+            showContextMenu(e, id, content, realName, role, timeStr);
         });
 
         chatContent.appendChild(msgRow);
@@ -1693,9 +1739,11 @@ function initChatRoomLogic() {
                 if (!text) return;
 
                 const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-                const newMsg = saveMessage(realName, 'user', text);
-                appendMessageToUI('user', text, newMsg.time, realName, newMsg.id);
+                const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+                const newMsg = saveMessage(realName, 'user', text, extra);
+                appendMessageToUI('user', text, newMsg.time, realName, newMsg.id, newMsg);
                 inputField.value = '';
+                clearPendingQuote();
             }
         });
     }
@@ -1721,12 +1769,34 @@ function initChatRoomLogic() {
             const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
             const rawName = altMatch ? altMatch[1] : '未命名表情';
             const stickerName = decodeHtmlEntities(rawName).trim() || '未命名表情';
-            // 统一使用标准方括号 [贴图:name] 发送给模型，避免全角符号混淆
             return `[贴图:${stickerName}]`;
         });
 
+        normalized = normalized.replace(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi, '[本地图片]');
         normalized = normalized.replace(/<[^>]+>/g, '');
         return decodeHtmlEntities(normalized).trim();
+    }
+
+    function countLocalImagesInContent(content) {
+        if (typeof content !== 'string') return 0;
+        const matches = content.match(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi) || [];
+        return matches.length;
+    }
+
+    function buildLocalImagePromptText(currentTurn, contextHistory) {
+        let total = 0;
+        if (currentTurn && currentTurn.role === 'user') {
+            total += countLocalImagesInContent(currentTurn.content);
+        }
+        if (Array.isArray(contextHistory)) {
+            contextHistory.forEach((msg) => {
+                if (msg && msg.role === 'user') {
+                    total += countLocalImagesInContent(msg.content);
+                }
+            });
+        }
+        if (total <= 0) return '';
+        return Array.from({ length: total }, () => '[本地图片]').join('\n');
     }
 
     function getAssistantBoundStickers(realName) {
@@ -1855,6 +1925,11 @@ ${userPersona || '无'}
 5. 严禁编造白名单中不存在的贴图名称，否则将被自动忽略。
 ${assistantStickerRuleText}
 
+[4.6 引用规则]
+1. 需要引用对方上一条消息时，只能使用一次以下格式：<quote>原文</quote>
+2. <quote> 只能引用对方上一条消息，不得引用更早内容。
+3. 引用标签不能出现在可见消息里，必须被系统隐藏处理。
+
 [5.5 心绪精灵 (Mood Sprite)]
 在每轮回复的末尾，你必须生成一个“心绪精灵”的数据，用来展示你此刻的真实内心状态。
 格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
@@ -1883,6 +1958,13 @@ ${assistantStickerRuleText}
 `;
 
             const roundInput = currentTurn && currentTurn.role === 'user' ? normalizeMessageForModel(currentTurn.content) : '';
+            const localImagePromptText = buildLocalImagePromptText(currentTurn, contextHistory);
+            const localImageSection = localImagePromptText
+                ? `
+[本地图片输入]
+${localImagePromptText}
+`
+                : '';
             const runtimeInput = `
 [本轮输入]
 ${roundInput || '无'}
@@ -1892,6 +1974,7 @@ ${contextText || '无'}
 
 [本轮已绑定世界书]
 ${wbContent || '无'}
+${localImageSection}
 `;
 
             const messages = [
@@ -1961,6 +2044,19 @@ ${wbContent || '无'}
             }
 
             let visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            let quoteData = null;
+            const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
+            const quoteMatch = visibleReply.match(quoteTagRegex);
+            if (quoteMatch) {
+                const rawQuoteText = String(quoteMatch[1] || '').replace(/\s+/g, ' ').trim();
+                const lastUserMsg = currentTurn && currentTurn.role === 'user'
+                    ? currentTurn
+                    : [...fullHistory].reverse().find(msg => msg.role === 'user');
+                if (rawQuoteText && lastUserMsg && lastUserMsg.id) {
+                    quoteData = { id: lastUserMsg.id, text: rawQuoteText };
+                }
+            }
+            visibleReply = visibleReply.replace(/<quote>[\s\S]*?<\/quote>/gi, '').trim();
             
             // Extract Sprite Data (Loop to handle multiple sprites if needed, but usually one per turn)
             let spriteData = null;
@@ -2009,7 +2105,10 @@ ${wbContent || '无'}
                     }
                     
                     const isLast = i === replyMessages.length - 1;
-                    const extra = (isLast && spriteData) ? { sprite: spriteData } : {};
+                    const isFirst = i === 0;
+                    const extra = {};
+                    if (isLast && spriteData) extra.sprite = spriteData;
+                    if (isFirst && quoteData) extra.quote = quoteData;
 
                     const newMsg = saveMessage(realName, 'assistant', msgContent, extra);
                     const shouldUnread = !isChatRoomOpenFor(realName);
@@ -2216,12 +2315,12 @@ ${wbContent || '无'}
         loadChatHistory(realName);
     }
 
-    function showContextMenu(e, id, content, realName) {
+    function showContextMenu(e, id, content, realName, role, timeStr) {
         if (isMultiSelectMode) return;
         // Prevent default browser context menu
         e.preventDefault();
         
-        currentContextMsg = { id, content, realName };
+        currentContextMsg = { id, content, realName, role, timeStr };
         
         // Calculate position
         let x = e.clientX || (e.touches && e.touches[0].clientX);
@@ -2229,7 +2328,7 @@ ${wbContent || '无'}
 
         // Adjust for menu width (approx 120px) and height
         // Center horizontally on click
-        const menuWidth = 120;
+        const menuWidth = 180;
         x -= menuWidth / 2;
 
         // Ensure within bounds
@@ -2283,6 +2382,19 @@ ${wbContent || '无'}
         contextMenu.style.display = 'none';
         enterMultiSelectMode(currentContextMsg.id);
         alert('已进入多选删除模式。删除后消息会从聊天记录和 AI 上下文中彻底移除。');
+    });
+
+    document.getElementById('ctx-quote').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        pendingQuote = {
+            id: currentContextMsg.id,
+            text: toPlainMessageText(currentContextMsg.content) || '引用消息'
+        };
+        updateReplyPreviewUI();
+        if (inputField) {
+            inputField.focus();
+        }
     });
 
     // Edit Logic
@@ -2441,8 +2553,10 @@ ${wbContent || '无'}
 
             const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
             const stickerContent = `<img src="${stickerUrl}" alt="${escapeHtml(stickerName)}" class="chat-inline-sticker">`;
-            const newMsg = saveMessage(realName, 'user', stickerContent);
-            appendMessageToUI('user', stickerContent, newMsg.time, realName, newMsg.id);
+            const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+            const newMsg = saveMessage(realName, 'user', stickerContent, extra);
+            appendMessageToUI('user', stickerContent, newMsg.time, realName, newMsg.id, newMsg);
+            clearPendingQuote();
             closeStickerMenu();
         });
 
@@ -2458,6 +2572,7 @@ ${wbContent || '无'}
         if (!chatRoom) return;
         exitMultiSelectMode();
         closeStickerMenu();
+        clearPendingQuote();
         
         let realName = name;
         const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
@@ -2503,6 +2618,13 @@ ${wbContent || '无'}
             }
             exitMultiSelectMode();
             closeStickerMenu();
+            clearPendingQuote();
+        });
+    }
+
+    if (replyPreviewClose) {
+        replyPreviewClose.addEventListener('click', () => {
+            clearPendingQuote();
         });
     }
 
@@ -3072,16 +3194,21 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         return chineseCharCount + Math.ceil(latinWordCount * 1.3) + Math.ceil(punctuationCount * 0.3);
     };
 
+    const countLocalImageTags = (content) => {
+        if (typeof content !== 'string') return 0;
+        return (content.match(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi) || []).length;
+    };
+
     const buildTokenStats = (realName) => {
         const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         const safeHistory = Array.isArray(history) ? history : [];
         const personaText = localStorage.getItem('chat_persona_' + realName) || '';
-        const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || 'User';
+        const longTermMemory = getMemoryDiaries(realName).map((item) => String(item?.content || '').trim()).filter(Boolean).join('\n');
         const limit = Math.max(1, parseInt(localStorage.getItem('chat_context_limit_' + realName) || '100', 10) || 100);
-        const contextHistory = safeHistory.slice(Math.max(0, safeHistory.length - limit - 1), -1);
+        const contextHistory = safeHistory.slice(Math.max(0, safeHistory.length - limit), safeHistory.length);
         const contextText = contextHistory.map((msg) => {
-            const speaker = msg.role === 'assistant' ? realName : userName;
-            return `${speaker}: ${normalizeMemoryMessageContent(msg.content)}`;
+            const role = String(msg?.role || 'unknown').trim() || 'unknown';
+            return `[${role}] ${normalizeMemoryMessageContent(msg?.content)}`;
         }).join('\n');
 
         const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
@@ -3093,18 +3220,24 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
             return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
         }).join('\n');
+        const diaryCount = getMemoryDiaries(realName).length;
 
-        const diaries = getMemoryDiaries(realName);
-        const diaryText = buildMemoryLongTermText(realName);
-        const imageMessages = safeHistory.filter((item) => String(item.role || '') === 'user' && /<img\b/i.test(String(item.content || '')));
-        const imageText = imageMessages.map((item) => normalizeMemoryMessageContent(item.content)).join('\n');
+        let localImageCount = 0;
+        const localImageText = safeHistory.map((msg) => {
+            if (msg && msg.role === 'user') {
+                const count = countLocalImageTags(msg.content);
+                localImageCount += count;
+                return count > 0 ? Array.from({ length: count }, () => '[本地图片]').join('\n') : '';
+            }
+            return '';
+        }).filter(Boolean).join('\n');
 
         return [
             { key: 'persona', label: '人设TK', tokens: estimateTokens(personaText), count: personaText.trim() ? 1 : 0 },
-            { key: 'worldbook', label: '已绑定世界书TK', tokens: estimateTokens(worldbookText), count: boundWorldbooks.length },
+            { key: 'worldbook', label: '已绑定的世界书TK', tokens: estimateTokens(worldbookText), count: boundWorldbooks.length },
             { key: 'context', label: '设置的上下文TK', tokens: estimateTokens(contextText), count: contextHistory.length },
-            { key: 'diary', label: '总结的日记TK', tokens: estimateTokens(diaryText), count: diaries.length },
-            { key: 'image', label: '发送的图片TK', tokens: estimateTokens(imageText), count: imageMessages.length }
+            { key: 'diary', label: '总结的日记TK', tokens: estimateTokens(longTermMemory), count: diaryCount },
+            { key: 'image', label: '本地图片TK', tokens: estimateTokens(localImageText), count: localImageCount }
         ];
     };
 
