@@ -1757,3 +1757,15 @@ input:checked + .slider:before {
 .memory-clear-btn:active {
     opacity: 0.85;
 }
+
+.sticker-error {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    color: #888;
+    font-size: 0.85em;
+    vertical-align: middle;
+    cursor: help;
+}

@@ -1463,7 +1463,8 @@ function initChatRoomLogic() {
             const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
             const rawName = altMatch ? altMatch[1] : '未命名表情';
             const stickerName = decodeHtmlEntities(rawName).trim() || '未命名表情';
-            return `【贴图:${stickerName}】`;
+            // 统一使用标准方括号 [贴图:name] 发送给模型，避免全角符号混淆
+            return `[贴图:${stickerName}]`;
         });
 
         normalized = normalized.replace(/<[^>]+>/g, '');
@@ -1496,11 +1497,15 @@ function initChatRoomLogic() {
     function convertAssistantStickerTokens(content, allowedStickers) {
         if (typeof content !== 'string') return '';
         const byName = new Map(allowedStickers.map(item => [item.name, item]));
+        // 支持 [贴图:name] 和 【贴图:name】，支持全角冒号
         return content
-            .replace(/\[(?:贴图|STICKER)\s*:\s*([^\]\n]+)\]/gi, (_, rawName) => {
+            .replace(/(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi, (match, rawName) => {
                 const name = String(rawName || '').trim();
                 const sticker = byName.get(name);
-                if (!sticker) return '';
+                if (!sticker) {
+                    // 如果找不到贴图，直接过滤掉，不显示任何错误提示
+                    return '';
+                }
                 return `<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`;
             })
             .trim();
@@ -1584,11 +1589,12 @@ ${userPersona || '无'}
 5. 严禁无意义刷屏，严禁重复输出同一个字或词组超过 50字。
 
 [4.5 贴图发送硬规则]
-1. 你只能使用下方“可发送贴图白名单”，绝对禁止编造或发送白名单外贴图。
-2. 每一条输出消息都必须使用格式 [贴图:名称]，名称必须与白名单完全一致。
-3. 严禁纯文本，严禁文本和 [贴图:名称] 混合，只能发送贴图消息。
-4. 用户发送的 【贴图:名称】 代表用户真的发了该贴图，你必须理解其情绪与语义。
-可发送贴图白名单：
+1. 贴图发送决策：是否发送贴图、发送频率高低，必须严格依据你的【人设性格】与【世界书设定】判断。
+   - 禁止为了发贴图而发贴图，必须符合当前对话的情绪流。
+2. 你可以使用下方“可发送贴图白名单”中的贴图。
+3. 发送贴图时，建议单独作为一条消息发送（通过 [SPLIT] 分隔），格式为 [贴图:名称]。
+4. 系统同时也支持 【贴图:名称】 格式，两者均会自动渲染为图片。
+5. 严禁编造白名单中不存在的贴图名称，否则将被自动忽略。
 ${assistantStickerRuleText}
 
 [5. 深度隐形思维链]
