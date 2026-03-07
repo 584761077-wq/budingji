@@ -3345,6 +3345,35 @@ function initAppearanceSettings() {
     const wallpaperFileInput = document.getElementById('wallpaper-file-input');
     const homeScreen = document.getElementById('home-screen');
     const phoneScreen = document.getElementById('phone-screen');
+    const fontUrlInput = document.getElementById('global-font-url-input');
+    const applyFontBtn = document.getElementById('apply-global-font-btn');
+    const fontPreview = document.getElementById('global-font-preview');
+    const fontSizeSlider = document.getElementById('global-font-size-slider');
+    const fontSizeValue = document.getElementById('global-font-size-value');
+    const fontPresetSelect = document.getElementById('global-font-preset-select');
+    const saveFontPresetBtn = document.getElementById('save-global-font-preset-btn');
+    const manageFontPresetBtn = document.getElementById('manage-global-font-preset-btn');
+    const fontPresetNameModal = document.getElementById('font-preset-name-modal');
+    const closeFontPresetNameModalBtn = document.getElementById('close-font-preset-name-modal');
+    const fontPresetNameInput = document.getElementById('font-preset-name-input');
+    const confirmFontPresetSaveBtn = document.getElementById('confirm-font-preset-save-btn');
+    const fontPresetManageModal = document.getElementById('font-preset-manage-modal');
+    const closeFontPresetManageModalBtn = document.getElementById('close-font-preset-manage-modal');
+    const fontPresetManageList = document.getElementById('font-preset-manage-list');
+    const fontPresetStorageKey = 'global_font_presets_v1';
+    const fontUrlStorageKey = 'global_font_url';
+    const fontFamilyStorageKey = 'global_font_family';
+    const fontSizeStorageKey = 'global_font_size_px';
+    const fontCssLinkId = 'global-font-css-link';
+    const defaultFontSize = 16;
+
+    const showMessage = (message) => {
+        if (typeof showApiErrorModal === 'function') {
+            showApiErrorModal(message);
+            return;
+        }
+        alert(message);
+    };
 
     const applyWallpaper = (imageDataUrl) => {
         if (!imageDataUrl || !phoneScreen) return;
@@ -3355,6 +3384,196 @@ function initAppearanceSettings() {
         if (homeScreen) {
             homeScreen.style.background = 'transparent';
         }
+    };
+
+    const getFontPresets = () => {
+        try {
+            const raw = localStorage.getItem(fontPresetStorageKey);
+            const parsed = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(item => item && item.id && item.name && item.url);
+        } catch (error) {
+            return [];
+        }
+    };
+
+    const setFontPresets = (presets) => {
+        localStorage.setItem(fontPresetStorageKey, JSON.stringify(presets));
+    };
+
+    const openOverlay = (overlay) => {
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+    };
+
+    const closeOverlay = (overlay) => {
+        if (!overlay) return;
+        overlay.style.display = 'none';
+    };
+
+    const extractFamilyFromGoogleUrl = (url) => {
+        try {
+            const parsedUrl = new URL(url);
+            const familyParam = parsedUrl.searchParams.get('family');
+            if (!familyParam) return '';
+            const firstFamily = familyParam.split('|')[0];
+            const familyName = firstFamily.split(':')[0].replace(/\+/g, ' ').trim();
+            return familyName;
+        } catch (error) {
+            return '';
+        }
+    };
+
+    const inferFontFormatFromUrl = (url) => {
+        try {
+            const pathname = new URL(url).pathname.toLowerCase();
+            if (pathname.endsWith('.woff2')) return 'woff2';
+            if (pathname.endsWith('.woff')) return 'woff';
+            if (pathname.endsWith('.otf')) return 'opentype';
+            if (pathname.endsWith('.ttf')) return 'truetype';
+            return '';
+        } catch (error) {
+            return '';
+        }
+    };
+
+    const normalizeFontSize = (value) => {
+        const size = Number.parseInt(String(value), 10);
+        if (Number.isNaN(size)) return defaultFontSize;
+        return Math.min(28, Math.max(12, size));
+    };
+
+    const updateSliderTrack = (value) => {
+        if (!fontSizeSlider) return;
+        const min = Number.parseFloat(fontSizeSlider.min || '12');
+        const max = Number.parseFloat(fontSizeSlider.max || '28');
+        const percent = ((value - min) / (max - min)) * 100;
+        fontSizeSlider.style.background = `linear-gradient(to right, #1d1d1f 0%, #1d1d1f ${percent}%, #e5e5ea ${percent}%, #e5e5ea 100%)`;
+    };
+
+    const renderPreviewFont = (familyName) => {
+        if (!fontPreview) return;
+        if (!familyName) {
+            fontPreview.style.fontFamily = '';
+            return;
+        }
+        fontPreview.style.fontFamily = `${familyName}, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif`;
+    };
+
+    const renderPreviewFontSize = (size) => {
+        if (fontPreview) {
+            fontPreview.style.fontSize = `${size}px`;
+        }
+        if (fontSizeValue) {
+            fontSizeValue.textContent = `${size}px`;
+        }
+        if (fontSizeSlider) {
+            fontSizeSlider.value = String(size);
+        }
+        updateSliderTrack(size);
+    };
+
+    const applyGlobalFontFamily = (familyName) => {
+        if (!familyName) return;
+        const family = `${familyName}, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif`;
+        document.documentElement.style.fontFamily = family;
+        document.body.style.fontFamily = family;
+        localStorage.setItem(fontFamilyStorageKey, familyName);
+        renderPreviewFont(familyName);
+    };
+
+    const applyGlobalFontSize = (sizeValue) => {
+        const size = normalizeFontSize(sizeValue);
+        document.documentElement.style.fontSize = `${size}px`;
+        localStorage.setItem(fontSizeStorageKey, String(size));
+        renderPreviewFontSize(size);
+    };
+
+    const renderFontPresetOptions = (selectedId = '') => {
+        if (!fontPresetSelect) return;
+        const presets = getFontPresets();
+        fontPresetSelect.innerHTML = '<option value="">选择字体预设...</option>';
+        presets.forEach((preset) => {
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.name;
+            fontPresetSelect.appendChild(option);
+        });
+        if (selectedId && presets.some(item => item.id === selectedId)) {
+            fontPresetSelect.value = selectedId;
+        }
+    };
+
+    const renderManagePresetList = () => {
+        if (!fontPresetManageList) return;
+        const presets = getFontPresets();
+        if (presets.length === 0) {
+            fontPresetManageList.innerHTML = '<div class="api-error-message">暂无字体预设</div>';
+            return;
+        }
+
+        fontPresetManageList.innerHTML = presets.map((preset) => `
+            <div class="font-preset-manage-item" data-preset-id="${preset.id}">
+                <div class="font-preset-meta">
+                    <div class="font-preset-name">${preset.name}</div>
+                    <div class="font-preset-url">${preset.url}</div>
+                </div>
+                <button class="font-preset-delete-btn" type="button">删除</button>
+            </div>
+        `).join('');
+    };
+
+    const ensureCssLink = (url) => {
+        let linkEl = document.getElementById(fontCssLinkId);
+        if (!linkEl) {
+            linkEl = document.createElement('link');
+            linkEl.rel = 'stylesheet';
+            linkEl.id = fontCssLinkId;
+            document.head.appendChild(linkEl);
+        }
+        linkEl.href = url;
+    };
+
+    const loadAndApplyGlobalFont = async (url, preferredFamily = '') => {
+        if (!/^https?:\/\//i.test(url)) {
+            throw new Error('请输入有效字体 URL');
+        }
+
+        const cssUrl = /\.css($|\?)/i.test(url) || /fonts\.googleapis\.com/i.test(url);
+        let resolvedFamily = preferredFamily.trim();
+
+        if (cssUrl) {
+            ensureCssLink(url);
+            if (!resolvedFamily) {
+                resolvedFamily = extractFamilyFromGoogleUrl(url);
+            }
+            if (!resolvedFamily) {
+                throw new Error('该链接无法自动识别字体名称，请先保存预设后再应用');
+            }
+            applyGlobalFontFamily(resolvedFamily);
+            return resolvedFamily;
+        }
+
+        if (!resolvedFamily) {
+            resolvedFamily = `GlobalFont${Date.now()}`;
+        }
+
+        const format = inferFontFormatFromUrl(url);
+        const source = format ? `url("${url}") format("${format}")` : `url("${url}")`;
+        const fontFace = new FontFace(resolvedFamily, source);
+        const loadedFont = await fontFace.load();
+        document.fonts.add(loadedFont);
+        await document.fonts.load(`16px "${resolvedFamily}"`);
+        applyGlobalFontFamily(resolvedFamily);
+        return resolvedFamily;
+    };
+
+    const syncFontInputFromPreset = (presetId) => {
+        const presets = getFontPresets();
+        const selectedPreset = presets.find(item => item.id === presetId);
+        if (!selectedPreset || !fontUrlInput) return;
+        fontUrlInput.value = selectedPreset.url;
+        fontUrlInput.dataset.family = selectedPreset.family || '';
     };
 
     if (wallpaperFileInput) {
@@ -3384,8 +3603,35 @@ function initAppearanceSettings() {
         applyWallpaper(savedWallpaper);
     }
 
+    const savedFontUrl = localStorage.getItem(fontUrlStorageKey) || '';
+    const savedFontFamily = localStorage.getItem(fontFamilyStorageKey) || '';
+    const savedFontSize = normalizeFontSize(localStorage.getItem(fontSizeStorageKey) || defaultFontSize);
+    if (savedFontFamily) {
+        applyGlobalFontFamily(savedFontFamily);
+    }
+    applyGlobalFontSize(savedFontSize);
+    if (savedFontUrl) {
+        loadAndApplyGlobalFont(savedFontUrl, savedFontFamily).catch(() => {
+            if (savedFontFamily) {
+                applyGlobalFontFamily(savedFontFamily);
+            }
+        });
+    }
+    if (fontUrlInput) {
+        fontUrlInput.value = savedFontUrl;
+        fontUrlInput.dataset.family = savedFontFamily;
+    }
+    renderFontPresetOptions();
+
     if (appAppearance && appearanceModal) {
         appAppearance.addEventListener('click', () => {
+            if (fontUrlInput) {
+                fontUrlInput.value = localStorage.getItem(fontUrlStorageKey) || '';
+                fontUrlInput.dataset.family = localStorage.getItem(fontFamilyStorageKey) || '';
+            }
+            renderPreviewFont(localStorage.getItem(fontFamilyStorageKey) || '');
+            renderPreviewFontSize(normalizeFontSize(localStorage.getItem(fontSizeStorageKey) || defaultFontSize));
+            renderFontPresetOptions();
             openAppModal(appearanceModal);
         });
     }
@@ -3407,4 +3653,141 @@ function initAppearanceSettings() {
             wallpaperFileInput.click();
         });
     }
+
+    if (applyFontBtn && fontUrlInput) {
+        applyFontBtn.addEventListener('click', async () => {
+            const url = fontUrlInput.value.trim();
+            if (!url) {
+                showMessage('请先输入字体 URL');
+                return;
+            }
+
+            const fallbackText = applyFontBtn.textContent;
+            applyFontBtn.textContent = '应用中';
+            applyFontBtn.disabled = true;
+
+            try {
+                const family = await loadAndApplyGlobalFont(url, fontUrlInput.dataset.family || '');
+                localStorage.setItem(fontUrlStorageKey, url);
+                localStorage.setItem(fontFamilyStorageKey, family);
+                fontUrlInput.dataset.family = family;
+                applyFontBtn.textContent = '已应用';
+                setTimeout(() => {
+                    applyFontBtn.textContent = fallbackText;
+                    applyFontBtn.disabled = false;
+                }, 700);
+            } catch (error) {
+                const message = error && error.message ? error.message : '字体应用失败';
+                showMessage(`${message}。请确认链接可直接访问字体文件（.ttf/.otf/.woff/.woff2）或可用字体 CSS。`);
+                applyFontBtn.textContent = fallbackText;
+                applyFontBtn.disabled = false;
+            }
+        });
+    }
+
+    if (fontSizeSlider) {
+        fontSizeSlider.addEventListener('input', () => {
+            const size = normalizeFontSize(fontSizeSlider.value);
+            applyGlobalFontSize(size);
+        });
+    }
+
+    if (fontPresetSelect) {
+        fontPresetSelect.addEventListener('change', () => {
+            const presetId = fontPresetSelect.value;
+            if (!presetId || !fontUrlInput) return;
+            syncFontInputFromPreset(presetId);
+        });
+    }
+
+    if (saveFontPresetBtn && fontPresetNameModal && fontUrlInput && fontPresetNameInput) {
+        saveFontPresetBtn.addEventListener('click', () => {
+            const url = fontUrlInput.value.trim();
+            if (!url) {
+                showMessage('请先填写字体 URL');
+                return;
+            }
+            fontPresetNameInput.value = '';
+            openOverlay(fontPresetNameModal);
+            setTimeout(() => fontPresetNameInput.focus(), 0);
+        });
+    }
+
+    if (closeFontPresetNameModalBtn && fontPresetNameModal) {
+        closeFontPresetNameModalBtn.addEventListener('click', () => {
+            closeOverlay(fontPresetNameModal);
+        });
+    }
+
+    if (confirmFontPresetSaveBtn && fontPresetNameInput && fontUrlInput) {
+        confirmFontPresetSaveBtn.addEventListener('click', () => {
+            const name = fontPresetNameInput.value.trim();
+            const url = fontUrlInput.value.trim();
+            if (!name) {
+                showMessage('请输入字体名字');
+                return;
+            }
+            if (!url) {
+                showMessage('请先填写字体 URL');
+                return;
+            }
+
+            const family = (fontUrlInput.dataset.family || '').trim() || extractFamilyFromGoogleUrl(url) || '';
+            const presets = getFontPresets();
+            const existed = presets.find(item => item.name === name || item.url === url);
+            const nextPreset = existed ? {
+                ...existed,
+                name,
+                url,
+                family
+            } : {
+                id: `font_${Date.now()}`,
+                name,
+                url,
+                family
+            };
+            const nextPresets = presets.filter(item => item.id !== nextPreset.id);
+            nextPresets.unshift(nextPreset);
+            setFontPresets(nextPresets);
+            renderFontPresetOptions(nextPreset.id);
+            closeOverlay(fontPresetNameModal);
+        });
+    }
+
+    if (manageFontPresetBtn && fontPresetManageModal) {
+        manageFontPresetBtn.addEventListener('click', () => {
+            renderManagePresetList();
+            openOverlay(fontPresetManageModal);
+        });
+    }
+
+    if (closeFontPresetManageModalBtn && fontPresetManageModal) {
+        closeFontPresetManageModalBtn.addEventListener('click', () => {
+            closeOverlay(fontPresetManageModal);
+        });
+    }
+
+    if (fontPresetManageList && fontUrlInput) {
+        fontPresetManageList.addEventListener('click', (event) => {
+            const deleteBtn = event.target.closest('.font-preset-delete-btn');
+            if (!deleteBtn) return;
+            const row = deleteBtn.closest('.font-preset-manage-item');
+            if (!row) return;
+            const presetId = row.dataset.presetId;
+            const presets = getFontPresets();
+            const nextPresets = presets.filter(item => item.id !== presetId);
+            setFontPresets(nextPresets);
+            renderManagePresetList();
+            renderFontPresetOptions();
+        });
+    }
+
+    [fontPresetNameModal, fontPresetManageModal].forEach((overlay) => {
+        if (!overlay) return;
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                closeOverlay(overlay);
+            }
+        });
+    });
 }

@@ -262,11 +262,30 @@
                     <button class="header-btn save-btn" id="save-appearance">保存</button>
                 </div>
                 <div class="app-content">
-                    <div class="settings-card">
-                        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="settings-card appearance-wallpaper-card">
+                        <div class="appearance-row">
                             <label>更换桌面壁纸</label>
                             <button class="candy-btn-small" id="upload-wallpaper-btn">上传图片</button>
                             <input type="file" id="wallpaper-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+                        </div>
+                    </div>
+                    <div class="settings-card appearance-font-card">
+                        <h3 class="card-title">全局字体</h3>
+                        <div class="appearance-row">
+                            <input type="url" id="global-font-url-input" class="candy-input" placeholder="https://...">
+                            <button class="candy-btn-small" id="apply-global-font-btn">应用</button>
+                        </div>
+                        <div class="font-preview-box" id="global-font-preview">你的心愿是天天开心。，？（）！，</div>
+                        <div class="font-size-row">
+                            <label for="global-font-size-slider">全局字体大小 <span id="global-font-size-value">16px</span></label>
+                            <input type="range" id="global-font-size-slider" class="font-size-slider" min="12" max="28" step="1" value="16">
+                        </div>
+                        <div class="appearance-row">
+                            <select id="global-font-preset-select" class="form-select appearance-font-select">
+                                <option value="">选择字体预设...</option>
+                            </select>
+                            <button class="candy-btn-small" id="save-global-font-preset-btn">保存</button>
+                            <button class="candy-btn-small" id="manage-global-font-preset-btn">管理</button>
                         </div>
                     </div>
                 </div>
@@ -859,6 +878,40 @@
                 </div>
                 <div class="ins-modal-footer">
                     <button class="ins-btn-primary" id="save-avatar-url-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="font-preset-name-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>保存字体预设</h3>
+                    <button class="ins-modal-close" id="close-font-preset-name-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label for="font-preset-name-input">字体名字</label>
+                        <input type="text" id="font-preset-name-input" placeholder="输入字体名字">
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="confirm-font-preset-save-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="font-preset-manage-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>管理字体预设</h3>
+                    <button class="ins-modal-close" id="close-font-preset-manage-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="font-preset-manage-list" id="font-preset-manage-list"></div>
                 </div>
             </div>
         </div>
