@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    initClock();
+    initHeroChatWidget();
     initStandee();
     initApiErrorModal();
     initSettings();
@@ -62,28 +62,169 @@ function initApiErrorModal() {
     overlay.dataset.bound = 'true';
 }
 
-// 1. 时间和日期功能
-function initClock() {
-    const clockEl = document.getElementById('clock');
-    const dateEl = document.getElementById('date');
+function initHeroChatWidget() {
+    const avatarLeftBtn = document.getElementById('hero-avatar-left-btn');
+    const avatarRightBtn = document.getElementById('hero-avatar-right-btn');
+    const avatarLeft = document.getElementById('hero-avatar-left');
+    const avatarRight = document.getElementById('hero-avatar-right');
+    const bubbleLeft = document.getElementById('hero-bubble-left');
+    const bubbleRight = document.getElementById('hero-bubble-right');
+    const fileInput = document.getElementById('hero-avatar-file-input');
 
-    function updateTime() {
-        const now = new Date();
-        
-        // 更新时间 HH:MM
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        clockEl.textContent = `${hours}:${minutes}`;
+    const avatarSourceModal = document.getElementById('avatar-source-modal');
+    const closeAvatarSourceModalBtn = document.getElementById('close-avatar-source-modal');
+    const chooseAvatarLocalBtn = document.getElementById('choose-avatar-local-btn');
+    const chooseAvatarUrlBtn = document.getElementById('choose-avatar-url-btn');
 
-        // 更新日期 YYYY年MM月DD日
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        dateEl.textContent = `${year}年${month}月${day}日`;
+    const avatarUrlModal = document.getElementById('avatar-url-modal');
+    const closeAvatarUrlModalBtn = document.getElementById('close-avatar-url-modal');
+    const avatarUrlInput = document.getElementById('avatar-url-input');
+    const saveAvatarUrlBtn = document.getElementById('save-avatar-url-btn');
+
+    const bubbleTextModal = document.getElementById('bubble-text-modal');
+    const closeBubbleTextModalBtn = document.getElementById('close-bubble-text-modal');
+    const bubbleTextInput = document.getElementById('bubble-text-input');
+    const saveBubbleTextBtn = document.getElementById('save-bubble-text-btn');
+
+    if (!avatarLeftBtn || !avatarRightBtn || !avatarLeft || !avatarRight || !bubbleLeft || !bubbleRight || !fileInput) {
+        return;
     }
 
-    updateTime();
-    setInterval(updateTime, 1000);
+    const getAvatarKey = (slot) => `hero_widget_avatar_${slot}`;
+    const getBubbleKey = (slot) => `hero_widget_bubble_${slot}`;
+    const defaultBubbleText = '点我编辑文字';
+    const defaultAvatarSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>';
+    let activeAvatarSlot = 'left';
+    let activeBubbleSlot = 'left';
+
+    const hideModal = (el) => {
+        if (!el) return;
+        el.style.display = 'none';
+    };
+
+    const showModal = (el) => {
+        if (!el) return;
+        el.style.display = 'flex';
+    };
+
+    const renderAvatar = (slot) => {
+        const target = slot === 'left' ? avatarLeft : avatarRight;
+        const value = localStorage.getItem(getAvatarKey(slot)) || '';
+        if (value) {
+            target.style.backgroundImage = `url("${value.replace(/"/g, '\\"')}")`;
+            target.innerHTML = '';
+        } else {
+            target.style.backgroundImage = 'none';
+            target.innerHTML = defaultAvatarSvg;
+        }
+    };
+
+    const renderBubble = (slot) => {
+        const target = slot === 'left' ? bubbleLeft : bubbleRight;
+        const value = localStorage.getItem(getBubbleKey(slot)) || defaultBubbleText;
+        target.textContent = value;
+    };
+
+    const renderAll = () => {
+        renderAvatar('left');
+        renderAvatar('right');
+        renderBubble('left');
+        renderBubble('right');
+    };
+
+    const bindAvatarClick = (slot, btn) => {
+        btn.addEventListener('click', () => {
+            activeAvatarSlot = slot;
+            showModal(avatarSourceModal);
+        });
+    };
+
+    const bindBubbleClick = (slot, bubbleEl) => {
+        bubbleEl.addEventListener('click', () => {
+            activeBubbleSlot = slot;
+            bubbleTextInput.value = localStorage.getItem(getBubbleKey(slot)) || '';
+            showModal(bubbleTextModal);
+            setTimeout(() => bubbleTextInput.focus(), 0);
+        });
+    };
+
+    bindAvatarClick('left', avatarLeftBtn);
+    bindAvatarClick('right', avatarRightBtn);
+    bindBubbleClick('left', bubbleLeft);
+    bindBubbleClick('right', bubbleRight);
+
+    if (closeAvatarSourceModalBtn) {
+        closeAvatarSourceModalBtn.addEventListener('click', () => hideModal(avatarSourceModal));
+    }
+    if (closeAvatarUrlModalBtn) {
+        closeAvatarUrlModalBtn.addEventListener('click', () => hideModal(avatarUrlModal));
+    }
+    if (closeBubbleTextModalBtn) {
+        closeBubbleTextModalBtn.addEventListener('click', () => hideModal(bubbleTextModal));
+    }
+
+    if (chooseAvatarLocalBtn) {
+        chooseAvatarLocalBtn.addEventListener('click', () => {
+            hideModal(avatarSourceModal);
+            fileInput.click();
+        });
+    }
+
+    if (chooseAvatarUrlBtn) {
+        chooseAvatarUrlBtn.addEventListener('click', () => {
+            hideModal(avatarSourceModal);
+            avatarUrlInput.value = localStorage.getItem(getAvatarKey(activeAvatarSlot)) || '';
+            showModal(avatarUrlModal);
+            setTimeout(() => avatarUrlInput.focus(), 0);
+        });
+    }
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const result = typeof event.target?.result === 'string' ? event.target.result : '';
+            if (!result) return;
+            localStorage.setItem(getAvatarKey(activeAvatarSlot), result);
+            renderAvatar(activeAvatarSlot);
+        };
+        reader.readAsDataURL(file);
+        fileInput.value = '';
+    });
+
+    if (saveAvatarUrlBtn) {
+        saveAvatarUrlBtn.addEventListener('click', () => {
+            const url = avatarUrlInput.value.trim();
+            if (!/^https?:\/\//i.test(url)) {
+                showApiErrorModal('请输入有效图片 URL');
+                return;
+            }
+            localStorage.setItem(getAvatarKey(activeAvatarSlot), url);
+            renderAvatar(activeAvatarSlot);
+            hideModal(avatarUrlModal);
+        });
+    }
+
+    if (saveBubbleTextBtn) {
+        saveBubbleTextBtn.addEventListener('click', () => {
+            const text = bubbleTextInput.value.trim() || defaultBubbleText;
+            localStorage.setItem(getBubbleKey(activeBubbleSlot), text);
+            renderBubble(activeBubbleSlot);
+            hideModal(bubbleTextModal);
+        });
+    }
+
+    [avatarSourceModal, avatarUrlModal, bubbleTextModal].forEach((modalEl) => {
+        if (!modalEl) return;
+        modalEl.addEventListener('click', (e) => {
+            if (e.target === modalEl) {
+                hideModal(modalEl);
+            }
+        });
+    });
+
+    renderAll();
 }
 
 // 2. 亚克力立牌功能

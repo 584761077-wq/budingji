@@ -23,10 +23,22 @@
     <div class="app-shell">
         <div class="phone-frame" id="phone-screen">
         <div class="screen active" id="home-screen">
-            <!-- 顶部时间区域 -->
             <header class="header-section">
-                <div class="time-display" id="clock">00:00</div>
-                <div class="date-display" id="date">YYYY年MM月DD日</div>
+                <div class="hero-chat-widget" id="hero-chat-widget">
+                    <div class="hero-chat-row left-row">
+                        <button class="hero-avatar-btn" id="hero-avatar-left-btn" type="button">
+                            <div class="hero-avatar" id="hero-avatar-left"></div>
+                        </button>
+                        <button class="hero-bubble" id="hero-bubble-left" type="button">点我编辑文字</button>
+                    </div>
+                    <div class="hero-chat-row right-row">
+                        <button class="hero-bubble" id="hero-bubble-right" type="button">点我编辑文字</button>
+                        <button class="hero-avatar-btn" id="hero-avatar-right-btn" type="button">
+                            <div class="hero-avatar" id="hero-avatar-right"></div>
+                        </button>
+                    </div>
+                    <input type="file" id="hero-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+                </div>
             </header>
 
             <!-- 中间主要区域 -->
@@ -788,6 +800,60 @@
                 </div>
                 <div class="ins-modal-footer">
                     <button class="ins-btn-primary" id="confirm-api-error-modal">知道了</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="avatar-source-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>头像设置</h3>
+                    <button class="ins-modal-close" id="close-avatar-source-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="avatar-source-actions">
+                        <button class="ins-btn-primary" id="choose-avatar-local-btn">本地图片</button>
+                        <button class="ins-btn-primary" id="choose-avatar-url-btn">图片 URL</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="avatar-url-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>输入头像 URL</h3>
+                    <button class="ins-modal-close" id="close-avatar-url-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label for="avatar-url-input">图片地址</label>
+                        <input type="url" id="avatar-url-input" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="save-avatar-url-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="bubble-text-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>编辑气泡文字</h3>
+                    <button class="ins-modal-close" id="close-bubble-text-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <textarea class="edit-message-textarea" id="bubble-text-input"></textarea>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="save-bubble-text-btn">保存</button>
                 </div>
             </div>
         </div>

@@ -116,7 +116,7 @@ body {
 
     /* 调整顶部安全距离 */
     .header-section {
-        margin-top: max(40px, env(safe-area-inset-top)); /* 适配刘海屏 */
+        margin-top: max(56px, env(safe-area-inset-top));
         flex-shrink: 0; /* Prevent header from shrinking */
     }
     
@@ -134,7 +134,11 @@ body {
         overflow-y: auto; /* Internal scrolling only */
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-y: contain; /* 防止滚动链 */
-        padding: 10px;
+        padding: 40px 10px 10px;
+    }
+
+    .hero-bubble {
+        max-width: min(72vw, 260px);
     }
 
     /* Modal Fullscreen - Treat as App */
@@ -186,9 +190,78 @@ body {
 /* 顶部时间 */
 .header-section {
     text-align: center;
-    margin-top: 40px;
-    margin-bottom: 30px;
+    margin-top: 64px;
+    margin-bottom: 20px;
     color: var(--color-text);
+}
+
+.hero-chat-widget {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 10px;
+}
+
+.hero-chat-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hero-chat-row.right-row {
+    justify-content: flex-end;
+}
+
+.hero-avatar-btn {
+    width: 46px;
+    height: 46px;
+    border: none;
+    border-radius: 50%;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.hero-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: linear-gradient(135deg, #f2f2f2, #e5e5ea);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.hero-avatar svg {
+    width: 20px;
+    height: 20px;
+    color: #8e8e93;
+}
+
+.hero-bubble {
+    border: none;
+    border-radius: 999px;
+    min-height: 42px;
+    padding: 10px 14px;
+    max-width: min(70vw, 240px);
+    width: fit-content;
+    text-align: left;
+    line-height: 1.35;
+    font-size: 0.9rem;
+    color: #1d1d1f;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .time-display {
@@ -213,7 +286,7 @@ body {
     flex: 1;
     display: flex;
     gap: 20px;
-    padding: 0 10px;
+    padding: 40px 10px 0;
     align-items: flex-start;
 }
 
@@ -1104,6 +1177,12 @@ input:checked + .slider:before {
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.avatar-source-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .ins-input-group {
