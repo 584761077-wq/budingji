@@ -1245,6 +1245,27 @@ function initChatRoomLogic() {
     const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
     const sendBtn = document.getElementById('trigger-ai-btn');
     const chatContent = document.querySelector('.chat-room-content');
+    
+    // 聊天状态管理
+    const chatStates = {}; // key: realName, value: { isSending: boolean }
+    const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';
+
+    function updateSendButtonState(realName) {
+        if (!sendBtn) return;
+        // 只有当前显示的聊天室匹配时才更新按钮
+        if (!isChatRoomOpenFor(realName)) return;
+        
+        const isSending = chatStates[realName]?.isSending;
+        if (isSending) {
+             sendBtn.innerHTML = `<svg class="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+             sendBtn.disabled = true;
+             sendBtn.classList.add('loading');
+        } else {
+             sendBtn.innerHTML = originalSendBtnIcon;
+             sendBtn.disabled = false;
+             sendBtn.classList.remove('loading');
+        }
+    }
 
     // 加载历史记录
     function loadChatHistory(realName) {
@@ -1345,6 +1366,9 @@ function initChatRoomLogic() {
 
     // 添加消息到 UI
     function appendMessageToUI(role, content, timeStr, realName, id) {
+        // 防止串台：只有当前打开的聊天室是该角色时才上屏
+        if (!isChatRoomOpenFor(realName)) return;
+
         const msgRow = document.createElement('div');
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
         msgRow.dataset.id = id;
@@ -1513,10 +1537,10 @@ function initChatRoomLogic() {
 
     // 触发 AI 回复
     async function triggerAIResponse(realName) {
-        // UI Loading 状态
-        const originalIcon = sendBtn.innerHTML;
-        sendBtn.innerHTML = `<svg class="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
-        sendBtn.disabled = true;
+        // UI Loading 状态 (使用全局管理)
+        chatStates[realName] = chatStates[realName] || {};
+        chatStates[realName].isSending = true;
+        updateSendButtonState(realName);
 
         try {
             // 1. 获取设置
@@ -1733,8 +1757,10 @@ ${wbContent || '无'}
             console.error(error);
             showApiErrorModal(error.message || 'AI 请求失败');
         } finally {
-            sendBtn.innerHTML = originalIcon;
-            sendBtn.disabled = false;
+            if (chatStates[realName]) {
+                chatStates[realName].isSending = false;
+            }
+            updateSendButtonState(realName);
         }
     }
 
@@ -2167,6 +2193,9 @@ ${wbContent || '无'}
         
         chatRoom.style.display = 'flex';
         
+        // 同步按钮状态
+        updateSendButtonState(realName);
+
         // 加载真实历史记录
         loadChatHistory(realName);
     }
