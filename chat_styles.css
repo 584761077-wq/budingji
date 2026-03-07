@@ -439,7 +439,7 @@
 
 
 /* Chat Settings Styles */
-.settings-card {
+#chat-settings-modal .settings-card {
     /* Reset settings-card to be just a wrapper or specific card style */
     padding: 0;
     margin-bottom: 20px;
