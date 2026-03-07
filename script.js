@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     initHeroChatWidget();
+    initStandWidget();
     initApiErrorModal();
     initSettings();
     initLineApp();
@@ -224,6 +225,48 @@ function initHeroChatWidget() {
     });
 
     renderAll();
+}
+
+function initStandWidget() {
+    const standContainer = document.getElementById('stand-container');
+    const standFigure = document.getElementById('stand-figure');
+    const fileInput = document.getElementById('stand-file-input');
+
+    if (!standContainer || !standFigure || !fileInput) return;
+
+    const renderStand = () => {
+        const value = localStorage.getItem('hero_stand_image');
+        const placeholder = standFigure.querySelector('.stand-placeholder');
+        if (value) {
+            standFigure.style.backgroundImage = `url("${value.replace(/"/g, '\\"')}")`;
+            if (placeholder) placeholder.style.display = 'none';
+        } else {
+            standFigure.style.backgroundImage = 'none';
+            if (placeholder) placeholder.style.display = 'flex';
+        }
+    };
+
+    standContainer.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const result = event.target.result;
+            if (result) {
+                localStorage.setItem('hero_stand_image', result);
+                renderStand();
+            }
+        };
+        reader.readAsDataURL(file);
+        fileInput.value = '';
+    });
+
+    renderStand();
 }
 
 // 3. 设置页面功能

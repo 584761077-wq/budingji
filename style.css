@@ -287,8 +287,76 @@ body {
     flex: 1;
     display: flex;
     gap: 20px;
-    padding: 40px 10px 0;
+    padding: 20px 24px 0; /* Adjusted padding */
     align-items: flex-start;
+}
+
+/* Split Layout */
+.hero-split-row {
+    flex: 1;
+    display: flex;
+    width: 100%;
+    gap: 20px;
+    align-items: stretch; /* Ensure equal height */
+}
+
+/* Left Stand Area */
+.stand-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    position: relative;
+    cursor: pointer;
+    /* Ensure it matches the height of the grid */
+}
+
+.stand-figure {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: bottom center;
+    transition: transform 0.2s;
+    padding-bottom: 8px; /* Space for base overlap */
+}
+
+.stand-figure:active {
+    transform: scale(0.98);
+}
+
+.stand-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: rgba(0,0,0,0.15);
+}
+
+.stand-placeholder svg {
+    width: 48px;
+    height: 48px;
+}
+
+.stand-placeholder span {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.stand-base {
+    width: 64%;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    margin-top: -6px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+    backdrop-filter: blur(5px);
+    z-index: 1;
 }
 
 /* 右侧应用区域 */
@@ -296,8 +364,8 @@ body {
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    align-content: flex-start;
+    gap: 12px; /* Compact gap */
+    align-content: flex-end; /* Align bottom to match stand base */
 }
 
 /* INS风应用图标 */
