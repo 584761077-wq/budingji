@@ -1330,6 +1330,12 @@ input:checked + .slider:before {
     animation: slideUp 0.3s ease;
 }
 
+.select-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 @keyframes slideUp {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
@@ -1339,6 +1345,11 @@ input:checked + .slider:before {
     font-size: 0.95rem;
     font-weight: 600;
     color: #1d1d1f;
+}
+
+.select-tip {
+    font-size: 0.72rem;
+    color: #6e6e73;
 }
 
 .select-actions {

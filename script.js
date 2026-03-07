@@ -1247,6 +1247,9 @@ function initChatRoomLogic() {
 
     // 加载历史记录
     function loadChatHistory(realName) {
+        if (isMultiSelectMode) {
+            exitMultiSelectMode();
+        }
         chatContent.innerHTML = '';
         let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         
@@ -1319,7 +1322,9 @@ function initChatRoomLogic() {
 
         // 触摸设备
         bubble.addEventListener('touchstart', (e) => {
+            if (isMultiSelectMode) return;
             pressTimer = setTimeout(() => {
+                if (isMultiSelectMode) return;
                 showContextMenu(e, id, content, realName);
             }, 500); // 500ms 长按
         });
@@ -1334,9 +1339,11 @@ function initChatRoomLogic() {
 
         // 桌面设备 (鼠标右键或长按模拟)
         bubble.addEventListener('mousedown', (e) => {
+            if (isMultiSelectMode) return;
             // 左键长按
             if (e.button === 0) {
                 pressTimer = setTimeout(() => {
+                    if (isMultiSelectMode) return;
                     showContextMenu(e, id, content, realName);
                 }, 500);
             }
@@ -1353,6 +1360,7 @@ function initChatRoomLogic() {
         // 阻止默认右键菜单
         bubble.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            if (isMultiSelectMode) return;
             showContextMenu(e, id, content, realName);
         });
 
@@ -1675,14 +1683,17 @@ ${wbContent || '无'}
     const editContent = document.getElementById('edit-message-content');
     const saveEditBtn = document.getElementById('save-edit-message');
     const closeEditBtn = document.getElementById('close-edit-message');
-    
-    // Removed Multi-select variables
+    const multiSelectBar = document.getElementById('multi-select-bar');
+    const multiSelectCount = document.getElementById('multi-select-count');
+    const multiSelectCancelBtn = document.getElementById('multi-select-cancel');
+    const multiSelectDeleteBtn = document.getElementById('multi-select-delete');
 
     let currentContextMsg = null; // { id, content, realName }
     const stickerStorageKey = 'sticker_categories_v1';
     const stickerTargetStorageKey = 'sticker_category_targets_v1';
     let activeStickerCategoryId = null;
-    // Removed selectedMsgIds
+    let isMultiSelectMode = false;
+    const selectedMsgIds = new Set();
 
     function escapeHtml(value) {
         return String(value)
@@ -1747,7 +1758,88 @@ ${wbContent || '无'}
         `;
     }
 
+    function updateSelectCount() {
+        if (multiSelectCount) {
+            multiSelectCount.textContent = `已选择 ${selectedMsgIds.size} 条`;
+        }
+        if (multiSelectDeleteBtn) {
+            multiSelectDeleteBtn.disabled = selectedMsgIds.size === 0;
+        }
+    }
+
+    function toggleMessageSelection(messageId) {
+        if (!messageId) return;
+        const selectorId = String(messageId).replace(/"/g, '\\"');
+        const row = chatContent.querySelector(`.message-row[data-id="${selectorId}"]`);
+        if (!row) return;
+
+        if (selectedMsgIds.has(messageId)) {
+            selectedMsgIds.delete(messageId);
+            row.classList.remove('selected');
+        } else {
+            selectedMsgIds.add(messageId);
+            row.classList.add('selected');
+        }
+        updateSelectCount();
+    }
+
+    function enterMultiSelectMode(initialMessageId) {
+        isMultiSelectMode = true;
+        selectedMsgIds.clear();
+        contextMenu.style.display = 'none';
+        closeStickerMenu();
+        if (menu) {
+            menu.style.display = 'none';
+        }
+        if (chatRoom) {
+            chatRoom.classList.add('multi-select-mode');
+        }
+        if (multiSelectBar) {
+            multiSelectBar.style.display = 'flex';
+        }
+        if (initialMessageId) {
+            const selectorId = String(initialMessageId).replace(/"/g, '\\"');
+            const row = chatContent.querySelector(`.message-row[data-id="${selectorId}"]`);
+            if (row) {
+                selectedMsgIds.add(initialMessageId);
+                row.classList.add('selected');
+            }
+        }
+        updateSelectCount();
+    }
+
+    function exitMultiSelectMode() {
+        isMultiSelectMode = false;
+        selectedMsgIds.clear();
+        if (chatRoom) {
+            chatRoom.classList.remove('multi-select-mode');
+        }
+        chatContent.querySelectorAll('.message-row.selected').forEach((row) => {
+            row.classList.remove('selected');
+        });
+        if (multiSelectBar) {
+            multiSelectBar.style.display = 'none';
+        }
+        updateSelectCount();
+    }
+
+    function deleteSelectedMessages() {
+        if (!isMultiSelectMode || selectedMsgIds.size === 0) {
+            alert('请先选择要删除的消息');
+            return;
+        }
+        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        const shouldDelete = confirm(`确定彻底删除选中的 ${selectedMsgIds.size} 条消息吗？\n删除后会同时从聊天记录和发送给 AI 的上下文中移除，且不可恢复。`);
+        if (!shouldDelete) return;
+
+        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        history = history.filter((m) => !selectedMsgIds.has(m.id));
+        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        loadChatHistory(realName);
+    }
+
     function showContextMenu(e, id, content, realName) {
+        if (isMultiSelectMode) return;
         // Prevent default browser context menu
         e.preventDefault();
         
@@ -1808,19 +1900,11 @@ ${wbContent || '无'}
         setTimeout(() => editContent.focus(), 0);
     });
 
-    // Removed ctx-multi-select listener
-
     document.getElementById('ctx-delete').addEventListener('click', () => {
         if (!currentContextMsg) return;
         contextMenu.style.display = 'none';
-        
-        if (confirm('确定删除这条消息吗？')) {
-            const realName = currentContextMsg.realName;
-            let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
-            history = history.filter(m => m.id !== currentContextMsg.id);
-            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
-            loadChatHistory(realName);
-        }
+        enterMultiSelectMode(currentContextMsg.id);
+        alert('已进入多选删除模式。删除后消息会从聊天记录和 AI 上下文中彻底移除。');
     });
 
     // Edit Logic
@@ -1865,8 +1949,27 @@ ${wbContent || '无'}
         });
     }
 
-    // Removed Multi-select Logic functions (enterMultiSelectMode, exitMultiSelectMode, toggleMessageSelection, updateSelectCount)
-    // Removed Multi-select Event Listeners
+    if (chatContent) {
+        chatContent.addEventListener('click', (e) => {
+            if (!isMultiSelectMode) return;
+            const row = e.target.closest('.message-row');
+            if (!row || !chatContent.contains(row)) return;
+            e.preventDefault();
+            toggleMessageSelection(row.dataset.id);
+        });
+    }
+
+    if (multiSelectCancelBtn) {
+        multiSelectCancelBtn.addEventListener('click', () => {
+            exitMultiSelectMode();
+        });
+    }
+
+    if (multiSelectDeleteBtn) {
+        multiSelectDeleteBtn.addEventListener('click', () => {
+            deleteSelectedMessages();
+        });
+    }
 
     if (menuBtn && menu) {
         // 切换菜单显示
@@ -1975,6 +2078,7 @@ ${wbContent || '无'}
     // 打开聊天室的通用函数
     function openChatRoom(name) {
         if (!chatRoom) return;
+        exitMultiSelectMode();
         closeStickerMenu();
         
         let realName = name;
@@ -2015,6 +2119,7 @@ ${wbContent || '无'}
             if (chatRoom) {
                 chatRoom.style.display = 'none';
             }
+            exitMultiSelectMode();
             closeStickerMenu();
         });
     }
@@ -2294,7 +2399,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
     if (clearChatBtn) {
         clearChatBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const shouldClear = confirm('确定清空当前聊天的全部消息吗？清空后不可恢复。');
+            const shouldClear = confirm('确定清空当前聊天的全部消息吗？\n清空后会同时从聊天记录和发送给 AI 的上下文中彻底移除，且不可恢复。');
             if (!shouldClear) return;
 
             localStorage.removeItem('chat_history_' + realName);
