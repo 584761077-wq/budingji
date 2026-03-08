@@ -1785,6 +1785,10 @@ function getAutoSummaryEnabledKey(realName) {
     return `chat_auto_summary_enabled_${realName}`;
 }
 
+function getTimeSyncEnabledKey(realName) {
+    return `chat_time_sync_enabled_${realName}`;
+}
+
 function getSummaryCursorKey(realName) {
     return `chat_summary_cursor_${realName}`;
 }
@@ -2000,6 +2004,10 @@ function initChatRoomLogic() {
     const chatStates = {}; // key: realName, value: { isSending: boolean }
     const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';
     let pendingQuote = null;
+    const HISTORY_PAGE_SIZE = 30;
+    const TIMESTAMP_INTERVAL_MS = 5 * 60 * 1000;
+    const chatHistoryViewStates = {};
+    let activeLoadMoreRealName = '';
 
     function updateSendButtonState(realName) {
         if (!sendBtn) return;
@@ -2018,32 +2026,195 @@ function initChatRoomLogic() {
         }
     }
 
+    function parseTimeToMinutes(timeStr) {
+        const raw = String(timeStr || '').trim();
+        const matched = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+        if (!matched) return null;
+        const h = parseInt(matched[1], 10);
+        const m = parseInt(matched[2], 10);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+        if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+        return h * 60 + m;
+    }
+
+    function normalizeTimestamp(rawTs) {
+        const value = Number(rawTs);
+        if (!Number.isFinite(value)) return null;
+        return value > 1e12 ? value : value * 1000;
+    }
+
+    function formatTimeDividerLabel(timeStr, ts) {
+        const safeTime = String(timeStr || '').trim();
+        const normalizedTs = normalizeTimestamp(ts);
+        if (!normalizedTs) return safeTime || '刚刚';
+        const date = new Date(normalizedTs);
+        const now = new Date();
+        const sameYear = date.getFullYear() === now.getFullYear();
+        const sameMonth = date.getMonth() === now.getMonth();
+        const sameDate = date.getDate() === now.getDate();
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        if (sameYear && sameMonth && sameDate) {
+            return `${hh}:${mm}`;
+        }
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${month}-${day} ${hh}:${mm}`;
+    }
+
+    function findFirstRenderableNode() {
+        return Array.from(chatContent.children).find((node) => !node.classList.contains('chat-load-more-wrap')) || null;
+    }
+
+    function findLastMessageRow() {
+        const rows = chatContent.querySelectorAll('.message-row');
+        return rows.length > 0 ? rows[rows.length - 1] : null;
+    }
+
+    function shouldInsertTimeDivider(previousMeta, currentMeta, forceTimeDivider) {
+        if (forceTimeDivider) return true;
+        if (!previousMeta) return true;
+        const prevTs = normalizeTimestamp(previousMeta.ts);
+        const curTs = normalizeTimestamp(currentMeta.ts);
+        if (prevTs && curTs) {
+            return (curTs - prevTs) >= TIMESTAMP_INTERVAL_MS;
+        }
+        const prevMinutes = parseTimeToMinutes(previousMeta.timeStr);
+        const curMinutes = parseTimeToMinutes(currentMeta.timeStr);
+        if (prevMinutes !== null && curMinutes !== null) {
+            const diff = curMinutes - prevMinutes;
+            return diff >= 5 || diff < 0;
+        }
+        return previousMeta.timeStr !== currentMeta.timeStr;
+    }
+
+    function renderTimeDivider(currentMeta, options = {}) {
+        const divider = document.createElement('div');
+        divider.className = 'chat-time-divider';
+        divider.textContent = formatTimeDividerLabel(currentMeta.timeStr, currentMeta.ts);
+        if (options.prepend) {
+            const anchor = findFirstRenderableNode();
+            if (anchor) {
+                chatContent.insertBefore(divider, anchor);
+            } else {
+                chatContent.appendChild(divider);
+            }
+            return;
+        }
+        chatContent.appendChild(divider);
+    }
+
+    function normalizeChatHistory(realName) {
+        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        let hasChanges = false;
+        history = history.map((msg) => {
+            const normalized = { ...msg };
+            if (!normalized.id) {
+                normalized.id = crypto.randomUUID();
+                hasChanges = true;
+            }
+            if (!Number.isFinite(Number(normalized.ts))) {
+                normalized.ts = null;
+            } else {
+                normalized.ts = Number(normalized.ts);
+            }
+            return normalized;
+        });
+        if (hasChanges) {
+            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        }
+        return history;
+    }
+
+    function updateLoadMoreVisibility(realName) {
+        const wrap = chatContent.querySelector('.chat-load-more-wrap');
+        const btn = chatContent.querySelector('.chat-load-more-btn');
+        const state = chatHistoryViewStates[realName];
+        if (!wrap || !btn || !state) return;
+        if (state.startIndex <= 0) {
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = 'flex';
+        btn.disabled = false;
+        btn.textContent = '加载更多消息';
+    }
+
+    function renderHistoryBatch(realName, messages, startIndex, options = {}) {
+        let previousMeta = options.previousMeta || null;
+        messages.forEach((msg, index) => {
+            const currentMeta = { timeStr: msg.time, ts: msg.ts };
+            const forceTimeDivider = options.forceFirstDivider ? index === 0 : false;
+            appendMessageToUI(
+                msg.role,
+                msg.content,
+                msg.time,
+                realName,
+                msg.id,
+                msg,
+                {
+                    autoScroll: false,
+                    prepend: !!options.prepend,
+                    forceTimeDivider,
+                    previousMeta
+                }
+            );
+            previousMeta = currentMeta;
+        });
+    }
+
+    function loadMoreHistory(realName) {
+        const state = chatHistoryViewStates[realName];
+        if (!state || state.startIndex <= 0) return;
+        const nextStart = Math.max(0, state.startIndex - HISTORY_PAGE_SIZE);
+        const chunk = state.history.slice(nextStart, state.startIndex);
+        const prevHeight = chatContent.scrollHeight;
+        const prevTop = chatContent.scrollTop;
+        renderHistoryBatch(realName, chunk, nextStart, { prepend: true, forceFirstDivider: true });
+        state.startIndex = nextStart;
+        updateLoadMoreVisibility(realName);
+        const currentHeight = chatContent.scrollHeight;
+        chatContent.scrollTop = Math.max(0, currentHeight - prevHeight + prevTop);
+    }
+
+    function ensureLoadMoreControl(realName) {
+        activeLoadMoreRealName = realName;
+        let wrap = chatContent.querySelector('.chat-load-more-wrap');
+        let btn = chatContent.querySelector('.chat-load-more-btn');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.className = 'chat-load-more-wrap';
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-load-more-btn';
+            btn.textContent = '加载更多消息';
+            wrap.appendChild(btn);
+            chatContent.prepend(wrap);
+        }
+        if (btn) {
+            btn.onclick = () => {
+                if (!activeLoadMoreRealName) return;
+                loadMoreHistory(activeLoadMoreRealName);
+            };
+        }
+    }
+
     // 加载历史记录
     function loadChatHistory(realName) {
         if (isMultiSelectMode) {
             exitMultiSelectMode();
         }
         chatContent.innerHTML = '';
-        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
-        
-        // 数据迁移：确保所有消息都有 ID
-        let hasChanges = false;
-        history = history.map(msg => {
-            if (!msg.id) {
-                msg.id = crypto.randomUUID();
-                hasChanges = true;
-            }
-            return msg;
-        });
-        
-        if (hasChanges) {
-            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
-        }
-
-        history.forEach(msg => {
-            appendMessageToUI(msg.role, msg.content, msg.time, realName, msg.id, msg);
-        });
-        // 滚动到底部
+        const history = normalizeChatHistory(realName);
+        const startIndex = Math.max(0, history.length - HISTORY_PAGE_SIZE);
+        chatHistoryViewStates[realName] = {
+            history,
+            startIndex
+        };
+        ensureLoadMoreControl(realName);
+        const chunk = history.slice(startIndex);
+        renderHistoryBatch(realName, chunk, startIndex, { forceFirstDivider: true });
+        updateLoadMoreVisibility(realName);
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
@@ -2132,22 +2303,47 @@ function initChatRoomLogic() {
         const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ...extra };
+        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
         history.push(newMsg);
         localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        const state = chatHistoryViewStates[realName];
+        if (state && Array.isArray(state.history)) {
+            state.history.push(newMsg);
+        }
         return newMsg;
     }
 
     // 添加消息到 UI
-    function appendMessageToUI(role, content, timeStr, realName, id, extra = {}) {
+    function appendMessageToUI(role, content, timeStr, realName, id, extra = {}, options = {}) {
         // 防止串台：只有当前打开的聊天室是该角色时才上屏
         if (!isChatRoomOpenFor(realName)) return;
+        const shouldPrepend = !!options.prepend;
+        const shouldAutoScroll = options.autoScroll !== false;
+        const currentMeta = {
+            timeStr,
+            ts: extra && Number.isFinite(Number(extra.ts)) ? Number(extra.ts) : null
+        };
+        let previousMeta = options.previousMeta || null;
+        if (!previousMeta && !shouldPrepend) {
+            const lastRow = findLastMessageRow();
+            if (lastRow) {
+                previousMeta = {
+                    timeStr: lastRow.dataset.time || '',
+                    ts: lastRow.dataset.ts || null
+                };
+            }
+        }
+        if (shouldInsertTimeDivider(previousMeta, currentMeta, !!options.forceTimeDivider)) {
+            renderTimeDivider(currentMeta, { prepend: shouldPrepend });
+        }
 
         const msgRow = document.createElement('div');
         const quote = extra && extra.quote ? extra.quote : null;
         msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
         if (quote) msgRow.classList.add('has-quote');
         msgRow.dataset.id = id;
+        msgRow.dataset.time = String(timeStr || '');
+        msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
         const quotePreview = quote ? truncateQuoteText(quote.text) : '';
         
@@ -2291,8 +2487,19 @@ function initChatRoomLogic() {
             showContextMenu(e, id, content, realName, role, timeStr);
         });
 
-        chatContent.appendChild(msgRow);
-        chatContent.scrollTop = chatContent.scrollHeight;
+        if (shouldPrepend) {
+            const anchor = findFirstRenderableNode();
+            if (anchor) {
+                chatContent.insertBefore(msgRow, anchor);
+            } else {
+                chatContent.appendChild(msgRow);
+            }
+        } else {
+            chatContent.appendChild(msgRow);
+        }
+        if (shouldAutoScroll) {
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }
     }
 
     // 回车仅发送上屏（不触发 AI）
@@ -2476,6 +2683,19 @@ function initChatRoomLogic() {
             const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
             const longTermMemory = buildMemoryLongTermText(realName);
             localStorage.setItem('chat_long_term_memory_' + realName, longTermMemory);
+            const timeSyncEnabled = localStorage.getItem(getTimeSyncEnabledKey(realName)) === 'true';
+            const now = new Date();
+            const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
+            const timeSyncPrompt = timeSyncEnabled
+                ? `
+[3.5 当前系统时间]
+已开启“同步时间”。你必须把以下时间当作当前真实时间：
+${nowDate} ${nowTime} ${weekday}
+当用户询问现在几点、今天几号、星期几、早晚时间段时，必须严格依据这个时间回答。
+`
+                : '';
 
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
             const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
@@ -2523,6 +2743,7 @@ ${longTermMemory || '无'}
 对方背景设定：
 ${userPersona || '无'}
 关系优先，权限决定你知道什么；对方没说、关系不该知道的内容，必须装不知道。
+${timeSyncPrompt}
 
 [4. 极致拟真文字聊天规范 (Hyper-Realistic Texting Rules)]
 1. 单条消息尽量 5-30 字。
@@ -3760,6 +3981,11 @@ function initChatSettingsLogic(chatRoomNameEl) {
                     localStorage.setItem('chat_worldbooks_' + newRealName, wb);
                     localStorage.removeItem('chat_worldbooks_' + oldRealName);
                 }
+                const oldTimeSync = localStorage.getItem(getTimeSyncEnabledKey(oldRealName));
+                if (oldTimeSync !== null) {
+                    localStorage.setItem(getTimeSyncEnabledKey(newRealName), oldTimeSync);
+                    localStorage.removeItem(getTimeSyncEnabledKey(oldRealName));
+                }
                 
                 // 迁移 User 数据
                 const uReal = localStorage.getItem('chat_user_realname_' + oldRealName);
@@ -3866,6 +4092,41 @@ function initChatSettingsLogic(chatRoomNameEl) {
 
     initWorldBookBindingLogic(chatRoomNameEl);
     initMemorySettingsLogic(chatRoomNameEl);
+    initTimeSettingsLogic(chatRoomNameEl);
+}
+
+function initTimeSettingsLogic(chatRoomNameEl) {
+    const timeSettingsBtn = document.getElementById('time-settings-btn');
+    const modal = document.getElementById('time-settings-modal');
+    const closeBtn = document.getElementById('close-time-settings');
+    const saveBtn = document.getElementById('save-time-settings');
+    const syncToggle = document.getElementById('time-sync-toggle');
+
+    if (!timeSettingsBtn || !modal || !syncToggle) return;
+
+    const syncFromStorage = () => {
+        const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+        syncToggle.checked = localStorage.getItem(getTimeSyncEnabledKey(realName)) === 'true';
+    };
+
+    timeSettingsBtn.addEventListener('click', () => {
+        syncFromStorage();
+        openAppModal(modal);
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            closeAppModal(modal);
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            localStorage.setItem(getTimeSyncEnabledKey(realName), syncToggle.checked ? 'true' : 'false');
+            closeAppModal(modal);
+        });
+    }
 }
 
 // 13. 记忆设置逻辑

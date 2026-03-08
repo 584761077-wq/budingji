@@ -107,6 +107,38 @@
     overscroll-behavior: contain; 
 }
 
+.chat-load-more-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0 8px;
+}
+
+.chat-load-more-btn {
+    border: none;
+    background: #ececef;
+    color: #5f5f65;
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.chat-load-more-btn:active {
+    transform: scale(0.97);
+}
+
+.chat-time-divider {
+    align-self: center;
+    color: #8e8e93;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    background: rgba(255, 255, 255, 0.75);
+    border-radius: 999px;
+    padding: 4px 10px;
+    margin: 2px 0 6px;
+}
+
 .chat-reply-preview {
     position: absolute;
     left: 14px;

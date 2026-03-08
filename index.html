@@ -651,7 +651,7 @@
                                             <span class="item-title">记忆设置</span>
                                         </div>
                                     </div>
-                                    <div class="settings-list-item">
+                                    <div class="settings-list-item" id="time-settings-btn">
                                         <div class="item-content">
                                             <div class="item-icon-container">
                                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -870,6 +870,26 @@
                     <div class="settings-card memory-token-settings-card">
                         <h3 class="card-title">Token来源详细分布</h3>
                         <div class="memory-token-distribution" id="memory-token-distribution"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="app-modal" id="time-settings-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-time-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">时间设置</h2>
+                    <button class="header-btn save-btn" id="save-time-settings">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card memory-settings-card">
+                        <div class="memory-limit-row toggle-group">
+                            <label for="time-sync-toggle">同步时间</label>
+                            <label class="switch">
+                                <input type="checkbox" id="time-sync-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
