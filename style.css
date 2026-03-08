@@ -27,6 +27,15 @@ input, textarea, select {
     font-size: 16px !important; /* 强制 16px 防止 iOS 缩放 */
 }
 
+input,
+textarea,
+select,
+button,
+option,
+optgroup {
+    font-family: inherit;
+}
+
 html {
     height: 100%;
     width: 100%;
