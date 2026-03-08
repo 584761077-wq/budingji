@@ -6,7 +6,69 @@ document.addEventListener('DOMContentLoaded', () => {
     initLineApp();
     initStickerApp();
     initAppearanceSettings();
+    initTopProfileWidget();
 });
+
+function initTopProfileWidget() {
+    const avatarContainer = document.querySelector('.top-avatar-large');
+    const avatarInput = document.getElementById('top-avatar-input');
+    const nameText = document.getElementById('profile-name-text');
+    const handleText = document.getElementById('profile-handle-text');
+
+    if (!avatarContainer || !avatarInput || !nameText || !handleText) return;
+
+    // --- Avatar Logic ---
+    const savedAvatar = localStorage.getItem('top_profile_avatar');
+    if (savedAvatar) {
+        avatarContainer.innerHTML = `<img src="${savedAvatar}" alt="Profile Avatar">`;
+    }
+
+    avatarContainer.addEventListener('click', () => {
+        avatarInput.click();
+    });
+
+    avatarInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const result = event.target.result;
+            if (result) {
+                localStorage.setItem('top_profile_avatar', result);
+                avatarContainer.innerHTML = `<img src="${result}" alt="Profile Avatar">`;
+            }
+        };
+        reader.readAsDataURL(file);
+        avatarInput.value = ''; // Reset input
+    });
+
+    // --- Text Editing Logic ---
+    const savedName = localStorage.getItem('top_profile_name');
+    const savedHandle = localStorage.getItem('top_profile_handle');
+
+    if (savedName) nameText.textContent = savedName;
+    if (savedHandle) handleText.textContent = savedHandle;
+
+    const saveText = (key, element) => {
+        const text = element.textContent.trim();
+        localStorage.setItem(key, text);
+    };
+
+    // Save on blur (when focus leaves the text)
+    nameText.addEventListener('blur', () => saveText('top_profile_name', nameText));
+    handleText.addEventListener('blur', () => saveText('top_profile_handle', handleText));
+
+    // Prevent new lines (Enter key)
+    [nameText, handleText].forEach(el => {
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                el.blur();
+            }
+        });
+    });
+}
 
 function openAppModal(modal) {
     if (!modal) return;

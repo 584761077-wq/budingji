@@ -214,7 +214,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 0 24px;
 }
 
 .hero-chat-row {
@@ -300,9 +299,140 @@ body {
 .main-content {
     flex: 1;
     display: flex;
+    flex-direction: column;
     gap: 20px;
     padding: 20px 24px 0; /* Adjusted padding */
-    align-items: flex-start;
+    align-items: stretch;
+}
+
+/* 顶部个人信息组件 */
+.top-profile-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.top-avatar-container {
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    position: relative;
+    z-index: 2; /* Ensure avatar is above capsule */
+}
+
+.top-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #e5e5ea;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8e8e93;
+    overflow: hidden;
+    position: relative;
+}
+
+.top-avatar-large svg {
+    width: 40px;
+    height: 40px;
+}
+
+.top-avatar-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.top-glass-capsule-large {
+    min-width: 260px; /* Increased width */
+    width: fit-content;
+    max-width: 90%;
+    padding: 24px 30px 14px; /* Increased side padding */
+    margin-top: -20px; /* Negative margin to move up under avatar */
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px; /* Slightly more rounded */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--color-text);
+    position: relative;
+    z-index: 1;
+}
+
+.profile-text-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px; /* Increased gap */
+    margin-top: -12px; /* Move text further up to avatar edge */
+}
+
+.profile-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    outline: none; /* Remove focus outline */
+}
+
+.profile-handle {
+    font-size: 0.85rem;
+    color: #000000; /* Changed to black */
+    font-weight: 500;
+    outline: none;
+}
+
+.top-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Align items to edges */
+    width: 260px; /* Match width of large capsule */
+    gap: 0; /* Remove gap as we use justify-content */
+}
+
+.top-glass-capsule-small {
+    flex: 1; /* Take up available space */
+    margin-right: 10px; /* Space between capsule and avatar */
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--color-secondary);
+    font-size: 0.85rem;
+}
+
+.top-avatar-small {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    color: #8e8e93;
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.top-avatar-small svg {
+    width: 18px;
+    height: 18px;
 }
 
 /* Split Layout */

@@ -23,26 +23,32 @@
     <div class="app-shell">
         <div class="phone-frame" id="phone-screen">
         <div class="screen active" id="home-screen">
-            <header class="header-section">
-                <div class="hero-chat-widget" id="hero-chat-widget">
-                    <div class="hero-chat-row left-row">
-                        <button class="hero-avatar-btn" id="hero-avatar-left-btn" type="button">
-                            <div class="hero-avatar" id="hero-avatar-left"></div>
-                        </button>
-                        <button class="hero-bubble" id="hero-bubble-left" type="button">点我编辑文字</button>
-                    </div>
-                    <div class="hero-chat-row right-row">
-                        <button class="hero-bubble" id="hero-bubble-right" type="button">点我编辑文字</button>
-                        <button class="hero-avatar-btn" id="hero-avatar-right-btn" type="button">
-                            <div class="hero-avatar" id="hero-avatar-right"></div>
-                        </button>
-                    </div>
-                    <input type="file" id="hero-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
-                </div>
-            </header>
-
             <!-- 中间主要区域 -->
             <main class="main-content">
+                <!-- 顶部个人信息组件 -->
+                <div class="top-profile-widget">
+                    <div class="top-avatar-container">
+                        <div class="top-avatar-large" id="top-profile-avatar" style="cursor: pointer;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path></svg>
+                        </div>
+                        <input type="file" id="top-avatar-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+                    </div>
+                    <div class="top-glass-capsule-large">
+                        <div class="profile-text-group">
+                            <span class="profile-name" id="profile-name-text" contenteditable="true">User Name</span>
+                            <span class="profile-handle" id="profile-handle-text" contenteditable="true">@user</span>
+                        </div>
+                    </div>
+                    <div class="top-status-row">
+                        <div class="top-glass-capsule-small">
+                            <span>Status: Online</span>
+                        </div>
+                        <div class="top-avatar-small">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="hero-split-row">
                     <!-- 左侧：亚克力立牌 -->
                     <div class="stand-container" id="stand-container">
@@ -81,6 +87,22 @@
                             <span class="app-name">约会</span>
                         </div>
                     </div>
+                </div>
+
+                <div class="hero-chat-widget" id="hero-chat-widget">
+                    <div class="hero-chat-row left-row">
+                        <button class="hero-avatar-btn" id="hero-avatar-left-btn" type="button">
+                            <div class="hero-avatar" id="hero-avatar-left"></div>
+                        </button>
+                        <button class="hero-bubble" id="hero-bubble-left" type="button">点我编辑文字</button>
+                    </div>
+                    <div class="hero-chat-row right-row">
+                        <button class="hero-bubble" id="hero-bubble-right" type="button">点我编辑文字</button>
+                        <button class="hero-avatar-btn" id="hero-avatar-right-btn" type="button">
+                            <div class="hero-avatar" id="hero-avatar-right"></div>
+                        </button>
+                    </div>
+                    <input type="file" id="hero-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
                 </div>
             </main>
         </div>
