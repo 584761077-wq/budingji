@@ -625,6 +625,134 @@ function initSettings() {
 function initLineApp() {
     const appLine = document.getElementById('app-line');
     const lineModal = document.getElementById('line-modal');
+    const lineUserRow = document.getElementById('line-user-row');
+    const lineHomeUsername = document.getElementById('line-home-username');
+    const lineHomeAvatar = document.getElementById('line-home-avatar');
+    const lineUserSettingsModal = document.getElementById('line-user-settings-modal');
+    const closeLineUserSettingsBtn = document.getElementById('close-line-user-settings');
+    const saveLineUserSettingsBtn = document.getElementById('save-line-user-settings');
+    const lineUserSettingsList = document.getElementById('line-user-settings-list');
+    const openLineUserAddModalBtn = document.getElementById('open-line-user-add-modal');
+    const lineUserAddOverlay = document.getElementById('line-user-add-overlay');
+    const cancelLineUserAddBtn = document.getElementById('cancel-line-user-add');
+    const confirmLineUserAddBtn = document.getElementById('confirm-line-user-add');
+    const lineUserAddRealnameInput = document.getElementById('line-user-add-realname');
+    const lineUserStorageKey = 'line_home_users';
+    const lineSelectedUserStorageKey = 'line_home_selected_user_id';
+    let lineUserDraft = [];
+    let lineSelectedUserId = '';
+
+    const getLineUsers = () => {
+        const raw = JSON.parse(localStorage.getItem(lineUserStorageKey) || '[]');
+        if (!Array.isArray(raw)) return [];
+        return raw
+            .map((item) => ({
+                id: String(item?.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random())),
+                name: String(item?.name || '').trim(),
+                persona: String(item?.persona || ''),
+                avatar: String(item?.avatar || '').trim()
+            }))
+            .filter((item) => item.name);
+    };
+
+    const setLineUsers = (users) => {
+        localStorage.setItem(lineUserStorageKey, JSON.stringify(Array.isArray(users) ? users : []));
+    };
+
+    const getLineSelectedUserId = () => String(localStorage.getItem(lineSelectedUserStorageKey) || '').trim();
+
+    const setLineSelectedUserId = (id) => {
+        const normalized = String(id || '').trim();
+        if (normalized) {
+            localStorage.setItem(lineSelectedUserStorageKey, normalized);
+        } else {
+            localStorage.removeItem(lineSelectedUserStorageKey);
+        }
+    };
+
+    const getDefaultAvatarSvg = (size = 26) => `
+        <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+        </svg>
+    `;
+
+    const readLineUserAvatarAsDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error(`读取图片失败：${file?.name || '未命名图片'}`));
+        reader.readAsDataURL(file);
+    });
+
+    const escapeLineUserInput = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const renderLineHomeSummary = () => {
+        if (!lineHomeUsername || !lineHomeAvatar) return;
+        const users = getLineUsers();
+        const selectedId = getLineSelectedUserId();
+        const current = users.find((item) => item.id === selectedId) || users[0];
+        if (current && current.id !== selectedId) {
+            setLineSelectedUserId(current.id);
+        }
+        if (!current) {
+            lineHomeUsername.textContent = 'User Name';
+            lineHomeAvatar.innerHTML = getDefaultAvatarSvg(40);
+            return;
+        }
+        lineHomeUsername.textContent = current.name || 'User Name';
+        lineHomeAvatar.innerHTML = current.avatar
+            ? `<img src="${current.avatar}" style="width:100%;height:100%;object-fit:cover;">`
+            : getDefaultAvatarSvg(40);
+    };
+
+    const renderLineUserSettingsList = () => {
+        if (!lineUserSettingsList) return;
+        if (!Array.isArray(lineUserDraft) || lineUserDraft.length === 0) {
+            lineUserSettingsList.innerHTML = '<div class="memory-token-empty">暂无User，点击上方加号添加</div>';
+            return;
+        }
+        lineUserSettingsList.innerHTML = lineUserDraft.map((item) => `
+            <div class="user-settings-card line-user-settings-item ${item.id === lineSelectedUserId ? 'selected' : ''}" data-id="${escapeLineUserInput(item.id)}">
+                <div class="chat-profile-row compact-profile">
+                    <div class="chat-profile-avatar-wrapper small-avatar line-user-avatar-trigger" data-id="${escapeLineUserInput(item.id)}">
+                        <div class="chat-profile-avatar">
+                            ${item.avatar ? `<img src="${escapeLineUserInput(item.avatar)}" alt="头像">` : getDefaultAvatarSvg(24)}
+                        </div>
+                        <input type="file" class="line-user-avatar-input" accept="image/*" style="display: none;">
+                        <div class="avatar-edit-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="chat-profile-info">
+                        <div class="info-row">
+                            <span class="info-label">名字</span>
+                            <input type="text" class="info-input line-user-name-input" value="${escapeLineUserInput(item.name)}" placeholder="输入名字">
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-section compact-section">
+                    <textarea class="persona-input line-user-persona-input" placeholder="输入User人设...">${escapeLineUserInput(item.persona)}</textarea>
+                </div>
+            </div>
+        `).join('');
+    };
+
+    const openLineUserAddOverlay = () => {
+        if (!lineUserAddOverlay || !lineUserAddRealnameInput) return;
+        lineUserAddOverlay.style.display = 'flex';
+        lineUserAddRealnameInput.value = '';
+        setTimeout(() => lineUserAddRealnameInput.focus(), 0);
+    };
+
+    const closeLineUserAddOverlay = () => {
+        if (!lineUserAddOverlay) return;
+        lineUserAddOverlay.style.display = 'none';
+    };
     
     // 打开 LINE
     if (appLine) {
@@ -704,6 +832,171 @@ function initLineApp() {
             }
         });
     });
+
+    if (lineUserRow && lineUserSettingsModal) {
+        lineUserRow.addEventListener('click', () => {
+            lineUserDraft = getLineUsers().map((item) => ({ ...item }));
+            lineSelectedUserId = getLineSelectedUserId();
+            if (!lineUserDraft.some((item) => item.id === lineSelectedUserId)) {
+                lineSelectedUserId = lineUserDraft[0]?.id || '';
+            }
+            renderLineUserSettingsList();
+            openAppModal(lineUserSettingsModal);
+        });
+    }
+
+    if (closeLineUserSettingsBtn && lineUserSettingsModal) {
+        closeLineUserSettingsBtn.addEventListener('click', () => {
+            closeAppModal(lineUserSettingsModal);
+        });
+    }
+
+    if (saveLineUserSettingsBtn && lineUserSettingsModal) {
+        saveLineUserSettingsBtn.addEventListener('click', () => {
+            if (!lineUserSettingsList) return;
+            const rows = Array.from(lineUserSettingsList.querySelectorAll('.line-user-settings-item'));
+            const nextUsers = rows.map((row) => {
+                const id = String(row.dataset.id || '').trim();
+                const nameInput = row.querySelector('.line-user-name-input');
+                const personaInput = row.querySelector('.line-user-persona-input');
+                const existed = lineUserDraft.find((item) => item.id === id);
+                return {
+                    id: id || (crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random()),
+                    name: String(nameInput ? nameInput.value : existed?.name || '').trim(),
+                    persona: String(personaInput ? personaInput.value : existed?.persona || ''),
+                    avatar: String(existed?.avatar || '')
+                };
+            }).filter((item) => item.name);
+            setLineUsers(nextUsers);
+            let nextSelectedId = lineSelectedUserId;
+            if (!nextUsers.some((item) => item.id === nextSelectedId)) {
+                nextSelectedId = nextUsers[0]?.id || '';
+            }
+            setLineSelectedUserId(nextSelectedId);
+            lineSelectedUserId = nextSelectedId;
+            lineUserDraft = nextUsers.map((item) => ({ ...item }));
+            renderLineHomeSummary();
+            const originalText = saveLineUserSettingsBtn.textContent;
+            saveLineUserSettingsBtn.textContent = '已存';
+            saveLineUserSettingsBtn.style.backgroundColor = '#333';
+            setTimeout(() => {
+                saveLineUserSettingsBtn.textContent = originalText;
+                saveLineUserSettingsBtn.style.backgroundColor = '#000000';
+                closeAppModal(lineUserSettingsModal);
+            }, 450);
+        });
+    }
+
+    if (openLineUserAddModalBtn) {
+        openLineUserAddModalBtn.addEventListener('click', openLineUserAddOverlay);
+    }
+
+    if (cancelLineUserAddBtn) {
+        cancelLineUserAddBtn.addEventListener('click', closeLineUserAddOverlay);
+    }
+
+    if (lineUserAddOverlay) {
+        lineUserAddOverlay.addEventListener('click', (e) => {
+            if (e.target === lineUserAddOverlay) {
+                closeLineUserAddOverlay();
+            }
+        });
+    }
+
+    if (confirmLineUserAddBtn && lineUserAddRealnameInput) {
+        confirmLineUserAddBtn.addEventListener('click', () => {
+            const name = lineUserAddRealnameInput.value.trim();
+            if (!name) {
+                alert('请输入真名');
+                return;
+            }
+            lineUserDraft.unshift({
+                id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                name,
+                persona: '',
+                avatar: ''
+            });
+            lineSelectedUserId = lineUserDraft[0].id;
+            renderLineUserSettingsList();
+            closeLineUserAddOverlay();
+        });
+    }
+
+    if (lineUserSettingsList) {
+        lineUserSettingsList.addEventListener('click', (e) => {
+            const trigger = e.target.closest('.line-user-avatar-trigger');
+            if (trigger) {
+                const input = trigger.querySelector('.line-user-avatar-input');
+                if (input) {
+                    input.value = '';
+                    input.click();
+                }
+                return;
+            }
+
+            const target = e.target;
+            if (target instanceof HTMLElement && (target.closest('.line-user-name-input') || target.closest('.line-user-persona-input'))) {
+                return;
+            }
+
+            const card = target instanceof HTMLElement ? target.closest('.line-user-settings-item') : null;
+            if (!card) return;
+            const id = String(card.dataset.id || '').trim();
+            if (!id) return;
+            lineSelectedUserId = id;
+            renderLineUserSettingsList();
+        });
+
+        lineUserSettingsList.addEventListener('focusin', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const card = target.closest('.line-user-settings-item');
+            if (!card) return;
+            const id = String(card.dataset.id || '').trim();
+            if (!id || id === lineSelectedUserId) return;
+            lineSelectedUserId = id;
+            renderLineUserSettingsList();
+        });
+
+        lineUserSettingsList.addEventListener('input', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const card = target.closest('.line-user-settings-item');
+            if (!card) return;
+            const id = String(card.dataset.id || '').trim();
+            const item = lineUserDraft.find((user) => user.id === id);
+            if (!item) return;
+            if (target.classList.contains('line-user-name-input')) {
+                item.name = String(target.value || '');
+            }
+            if (target.classList.contains('line-user-persona-input')) {
+                item.persona = String(target.value || '');
+            }
+        });
+
+        lineUserSettingsList.addEventListener('change', async (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLInputElement)) return;
+            if (!target.classList.contains('line-user-avatar-input')) return;
+            const file = target.files && target.files[0];
+            if (!file || !/^image\//i.test(file.type)) return;
+            const card = target.closest('.line-user-settings-item');
+            if (!card) return;
+            const id = String(card.dataset.id || '').trim();
+            try {
+                const dataUrl = await readLineUserAvatarAsDataUrl(file);
+                const item = lineUserDraft.find((user) => user.id === id);
+                if (item) {
+                    item.avatar = dataUrl;
+                    renderLineUserSettingsList();
+                }
+            } catch (error) {
+                showApiErrorModal(error.message || '头像上传失败');
+            }
+        });
+    }
+
+    renderLineHomeSummary();
 
     initAddFriendLogic();
     initChatRoomLogic();
@@ -1389,6 +1682,32 @@ function normalizeMemorySummaryInput(value) {
     return Math.max(1, parseInt(String(value || '').trim() || '30', 10) || 30);
 }
 
+function isLocalImageTag(imgTag) {
+    if (typeof imgTag !== 'string') return false;
+    const classMatch = imgTag.match(/class=["']([^"']*)["']/i);
+    const classes = classMatch ? classMatch[1] : '';
+    if (/\bchat-inline-local-image\b/i.test(classes)) return true;
+    const srcMatch = imgTag.match(/src=["']([^"']*)["']/i);
+    const src = String(srcMatch ? srcMatch[1] : '').trim();
+    if (!src) return false;
+    return /^data:image\//i.test(src) || /^blob:/i.test(src);
+}
+
+function extractLocalImageSources(content) {
+    if (typeof content !== 'string') return [];
+    const temp = document.createElement('div');
+    temp.innerHTML = content;
+    const images = temp.querySelectorAll('img');
+    return Array.from(images)
+        .filter((img) => {
+            const className = String(img.getAttribute('class') || '');
+            const src = String(img.getAttribute('src') || '').trim();
+            return /\bchat-inline-local-image\b/i.test(className) || /^data:image\//i.test(src) || /^blob:/i.test(src);
+        })
+        .map((img) => String(img.getAttribute('src') || '').trim())
+        .filter(Boolean);
+}
+
 function normalizeMemoryMessageContent(content) {
     if (typeof content !== 'string') return '';
     const withStickerText = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
@@ -1899,19 +2218,13 @@ function initChatRoomLogic() {
             return `[贴图:${stickerName}]`;
         });
 
-        normalized = normalized.replace(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi, '[本地图片]');
+        normalized = normalized.replace(/<img[^>]*>/gi, (imgTag) => isLocalImageTag(imgTag) ? '[本地图片]' : imgTag);
         normalized = normalized.replace(/<[^>]+>/g, '');
         return decodeHtmlEntities(normalized).trim();
     }
 
     function extractLocalImageDataUrls(content) {
-        if (typeof content !== 'string') return [];
-        const temp = document.createElement('div');
-        temp.innerHTML = content;
-        const images = temp.querySelectorAll('img[src^="data:image/"]');
-        return Array.from(images)
-            .map((img) => String(img.getAttribute('src') || '').trim())
-            .filter(Boolean);
+        return extractLocalImageSources(content);
     }
 
     function collectLocalImageInputs(currentTurn, contextHistory) {
@@ -3050,6 +3363,66 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const userRealNameInput = document.getElementById('user-settings-realname');
     const userRemarkInput = document.getElementById('user-settings-remark');
     const userPersonaInput = document.getElementById('user-settings-persona');
+    const userPresetSelect = document.getElementById('chat-user-preset-select');
+    const applyUserPresetBtn = document.getElementById('apply-chat-user-preset-btn');
+    const lineUserStorageKey = 'line_home_users';
+    const lineSelectedUserStorageKey = 'line_home_selected_user_id';
+
+    const getDefaultUserAvatarSvg = () => '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+    const escapePresetText = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const getLineUserPresets = () => {
+        const raw = JSON.parse(localStorage.getItem(lineUserStorageKey) || '[]');
+        if (!Array.isArray(raw)) return [];
+        return raw
+            .map((item) => ({
+                id: String(item?.id || '').trim(),
+                name: String(item?.name || '').trim(),
+                persona: String(item?.persona || ''),
+                avatar: String(item?.avatar || '').trim()
+            }))
+            .filter((item) => item.id && item.name);
+    };
+
+    const renderUserPresetOptions = () => {
+        if (!userPresetSelect) return;
+        const presets = getLineUserPresets();
+        const selectedId = String(localStorage.getItem(lineSelectedUserStorageKey) || '').trim();
+        let optionsHtml = '<option value="">选择预设...</option>';
+        presets.forEach((item) => {
+            optionsHtml += `<option value="${escapePresetText(item.id)}">${escapePresetText(item.name)}</option>`;
+        });
+        userPresetSelect.innerHTML = optionsHtml;
+        if (selectedId && presets.some((item) => item.id === selectedId)) {
+            userPresetSelect.value = selectedId;
+        } else if (presets.length > 0) {
+            userPresetSelect.value = presets[0].id;
+        }
+    };
+
+    const applyUserPresetById = (presetId) => {
+        const id = String(presetId || '').trim();
+        if (!id) return false;
+        const presets = getLineUserPresets();
+        const preset = presets.find((item) => item.id === id);
+        if (!preset) return false;
+        userRealNameInput.value = preset.name;
+        userPersonaInput.value = preset.persona || '';
+        if (preset.avatar) {
+            userAvatarDisplay.innerHTML = `<img src="${preset.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            userAvatarDisplay.dataset.newAvatar = preset.avatar;
+        } else {
+            userAvatarDisplay.innerHTML = getDefaultUserAvatarSvg();
+            delete userAvatarDisplay.dataset.newAvatar;
+        }
+        localStorage.setItem(lineSelectedUserStorageKey, preset.id);
+        return true;
+    };
 
     // 打开设置
     if (settingsBtn) {
@@ -3086,13 +3459,13 @@ function initChatSettingsLogic(chatRoomNameEl) {
             userRealNameInput.value = userRealName;
             userRemarkInput.value = userRemark;
             userPersonaInput.value = userPersona;
+            renderUserPresetOptions();
 
             // 显示 User 当前头像
             if (userAvatarSrc) {
                 userAvatarDisplay.innerHTML = `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
             } else {
-                // 默认头像
-                userAvatarDisplay.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                userAvatarDisplay.innerHTML = getDefaultUserAvatarSvg();
             }
 
             delete avatarDisplay.dataset.newAvatar;
@@ -3115,6 +3488,15 @@ function initChatSettingsLogic(chatRoomNameEl) {
             avatarInput.value = '';
             userAvatarInput.value = '';
             modal.classList.remove('active');
+        });
+    }
+
+    if (applyUserPresetBtn && userPresetSelect) {
+        applyUserPresetBtn.addEventListener('click', () => {
+            const applied = applyUserPresetById(userPresetSelect.value);
+            if (!applied) {
+                alert('请先选择一个预设');
+            }
         });
     }
 
@@ -3417,8 +3799,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     };
 
     const countLocalImageTags = (content) => {
-        if (typeof content !== 'string') return 0;
-        return (content.match(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi) || []).length;
+        return extractLocalImageSources(content).length;
     };
 
     const buildTokenStats = (realName) => {
@@ -3447,9 +3828,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         let localImageCount = 0;
         const localImageText = safeHistory.map((msg) => {
             if (msg && msg.role === 'user') {
-                const count = countLocalImageTags(msg.content);
-                localImageCount += count;
-                return count > 0 ? Array.from({ length: count }, () => '[本地图片]').join('\n') : '';
+                const imageSources = extractLocalImageSources(msg.content);
+                localImageCount += imageSources.length;
+                return imageSources.length > 0 ? imageSources.map((src) => `[本地图片:${src}]`).join('\n') : '';
             }
             return '';
         }).filter(Boolean).join('\n');

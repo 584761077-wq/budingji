@@ -376,9 +376,9 @@
                     <div class="line-page active" id="line-home-page">
                         <div class="line-main-content">
                             <!-- User Info Row -->
-                            <div class="line-user-row">
-                                <div class="line-username">User Name</div>
-                                <div class="line-avatar">
+                            <div class="line-user-row" id="line-user-row">
+                                <div class="line-username" id="line-home-username">User Name</div>
+                                <div class="line-avatar" id="line-home-avatar">
                                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5">
                                         <circle cx="12" cy="12" r="10"></circle>
                                         <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
@@ -631,11 +631,11 @@
                                     </div>
                                     <div class="settings-section compact-section">
                                         <div class="form-group preset-group">
-                                            <select class="form-select preset-select">
+                                            <select class="form-select preset-select" id="chat-user-preset-select">
                                                 <option value="">选择预设...</option>
                                                 <option value="default">默认</option>
                                             </select>
-                                            <button class="candy-btn-small preset-btn">应用</button>
+                                            <button class="candy-btn-small preset-btn" id="apply-chat-user-preset-btn">应用</button>
                                         </div>
                                     </div>
                                 </div>
@@ -746,6 +746,46 @@
                             </div>
                             <span>更多</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-modal" id="line-user-settings-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-line-user-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">User 设置</h2>
+                    <button class="header-btn save-btn" id="save-line-user-settings">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card line-user-settings-card">
+                        <div class="line-user-settings-toolbar">
+                            <button class="line-user-add-btn" id="open-line-user-add-modal" type="button" title="添加User">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            </button>
+                        </div>
+                        <div class="line-user-settings-list" id="line-user-settings-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ins-modal-overlay" id="line-user-add-overlay" style="display: none;">
+                <div class="ins-modal">
+                    <div class="ins-modal-header">
+                        <h3>添加 User</h3>
+                        <button class="ins-modal-close" id="cancel-line-user-add">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="ins-modal-body">
+                        <div class="ins-input-group">
+                            <label>真名</label>
+                            <input type="text" id="line-user-add-realname" placeholder="输入真名">
+                        </div>
+                    </div>
+                    <div class="ins-modal-footer">
+                        <button class="ins-btn-primary" id="confirm-line-user-add">保存</button>
                     </div>
                 </div>
             </div>

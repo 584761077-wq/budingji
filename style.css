@@ -1017,6 +1017,7 @@ input:checked + .slider:before {
     justify-content: space-between;
     align-items: center;
     margin-top: 10px;
+    cursor: pointer;
 }
 
 .line-username {
@@ -1035,6 +1036,52 @@ input:checked + .slider:before {
     justify-content: center;
     align-items: center;
     overflow: hidden;
+}
+
+.line-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.line-user-settings-card {
+    padding: 16px;
+}
+
+.line-user-settings-toolbar {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 12px;
+}
+
+.line-user-add-btn {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 10px;
+    background: #f2f2f2;
+    color: #1d1d1f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.line-user-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.line-user-settings-item {
+    margin-top: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.line-user-settings-item.selected {
+    background: #efeff4;
+    border: 1px solid #d1d1d6;
 }
 
 /* Middle Icons */

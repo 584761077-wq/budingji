@@ -670,10 +670,14 @@
     gap: 8px;
     align-items: center;
     margin-top: 5px;
+    display: flex;
+    flex-wrap: nowrap;
 }
 
 .form-select.preset-select {
-    flex: 1;
+    flex: 0 0 150px;
+    width: 150px;
+    min-width: 0;
     height: 32px;
     font-size: 0.85rem;
     padding: 0 10px;
@@ -682,11 +686,12 @@
 }
 
 .candy-btn-small.preset-btn {
-    width: auto;
+    width: 56px;
     padding: 0 12px;
     height: 32px;
     font-size: 0.85rem;
     border-radius: 8px;
+    flex: 0 0 56px;
 }
 
 /* Persona Section */
