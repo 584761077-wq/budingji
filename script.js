@@ -637,10 +637,17 @@ function initLineApp() {
     const cancelLineUserAddBtn = document.getElementById('cancel-line-user-add');
     const confirmLineUserAddBtn = document.getElementById('confirm-line-user-add');
     const lineUserAddRealnameInput = document.getElementById('line-user-add-realname');
+    const friendProfileModal = document.getElementById('friend-profile-modal');
+    const friendProfileAvatar = document.getElementById('friend-profile-avatar');
+    const friendProfileName = document.getElementById('friend-profile-name');
+    const friendProfileSignature = document.getElementById('friend-profile-signature');
+    const friendProfileFeedBtn = document.getElementById('friend-profile-feed-btn');
+    const friendProfileInfoBtn = document.getElementById('friend-profile-info-btn');
     const lineUserStorageKey = 'line_home_users';
     const lineSelectedUserStorageKey = 'line_home_selected_user_id';
     let lineUserDraft = [];
     let lineSelectedUserId = '';
+    let activeFriendRealName = '';
 
     const getLineUsers = () => {
         const raw = JSON.parse(localStorage.getItem(lineUserStorageKey) || '[]');
@@ -676,6 +683,7 @@ function initLineApp() {
             <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
         </svg>
     `;
+    const defaultFriendAvatarHtml = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>';
 
     const readLineUserAvatarAsDataUrl = (file) => new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -752,6 +760,83 @@ function initLineApp() {
     const closeLineUserAddOverlay = () => {
         if (!lineUserAddOverlay) return;
         lineUserAddOverlay.style.display = 'none';
+    };
+
+    const getFriendSignature = (realName) => {
+        const signature = localStorage.getItem('chat_signature_' + realName)
+            || localStorage.getItem('chat_persona_' + realName)
+            || localStorage.getItem('chat_user_persona_' + realName)
+            || '';
+        const normalized = String(signature || '').replace(/\s+/g, ' ').trim();
+        return normalized || '这个人很神秘，还没有签名';
+    };
+
+    const closeFriendProfileModal = () => {
+        if (!friendProfileModal) return;
+        friendProfileModal.style.display = 'none';
+        activeFriendRealName = '';
+    };
+
+    const ensureChatItem = (realName, displayName) => {
+        const chatListContainer = document.getElementById('line-chat-list');
+        if (!chatListContainer) return null;
+        const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName;
+        let chatItem = chatListContainer.querySelector(`.chat-list-item[data-real-name="${selectorName}"]`);
+        if (chatItem) return chatItem;
+
+        const avatar = localStorage.getItem('chat_avatar_' + realName);
+        const avatarHtml = avatar
+            ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+            : defaultFriendAvatarHtml;
+
+        chatItem = document.createElement('div');
+        chatItem.className = 'chat-list-item';
+        chatItem.dataset.realName = realName;
+        chatItem.innerHTML = `
+            <div class="chat-item-avatar">
+                ${avatarHtml}
+            </div>
+            <div class="chat-item-info">
+                <div class="chat-item-name">${displayName}</div>
+                <div class="chat-item-msg">点击开始聊天</div>
+            </div>
+            <div class="chat-item-unread hidden"></div>
+        `;
+        chatListContainer.insertBefore(chatItem, chatListContainer.firstChild);
+        return chatItem;
+    };
+
+    const openFriendChat = (realName) => {
+        const friendItem = document.querySelector(`#friends-list .group-subitem[data-real-name="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName}"]`);
+        const displayName = friendItem?.querySelector('span')?.textContent?.trim()
+            || localStorage.getItem('chat_remark_' + realName)
+            || realName;
+        const chatItem = ensureChatItem(realName, displayName);
+        if (!chatItem) return;
+
+        const emptyPlaceholder = document.querySelector('.empty-chat-placeholder');
+        if (emptyPlaceholder) {
+            emptyPlaceholder.style.display = 'none';
+        }
+        const chatNavItem = document.querySelector('.line-nav-item[data-page="line-chat-page"]');
+        if (chatNavItem && !chatNavItem.classList.contains('active')) {
+            chatNavItem.click();
+        }
+        chatItem.click();
+    };
+
+    const openFriendProfileModal = (item) => {
+        if (!item || !friendProfileModal || !friendProfileAvatar || !friendProfileName || !friendProfileSignature) return;
+        const realName = String(item.dataset.realName || '').trim() || String(item.querySelector('span')?.textContent || '').trim();
+        if (!realName) return;
+        const displayName = String(item.querySelector('span')?.textContent || realName).trim();
+        const avatarEl = item.querySelector('.subitem-avatar');
+
+        activeFriendRealName = realName;
+        friendProfileName.textContent = displayName;
+        friendProfileAvatar.innerHTML = avatarEl ? avatarEl.innerHTML : defaultFriendAvatarHtml;
+        friendProfileSignature.textContent = getFriendSignature(realName);
+        friendProfileModal.style.display = 'flex';
     };
     
     // 打开 LINE
@@ -832,6 +917,40 @@ function initLineApp() {
             }
         });
     });
+
+    const friendsList = document.getElementById('friends-list');
+    if (friendsList) {
+        friendsList.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const item = target.closest('.group-subitem');
+            if (!item) return;
+            openFriendProfileModal(item);
+        });
+    }
+
+    if (friendProfileModal) {
+        friendProfileModal.addEventListener('click', (e) => {
+            if (e.target === friendProfileModal) {
+                closeFriendProfileModal();
+            }
+        });
+    }
+
+    if (friendProfileFeedBtn) {
+        friendProfileFeedBtn.addEventListener('click', () => {
+            closeFriendProfileModal();
+        });
+    }
+
+    if (friendProfileInfoBtn) {
+        friendProfileInfoBtn.addEventListener('click', () => {
+            if (!activeFriendRealName) return;
+            const targetRealName = activeFriendRealName;
+            closeFriendProfileModal();
+            openFriendChat(targetRealName);
+        });
+    }
 
     if (lineUserRow && lineUserSettingsModal) {
         lineUserRow.addEventListener('click', () => {
