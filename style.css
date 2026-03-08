@@ -350,7 +350,7 @@ body {
 }
 
 .top-glass-capsule-large {
-    min-width: 260px; /* Increased width */
+    min-width: 320px; /* Increased width */
     width: fit-content;
     max-width: 90%;
     padding: 24px 30px 14px; /* Increased side padding */
@@ -374,14 +374,17 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0px; /* Reduced gap */
-    margin-top: -4px; /* Move text up slightly */
+    justify-content: space-between;
+    width: 100%;
+    min-height: 56px;
+    margin-top: -8px;
 }
 
 .profile-name {
     font-size: 1.2rem;
     font-weight: 700;
     line-height: 1.2;
+    margin-top: -2px;
     outline: none; /* Remove focus outline */
 }
 
@@ -389,6 +392,7 @@ body {
     font-size: 0.85rem;
     color: #000000; /* Changed to black */
     font-weight: 500;
+    margin-bottom: -2px;
     outline: none;
 }
 
@@ -396,7 +400,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between; /* Align items to edges */
-    width: 260px; /* Match width of large capsule */
+    width: 320px; /* Match width of large capsule */
     gap: 0; /* Remove gap as we use justify-content */
 }
 
@@ -418,8 +422,8 @@ body {
 }
 
 .top-avatar-small {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.4);
     backdrop-filter: blur(10px);
