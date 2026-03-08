@@ -294,6 +294,7 @@ function initStandWidget() {
     const standContainer = document.getElementById('stand-container');
     const standFigure = document.getElementById('stand-figure');
     const fileInput = document.getElementById('stand-file-input');
+    const defaultStandImage = 'https://dummyimage.com/720x1080/f7cad8/ffffff.png&text=%E7%AB%8B%E7%89%8C%E5%8D%A0%E4%BD%8D';
     // 获取底座元素 (假设在 HTML 中它是 .stand-base)
     // 根据 index.html 结构: <div class="stand-base"></div>
     const standBase = standContainer ? standContainer.querySelector('.stand-base') : null;
@@ -301,7 +302,7 @@ function initStandWidget() {
     if (!standContainer || !standFigure || !fileInput) return;
 
     const renderStand = () => {
-        const value = localStorage.getItem('hero_stand_image');
+        const value = localStorage.getItem('hero_stand_image') || defaultStandImage;
         const placeholder = standFigure.querySelector('.stand-placeholder');
         if (value) {
             standFigure.style.backgroundImage = `url("${value.replace(/"/g, '\\"')}")`;

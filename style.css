@@ -311,7 +311,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    margin-top: 18px;
+    margin-top: 20px;
     margin-bottom: 20px;
 }
 
@@ -438,7 +438,7 @@ body {
 
 /* Split Layout */
 .hero-split-row {
-    flex: 1;
+    flex: none;
     display: flex;
     width: 100%;
     gap: 20px;
@@ -462,11 +462,11 @@ body {
     width: 100%;
     flex: 1;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    background-size: contain;
+    background-size: auto 100%;
     background-repeat: no-repeat;
-    background-position: bottom center;
+    background-position: center top;
     transition: transform 0.2s;
     padding-bottom: 8px; /* Space for base overlap */
     position: relative;
