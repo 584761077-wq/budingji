@@ -4438,6 +4438,7 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     const closeBtn = document.getElementById('close-worldbook-binding');
     const saveBtn = document.getElementById('save-worldbook-binding');
     const listContainer = document.getElementById('worldbook-binding-list');
+    let selectedIdSet = new Set();
     
     // Open binding modal
     if (selector) {
@@ -4459,48 +4460,151 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            
-            // Get selected IDs
-            const selectedIds = [];
-            document.querySelectorAll('.binding-item.selected').forEach(item => {
-                selectedIds.push(item.dataset.id);
-            });
+            const selectedIds = Array.from(selectedIdSet);
 
-            // Save to chat specific settings
             localStorage.setItem('chat_worldbooks_' + realName, JSON.stringify(selectedIds));
-
-            // Update UI
             renderSelectedWorldBooks(realName);
-
-            // Close modal
             closeAppModal(modal);
         });
     }
 
     function renderBindingList(realName) {
         const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
-        const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
-        
+        const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]')
+            .map(id => String(id));
+        selectedIdSet = new Set(selectedIds);
+
         listContainer.innerHTML = '';
-        
+
         if (allItems.length === 0) {
             listContainer.innerHTML = '<div style="text-align:center; color:#8e8e93; padding:20px;">暂无世界书条目</div>';
             return;
         }
 
+        renderCategoryView(allItems);
+    }
+
+    function normalizeCategoryName(rawCategory) {
+        const name = String(rawCategory || '').trim();
+        return name || '未分类';
+    }
+
+    function renderCategoryView(allItems) {
+        listContainer.innerHTML = '';
+
+        const categoryMap = new Map();
         allItems.forEach(item => {
-            const div = document.createElement('div');
-            div.className = `binding-item ${selectedIds.includes(item.id) ? 'selected' : ''}`;
-            div.dataset.id = item.id;
-            div.innerHTML = `
-                <span class="binding-item-name">${item.name}</span>
-                <div class="binding-checkbox"></div>
-            `;
-            
-            div.addEventListener('click', () => {
-                div.classList.toggle('selected');
+            const category = normalizeCategoryName(item.category);
+            if (!categoryMap.has(category)) {
+                categoryMap.set(category, []);
+            }
+            categoryMap.get(category).push(item);
+        });
+
+        const storedCategories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]')
+            .map(category => String(category || '').trim())
+            .filter(Boolean)
+            .filter(category => category !== '未分类');
+        const categoryOrder = ['未分类', ...storedCategories];
+        categoryMap.forEach((_, category) => {
+            if (!categoryOrder.includes(category)) {
+                categoryOrder.push(category);
+            }
+        });
+
+        categoryOrder.forEach(category => {
+            const categoryItems = categoryMap.get(category) || [];
+            if (categoryItems.length === 0) return;
+
+            const selectedCount = categoryItems.filter(item => selectedIdSet.has(String(item.id))).length;
+            const categoryItem = document.createElement('button');
+            categoryItem.type = 'button';
+            categoryItem.className = 'binding-item binding-category-item';
+            categoryItem.dataset.category = category;
+
+            const infoWrap = document.createElement('div');
+            infoWrap.className = 'binding-item-main';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'binding-item-name';
+            nameEl.textContent = category;
+            const countEl = document.createElement('span');
+            countEl.className = 'binding-item-count';
+            countEl.textContent = selectedCount > 0
+                ? `${selectedCount}/${categoryItems.length} 已选`
+                : `${categoryItems.length} 条`;
+            infoWrap.appendChild(nameEl);
+            infoWrap.appendChild(countEl);
+
+            const arrow = document.createElement('span');
+            arrow.className = 'binding-item-arrow';
+            arrow.textContent = '›';
+
+            categoryItem.appendChild(infoWrap);
+            categoryItem.appendChild(arrow);
+            categoryItem.addEventListener('click', () => {
+                renderCategoryItemsView(allItems, category);
             });
-            
+            listContainer.appendChild(categoryItem);
+        });
+    }
+
+    function renderCategoryItemsView(allItems, category) {
+        listContainer.innerHTML = '';
+
+        const header = document.createElement('div');
+        header.className = 'binding-header';
+
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.className = 'binding-back-btn';
+        backBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 返回`;
+        backBtn.addEventListener('click', () => {
+            renderCategoryView(allItems);
+        });
+
+        const title = document.createElement('div');
+        title.className = 'binding-category-title';
+        title.textContent = category;
+
+        header.appendChild(backBtn);
+        header.appendChild(title);
+        listContainer.appendChild(header);
+
+        const categoryItems = allItems.filter(item => normalizeCategoryName(item.category) === category);
+        if (categoryItems.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'binding-empty';
+            empty.textContent = '该分类暂无世界书';
+            listContainer.appendChild(empty);
+            return;
+        }
+
+        categoryItems.forEach(item => {
+            const id = String(item.id);
+            const div = document.createElement('button');
+            div.type = 'button';
+            div.className = `binding-item ${selectedIdSet.has(id) ? 'selected' : ''}`;
+            div.dataset.id = id;
+
+            const name = document.createElement('span');
+            name.className = 'binding-item-name';
+            name.textContent = String(item.name || '');
+
+            const checkbox = document.createElement('div');
+            checkbox.className = 'binding-checkbox';
+
+            div.appendChild(name);
+            div.appendChild(checkbox);
+            div.addEventListener('click', () => {
+                if (selectedIdSet.has(id)) {
+                    selectedIdSet.delete(id);
+                    div.classList.remove('selected');
+                } else {
+                    selectedIdSet.add(id);
+                    div.classList.add('selected');
+                }
+            });
+
             listContainer.appendChild(div);
         });
     }

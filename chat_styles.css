@@ -813,14 +813,32 @@
     padding: 20px;
 }
 
+.binding-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 5px 15px;
+    border-bottom: 1px solid #f2f2f2;
+    margin-bottom: 10px;
+}
+
 .binding-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 15px;
+    padding: 15px 10px;
     background: #ffffff;
     border-bottom: 1px solid #f2f2f2;
     cursor: pointer;
+    width: 100%;
+    border: none;
+    text-align: left;
+    font: inherit;
+    transition: background-color 0.2s;
+}
+
+.binding-item:hover {
+    background-color: #f9f9f9;
 }
 
 .binding-item:last-child {
@@ -830,9 +848,62 @@
 .binding-item-name {
     font-size: 1rem;
     color: #1d1d1f;
+    font-weight: 500;
 }
 
-/* Custom Checkbox */
+.binding-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.binding-item-count {
+    font-size: 0.82rem;
+    color: #8e8e93;
+}
+
+.binding-item-arrow {
+    color: #c7c7cc;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.binding-back-btn {
+    border: none;
+    background: transparent;
+    color: #1d1d1f;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.binding-back-btn:hover {
+    background-color: #f2f2f2;
+}
+
+.binding-category-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    flex: 1;
+    text-align: center;
+    margin-right: 40px; /* offset back button width for centering */
+}
+
+.binding-empty {
+    color: #8e8e93;
+    text-align: center;
+    padding: 40px 0;
+    font-size: 0.9rem;
+}
+
+/* Custom Checkbox (INS Style) */
 .binding-checkbox {
     width: 22px;
     height: 22px;
@@ -842,11 +913,25 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    background: #ffffff;
 }
 
 .binding-item.selected .binding-checkbox {
-    background: #007aff; /* iOS Blue */
-    border-color: #007aff;
+    background: #1d1d1f; /* INS Black */
+    border-color: #1d1d1f;
+    position: relative;
+}
+
+.binding-item.selected .binding-checkbox::after {
+    content: '';
+    width: 10px;
+    height: 5px;
+    border-left: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    transform: rotate(-45deg);
+    position: absolute;
+    top: 6px;
+    left: 5px;
 }
 
 .binding-item.selected .binding-checkbox::after {
