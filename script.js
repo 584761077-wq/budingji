@@ -1904,26 +1904,82 @@ function initChatRoomLogic() {
         return decodeHtmlEntities(normalized).trim();
     }
 
-    function countLocalImagesInContent(content) {
-        if (typeof content !== 'string') return 0;
-        const matches = content.match(/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/gi) || [];
-        return matches.length;
+    function extractLocalImageDataUrls(content) {
+        if (typeof content !== 'string') return [];
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        const images = temp.querySelectorAll('img[src^="data:image/"]');
+        return Array.from(images)
+            .map((img) => String(img.getAttribute('src') || '').trim())
+            .filter(Boolean);
     }
 
-    function buildLocalImagePromptText(currentTurn, contextHistory) {
-        let total = 0;
-        if (currentTurn && currentTurn.role === 'user') {
-            total += countLocalImagesInContent(currentTurn.content);
-        }
+    function collectLocalImageInputs(currentTurn, contextHistory) {
+        const records = [];
+
         if (Array.isArray(contextHistory)) {
-            contextHistory.forEach((msg) => {
-                if (msg && msg.role === 'user') {
-                    total += countLocalImagesInContent(msg.content);
-                }
+            contextHistory.forEach((msg, index) => {
+                if (!msg || msg.role !== 'user') return;
+                const images = extractLocalImageDataUrls(msg.content);
+                if (images.length === 0) return;
+                records.push({
+                    source: `上下文第${index + 1}条用户消息`,
+                    text: normalizeMessageForModel(msg.content),
+                    images
+                });
             });
         }
-        if (total <= 0) return '';
-        return Array.from({ length: total }, () => '[本地图片]').join('\n');
+
+        if (currentTurn && currentTurn.role === 'user') {
+            const images = extractLocalImageDataUrls(currentTurn.content);
+            if (images.length > 0) {
+                records.push({
+                    source: '本轮输入',
+                    text: normalizeMessageForModel(currentTurn.content),
+                    images
+                });
+            }
+        }
+
+        return records;
+    }
+
+    function buildLocalImagePromptText(imageRecords) {
+        if (!Array.isArray(imageRecords) || imageRecords.length === 0) return '';
+        return imageRecords.map((record, index) => {
+            const text = String(record.text || '').trim() || '无';
+            return `${index + 1}. 来源: ${record.source} | 图片数: ${record.images.length} | 关联文本: ${text}`;
+        }).join('\n');
+    }
+
+    function buildUserMessagePayload(runtimeInput, imageRecords) {
+        if (!Array.isArray(imageRecords) || imageRecords.length === 0) {
+            return runtimeInput;
+        }
+        const payload = [{ type: 'text', text: runtimeInput }];
+        payload.push({ type: 'text', text: '以下是用户上传的本地图片（base64）：' });
+        imageRecords.forEach((record, index) => {
+            payload.push({
+                type: 'text',
+                text: `图片组${index + 1}，来源：${record.source}，关联文本：${record.text || '无'}`
+            });
+            record.images.forEach((dataUrl) => {
+                payload.push({
+                    type: 'image_url',
+                    image_url: { url: dataUrl }
+                });
+            });
+        });
+        return payload;
+    }
+
+    function readImageAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error(`读取图片失败：${file.name || '未命名图片'}`));
+            reader.readAsDataURL(file);
+        });
     }
 
     function getAssistantBoundStickers(realName) {
@@ -2086,7 +2142,8 @@ ${assistantStickerRuleText}
 `;
 
             const roundInput = currentTurn && currentTurn.role === 'user' ? normalizeMessageForModel(currentTurn.content) : '';
-            const localImagePromptText = buildLocalImagePromptText(currentTurn, contextHistory);
+            const localImageRecords = collectLocalImageInputs(currentTurn, contextHistory);
+            const localImagePromptText = buildLocalImagePromptText(localImageRecords);
             const localImageSection = localImagePromptText
                 ? `
 [本地图片输入]
@@ -2104,10 +2161,11 @@ ${contextText || '无'}
 ${wbContent || '无'}
 ${localImageSection}
 `;
+            const userMessagePayload = buildUserMessagePayload(runtimeInput, localImageRecords);
 
             const messages = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: runtimeInput }
+                { role: "user", content: userMessagePayload }
             ];
 
             // 3. 调用 API
@@ -2278,6 +2336,8 @@ ${localImageSection}
     const menuBtn = document.getElementById('chat-menu-btn');
     const menu = document.getElementById('chat-action-menu');
     const regenerateBtn = document.getElementById('regenerate-reply-btn');
+    const uploadPhotoBtn = document.getElementById('upload-photo-btn');
+    const photoInput = document.getElementById('chat-photo-input');
     const stickerBtn = document.getElementById('chat-sticker-btn');
     const stickerMenu = document.getElementById('chat-sticker-menu');
     const stickerMenuContent = document.getElementById('chat-sticker-menu-content');
@@ -2641,6 +2701,40 @@ ${localImageSection}
                 await triggerAIResponse(realName);
             });
         }
+    }
+
+    if (uploadPhotoBtn && photoInput) {
+        uploadPhotoBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            photoInput.click();
+        });
+
+        photoInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files || []).filter((file) => /^image\//i.test(file.type));
+            photoInput.value = '';
+            if (files.length === 0) return;
+
+            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const quoteExtra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : null;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                try {
+                    const dataUrl = await readImageAsDataUrl(file);
+                    if (!dataUrl) continue;
+                    const imageContent = `<img src="${dataUrl}" alt="${escapeHtml(file.name || '本地图片')}" class="chat-inline-local-image">`;
+                    const extra = i === 0 && quoteExtra ? quoteExtra : {};
+                    const newMsg = saveMessage(realName, 'user', imageContent, extra);
+                    appendMessageToUI('user', imageContent, newMsg.time, realName, newMsg.id, newMsg);
+                } catch (error) {
+                    showApiErrorModal(error.message || '图片上传失败');
+                    break;
+                }
+            }
+            clearPendingQuote();
+        });
     }
 
     if (stickerBtn && stickerMenu) {
