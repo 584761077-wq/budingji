@@ -2046,6 +2046,24 @@ async function runAutoSummaryBatches(realName, batchSize) {
     return summarized;
 }
 
+function getChatWallpaperStorageKey(realName) {
+    return 'chat_wallpaper_' + realName;
+}
+
+function applyChatWallpaper(realName) {
+    const chatRoom = document.getElementById('chat-room');
+    const wallpaperLayer = document.querySelector('.chat-room-wallpaper');
+    if (!chatRoom || !wallpaperLayer) return;
+    const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(realName));
+    if (wallpaper) {
+        wallpaperLayer.style.backgroundImage = `url("${wallpaper.replace(/"/g, '\\"')}")`;
+        wallpaperLayer.style.opacity = '1';
+    } else {
+        wallpaperLayer.style.backgroundImage = 'none';
+        wallpaperLayer.style.opacity = '0';
+    }
+}
+
 // 5. 聊天室功能逻辑
 function initChatRoomLogic() {
     const chatRoom = document.getElementById('chat-room');
@@ -2812,7 +2830,7 @@ ${timeSyncPrompt}
 1. 单条消息尽量 5-30 字。
 2. 可用省略号、感叹号、波浪号、语气词、适量 Emoji 表达情绪。
 3. 保持信息饥饿感，不要一次说完。
-4. 每轮必须拆成 2 到 7 条短消息，使用 [SPLIT] 分隔。
+4. 每轮可以拆成 2 到 10条短消息，使用 [SPLIT] 分隔。
 5. 严禁无意义刷屏，严禁重复输出同一个字或词组超过 50字。
 
 [4.5 贴图发送硬规则]
@@ -3526,6 +3544,7 @@ ${localImageSection}
         chatRoomName.textContent = name;
         chatRoomName.dataset.realName = realName;
         clearUnread(realName);
+        applyChatWallpaper(realName);
         
         chatRoom.style.display = 'flex';
         
@@ -3749,6 +3768,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const closeBtn = document.getElementById('close-chat-settings');
     const saveBtn = document.getElementById('save-chat-settings');
     const clearChatBtn = document.getElementById('clear-chat-history-btn');
+    const changeWallpaperBtn = document.getElementById('change-chat-wallpaper-btn');
+    const chatWallpaperInput = document.getElementById('chat-wallpaper-input');
     
     const avatarWrapper = document.querySelector('.chat-profile-avatar-wrapper');
     const avatarInput = document.getElementById('chat-avatar-input');
@@ -3900,6 +3921,32 @@ function initChatSettingsLogic(chatRoomNameEl) {
             if (!applied) {
                 alert('请先选择一个预设');
             }
+        });
+    }
+
+    if (changeWallpaperBtn && chatWallpaperInput) {
+        changeWallpaperBtn.addEventListener('click', () => {
+            chatWallpaperInput.value = '';
+            chatWallpaperInput.click();
+        });
+
+        chatWallpaperInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const src = String(event?.target?.result || '');
+                if (!src) return;
+                try {
+                    localStorage.setItem(getChatWallpaperStorageKey(realName), src);
+                } catch (error) {
+                    alert('图片太大，无法保存到本地存储，但本次会话有效。');
+                }
+                applyChatWallpaper(realName);
+            };
+            reader.readAsDataURL(file);
+            chatWallpaperInput.value = '';
         });
     }
 
@@ -4059,6 +4106,10 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 if (uPer) localStorage.setItem('chat_user_persona_' + newRealName, uPer);
                 const uAva = localStorage.getItem('chat_user_avatar_' + oldRealName);
                 if (uAva) localStorage.setItem('chat_user_avatar_' + newRealName, uAva);
+                const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(oldRealName));
+                if (wallpaper) {
+                    localStorage.setItem(getChatWallpaperStorageKey(newRealName), wallpaper);
+                }
 
                 // 清理旧数据 (Chat & User)
                 localStorage.removeItem('chat_remark_' + oldRealName);
@@ -4068,7 +4119,9 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 localStorage.removeItem('chat_user_remark_' + oldRealName);
                 localStorage.removeItem('chat_user_persona_' + oldRealName);
                 localStorage.removeItem('chat_user_avatar_' + oldRealName);
+                localStorage.removeItem(getChatWallpaperStorageKey(oldRealName));
             }
+            applyChatWallpaper(newRealName);
 
             // 更新列表
             updateLists(oldRealName, newRealName, newRemark, newAvatarSrc);
