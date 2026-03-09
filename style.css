@@ -1449,6 +1449,7 @@ input:checked + .slider:before {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
 }
 
 .chat-item-name {
@@ -1463,6 +1464,7 @@ input:checked + .slider:before {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .chat-item-unread {
