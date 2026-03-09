@@ -983,18 +983,24 @@
                 </div>
             </div>
             <div class="ins-modal-overlay" id="memory-diary-detail-overlay" style="display: none;">
-                <div class="ins-modal memory-diary-detail-modal">
-                    <div class="ins-modal-header">
-                        <h3 id="memory-diary-detail-title">日记详情</h3>
-                        <button class="ins-modal-close" id="close-memory-diary-detail">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
+                <div class="memory-diary-note">
+                    <div class="memory-diary-note-header">
+                        <div class="memory-diary-note-title" id="memory-diary-detail-title">日记详情</div>
+                        <div class="memory-diary-note-actions">
+                            <button class="memory-diary-note-btn" id="memory-diary-note-edit" title="编辑">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <button class="memory-diary-note-btn danger" id="memory-diary-note-delete" title="删除">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                            <button class="memory-diary-note-btn" id="close-memory-diary-detail" title="关闭">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
                     </div>
-                    <div class="ins-modal-body">
-                        <textarea id="memory-diary-detail-content" class="edit-message-textarea"></textarea>
-                    </div>
-                    <div class="ins-modal-footer">
-                        <button class="ins-btn-primary" id="save-memory-diary-detail">保存修改</button>
+                    <div class="memory-diary-note-body">
+                        <div id="memory-diary-detail-view" class="memory-diary-note-text"></div>
+                        <textarea id="memory-diary-detail-content" class="memory-diary-note-editor" style="display: none;"></textarea>
                     </div>
                 </div>
             </div>

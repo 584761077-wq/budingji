@@ -4952,10 +4952,13 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     const diaryListEl = document.getElementById('memory-diary-list');
     const diaryDetailOverlay = document.getElementById('memory-diary-detail-overlay');
     const closeDiaryDetailBtn = document.getElementById('close-memory-diary-detail');
-    const saveDiaryDetailBtn = document.getElementById('save-memory-diary-detail');
+    const diaryEditBtn = document.getElementById('memory-diary-note-edit');
+    const diaryDeleteBtn = document.getElementById('memory-diary-note-delete');
     const diaryDetailTitle = document.getElementById('memory-diary-detail-title');
+    const diaryDetailView = document.getElementById('memory-diary-detail-view');
     const diaryDetailContent = document.getElementById('memory-diary-detail-content');
     let activeDiaryId = null;
+    let isDiaryEditing = false;
 
     const formatTime = (ts) => {
         const d = new Date(ts);
@@ -5097,13 +5100,32 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         if (!diary) return;
         activeDiaryId = diary.id;
         diaryDetailTitle.textContent = formatTime(diary.createdAt);
-        diaryDetailContent.value = diary.content || '';
+        const content = diary.content || '';
+        if (diaryDetailView) {
+            diaryDetailView.textContent = content;
+        }
+        diaryDetailContent.value = content;
+        isDiaryEditing = false;
+        if (diaryDetailView) diaryDetailView.style.display = 'block';
+        if (diaryDetailContent) diaryDetailContent.style.display = 'none';
+        if (diaryEditBtn) diaryEditBtn.textContent = '编辑';
         diaryDetailOverlay.style.display = 'flex';
     };
 
     const closeDiaryDetail = () => {
         diaryDetailOverlay.style.display = 'none';
         activeDiaryId = null;
+        isDiaryEditing = false;
+    };
+
+    const setDiaryEditMode = (enabled) => {
+        isDiaryEditing = enabled;
+        if (diaryDetailView) diaryDetailView.style.display = enabled ? 'none' : 'block';
+        if (diaryDetailContent) diaryDetailContent.style.display = enabled ? 'block' : 'none';
+        if (diaryEditBtn) diaryEditBtn.textContent = enabled ? '保存' : '编辑';
+        if (enabled && diaryDetailContent) {
+            setTimeout(() => diaryDetailContent.focus(), 0);
+        }
     };
 
     if (memoryBtn) {
@@ -5220,15 +5242,34 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         });
     }
 
-    if (saveDiaryDetailBtn) {
-        saveDiaryDetailBtn.addEventListener('click', () => {
+    if (diaryEditBtn) {
+        diaryEditBtn.addEventListener('click', () => {
             if (!activeDiaryId) return;
+            if (!isDiaryEditing) {
+                setDiaryEditMode(true);
+                return;
+            }
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
             const diaries = getMemoryDiaries(realName);
             const idx = diaries.findIndex((item) => item.id === activeDiaryId);
             if (idx === -1) return;
-            diaries[idx].content = diaryDetailContent.value.trim();
+            const nextContent = diaryDetailContent.value.trim();
+            diaries[idx].content = nextContent;
             setMemoryDiaries(realName, diaries);
+            syncMemoryLongTerm(realName);
+            renderDiaryList(realName);
+            if (diaryDetailView) diaryDetailView.textContent = nextContent;
+            setDiaryEditMode(false);
+        });
+    }
+
+    if (diaryDeleteBtn) {
+        diaryDeleteBtn.addEventListener('click', () => {
+            if (!activeDiaryId) return;
+            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const diaries = getMemoryDiaries(realName);
+            const nextDiaries = diaries.filter((item) => item.id !== activeDiaryId);
+            setMemoryDiaries(realName, nextDiaries);
             syncMemoryLongTerm(realName);
             renderDiaryList(realName);
             closeDiaryDetail();

@@ -2137,8 +2137,99 @@ input:checked + .slider:before {
     padding: 12px 0;
 }
 
-.memory-diary-detail-modal {
-    width: min(90%, 360px);
+.memory-diary-note {
+    width: min(92%, 520px);
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.2);
+    border: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: scaleIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.memory-diary-note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.memory-diary-note-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1d1d1f;
+}
+
+.memory-diary-note-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.memory-diary-note-btn {
+    border: none;
+    background: transparent;
+    color: #8e8e93;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.memory-diary-note-btn:hover {
+    background: #f5f5f7;
+    color: #1d1d1f;
+}
+
+.memory-diary-note-btn:active {
+    background: #e5e5ea;
+    transform: scale(0.95);
+}
+
+.memory-diary-note-btn.danger:hover {
+    background: #fff1f0;
+    color: #ff3b30;
+}
+
+.memory-diary-note-body {
+    background: #f5f5f7;
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+}
+
+.memory-diary-note-text {
+    font-size: 0.9rem;
+    color: #1d1d1f;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 120px;
+}
+
+.memory-diary-note-editor {
+    width: 100%;
+    min-height: 160px;
+    border-radius: 12px;
+    border: 1px solid #e5e5ea;
+    background: #ffffff;
+    padding: 12px;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: #1d1d1f;
+    line-height: 1.6;
+}
+
+.memory-diary-note-editor:focus {
+    border-color: #000000;
 }
 
 .memory-danger-zone {
