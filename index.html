@@ -538,7 +538,7 @@
                                         </div>
                                         <span class="menu-text">语音</span>
                                     </div>
-                                    <div class="menu-item">
+                                    <div class="menu-item" id="camera-action-btn">
                                         <div class="menu-icon">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-2h6l2 2h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                                         </div>
@@ -1207,6 +1207,57 @@
                 </div>
                 <div class="ins-modal-footer">
                     <button class="ins-btn-primary" id="save-voice-input-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="camera-action-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>相机</h3>
+                    <button class="ins-modal-close" id="close-camera-action-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="voice-action-buttons">
+                        <button class="ins-btn-primary" id="camera-input-btn">输入</button>
+                        <button class="ins-btn-primary" id="camera-capture-btn">拍照</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="camera-input-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>输入照片内容</h3>
+                    <button class="ins-modal-close" id="close-camera-input-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label for="camera-input-content">照片内容</label>
+                        <textarea id="camera-input-content" class="edit-message-textarea camera-input-textarea" placeholder="输入照片内容"></textarea>
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="save-camera-input-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="photo-content-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>照片内容</h3>
+                    <button class="ins-modal-close" id="close-photo-content-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="photo-content-text" id="photo-content-text"></div>
                 </div>
             </div>
         </div>

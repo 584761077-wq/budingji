@@ -1291,3 +1291,54 @@
     100% { transform: scale(1) rotate(-1deg); opacity: 1; }
 }
 
+.camera-photo-placeholder {
+    width: 180px;
+    height: 120px;
+    background: #e5e5ea;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #8e8e93;
+    cursor: pointer;
+}
+
+.camera-photo-icon {
+    width: 42px;
+    height: 32px;
+    border-radius: 8px;
+    background: #d1d1d6;
+    position: relative;
+}
+
+.camera-photo-icon::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #b0b0b5;
+    top: 9px;
+    left: 14px;
+}
+
+.camera-photo-label {
+    font-size: 0.78rem;
+    color: #8e8e93;
+    font-weight: 600;
+}
+
+.photo-content-text {
+    font-size: 0.95rem;
+    color: #1d1d1f;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.camera-input-textarea {
+    min-height: 120px;
+}
+

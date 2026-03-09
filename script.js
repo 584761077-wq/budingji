@@ -2319,9 +2319,15 @@ function initChatRoomLogic() {
         if (typeof content !== 'string') return '';
         const temp = document.createElement('div');
         temp.innerHTML = content;
+        temp.querySelectorAll('.camera-photo-placeholder').forEach((el) => {
+            const text = String(el.dataset.photoText || '').trim();
+            const token = `图片${text ? `:${text}` : ''}`;
+            el.replaceWith(document.createTextNode(token));
+        });
         const text = (temp.textContent || temp.innerText || '').trim();
         if (text) return text;
         if (content.includes('chat-inline-sticker')) return '发送了一条贴图消息';
+        if (content.includes('camera-photo-placeholder')) return '发送了一张图片';
         if (/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/i.test(content)) return '发送了一张本地图片';
         return '';
     }
@@ -2646,8 +2652,15 @@ function initChatRoomLogic() {
 
     function normalizeMessageForModel(content) {
         if (typeof content !== 'string') return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        temp.querySelectorAll('.camera-photo-placeholder').forEach((el) => {
+            const text = String(el.dataset.photoText || '').trim();
+            const token = `[图片:${text || '无描述'}]`;
+            el.replaceWith(document.createTextNode(token));
+        });
 
-        let normalized = content.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
+        let normalized = temp.innerHTML.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
             const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
             const rawName = altMatch ? altMatch[1] : '未命名表情';
             const stickerName = decodeHtmlEntities(rawName).trim() || '未命名表情';
@@ -2685,6 +2698,19 @@ function initChatRoomLogic() {
         return {
             transcript,
             duration: estimateVoiceDurationSeconds(transcript)
+        };
+    }
+
+    function parseAssistantPhotoMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^<photo>([\s\S]*?)<\/photo>$/i)
+            || text.match(/^\[(?:图片|照片|文字图)\]([\s\S]*?)\[\/(?:图片|照片|文字图)\]$/i)
+            || text.match(/^(?:\[|【)\s*(?:图片|照片|文字图)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const content = String(match[1] || '').trim();
+        return {
+            text: content || '无描述'
         };
     }
 
@@ -2915,6 +2941,11 @@ ${assistantStickerRuleText}
 3. 当输入里出现“[语音消息 xx" 转文字: ...]”时，表示对方刚刚发来语音，你必须知道这是语音而不是普通打字。
 4. 不是每轮都发语音，只在合适语气与情境下使用。
 
+[4.8 图片消息规则]
+1. 当输入里出现“[图片:xxx]”时，表示对方刚刚发来一张图片，冒号后是图片内容描述。
+2. 你可以发送图片消息，格式必须是：[图片:内容] 或 <photo>内容</photo>
+3. 图片消息必须单独成条，不能和普通文本写在同一条消息里。
+
 [5.5 心绪精灵 (Mood Sprite)]
 在每轮回复的末尾，你必须生成一个“心绪精灵”的数据，用来展示你此刻的真实内心状态。
 格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
@@ -3086,8 +3117,13 @@ ${localImageSection}
             
             for (let i = 0; i < replyMessages.length; i++) {
                 const rawPart = replyMessages[i].trim();
+                const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
-                const msgContent = parsedVoice ? parsedVoice.transcript : convertAssistantStickerTokens(rawPart, assistantBoundStickers);
+                const msgContent = parsedPhoto
+                    ? buildCameraPlaceholderHtml(parsedPhoto.text)
+                    : parsedVoice
+                        ? parsedVoice.transcript
+                        : convertAssistantStickerTokens(rawPart, assistantBoundStickers);
                 if (msgContent) {
                     hasVisibleMessage = true;
                     if (i > 0) {
@@ -3155,6 +3191,18 @@ ${localImageSection}
     const closeVoiceInputModalBtn = document.getElementById('close-voice-input-modal');
     const voiceInputContent = document.getElementById('voice-input-content');
     const saveVoiceInputBtn = document.getElementById('save-voice-input-btn');
+    const cameraActionBtn = document.getElementById('camera-action-btn');
+    const cameraActionModal = document.getElementById('camera-action-modal');
+    const closeCameraActionModalBtn = document.getElementById('close-camera-action-modal');
+    const cameraInputBtn = document.getElementById('camera-input-btn');
+    const cameraCaptureBtn = document.getElementById('camera-capture-btn');
+    const cameraInputModal = document.getElementById('camera-input-modal');
+    const closeCameraInputModalBtn = document.getElementById('close-camera-input-modal');
+    const cameraInputContent = document.getElementById('camera-input-content');
+    const saveCameraInputBtn = document.getElementById('save-camera-input-btn');
+    const photoContentModal = document.getElementById('photo-content-modal');
+    const closePhotoContentModalBtn = document.getElementById('close-photo-content-modal');
+    const photoContentText = document.getElementById('photo-content-text');
 
     // Context Menu & Multi-select Logic
     const contextMenu = document.getElementById('message-context-menu');
@@ -3201,11 +3249,43 @@ ${localImageSection}
         }
     }
 
+    function closeCameraActionModal() {
+        if (cameraActionModal) {
+            cameraActionModal.style.display = 'none';
+        }
+    }
+
+    function closeCameraInputModal() {
+        if (cameraInputModal) {
+            cameraInputModal.style.display = 'none';
+        }
+    }
+
+    function closePhotoContentModal() {
+        if (photoContentModal) {
+            photoContentModal.style.display = 'none';
+        }
+    }
+
     function estimateVoiceDurationSeconds(text) {
         const normalized = String(text || '').replace(/\s+/g, '');
         if (!normalized) return 1;
         const byLength = Math.round(normalized.length / 3);
         return Math.max(1, Math.min(60, byLength));
+    }
+
+    function buildCameraPlaceholderHtml(text) {
+        const safeText = escapeHtml(text);
+        return `<div class="camera-photo-placeholder" data-photo-text="${safeText}"><div class="camera-photo-icon"></div><div class="camera-photo-label">照片</div></div>`;
+    }
+
+    function sendCameraMessage(text) {
+        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        const content = buildCameraPlaceholderHtml(text);
+        const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+        const newMsg = saveMessage(realName, 'user', content, extra);
+        appendMessageToUI('user', content, newMsg.time, realName, newMsg.id, newMsg);
+        clearPendingQuote();
     }
 
     function getAvailableStickerCategories(realName) {
@@ -3483,6 +3563,18 @@ ${localImageSection}
 
     if (chatContent) {
         chatContent.addEventListener('click', (e) => {
+            const photoTarget = e.target.closest('.camera-photo-placeholder');
+            if (photoTarget && chatContent.contains(photoTarget)) {
+                if (isMultiSelectMode) return;
+                const text = photoTarget.dataset.photoText || '';
+                if (photoContentText) {
+                    photoContentText.textContent = text || '暂无内容';
+                }
+                if (photoContentModal) {
+                    photoContentModal.style.display = 'flex';
+                }
+                return;
+            }
             if (!isMultiSelectMode) return;
             const row = e.target.closest('.message-row');
             if (!row || !chatContent.contains(row)) return;
@@ -3602,6 +3694,51 @@ ${localImageSection}
         });
     }
 
+    if (cameraActionBtn && cameraActionModal) {
+        cameraActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            cameraActionModal.style.display = 'flex';
+        });
+    }
+
+    if (closeCameraActionModalBtn) {
+        closeCameraActionModalBtn.addEventListener('click', () => {
+            closeCameraActionModal();
+        });
+    }
+
+    if (cameraActionModal) {
+        cameraActionModal.addEventListener('click', (e) => {
+            if (e.target === cameraActionModal) {
+                closeCameraActionModal();
+            }
+        });
+    }
+
+    if (cameraInputBtn) {
+        cameraInputBtn.addEventListener('click', () => {
+            closeCameraActionModal();
+            if (cameraInputModal) {
+                cameraInputModal.style.display = 'flex';
+                setTimeout(() => {
+                    if (cameraInputContent) {
+                        cameraInputContent.focus();
+                    }
+                }, 0);
+            }
+        });
+    }
+
+    if (cameraCaptureBtn) {
+        cameraCaptureBtn.addEventListener('click', () => {
+            closeCameraActionModal();
+            sendCameraMessage('拍照内容');
+        });
+    }
+
     if (closeVoiceActionModalBtn) {
         closeVoiceActionModalBtn.addEventListener('click', () => {
             closeVoiceActionModal();
@@ -3643,11 +3780,39 @@ ${localImageSection}
         });
     }
 
+    if (closeCameraInputModalBtn) {
+        closeCameraInputModalBtn.addEventListener('click', () => {
+            closeCameraInputModal();
+        });
+    }
+
     if (voiceInputModal) {
         voiceInputModal.addEventListener('click', (e) => {
             if (e.target === voiceInputModal) {
                 closeVoiceInputModal();
             }
+        });
+    }
+
+    if (cameraInputModal) {
+        cameraInputModal.addEventListener('click', (e) => {
+            if (e.target === cameraInputModal) {
+                closeCameraInputModal();
+            }
+        });
+    }
+
+    if (photoContentModal) {
+        photoContentModal.addEventListener('click', (e) => {
+            if (e.target === photoContentModal) {
+                closePhotoContentModal();
+            }
+        });
+    }
+
+    if (closePhotoContentModalBtn) {
+        closePhotoContentModalBtn.addEventListener('click', () => {
+            closePhotoContentModal();
         });
     }
 
@@ -3676,6 +3841,21 @@ ${localImageSection}
             }
             clearPendingQuote();
             closeVoiceInputModal();
+        });
+    }
+
+    if (saveCameraInputBtn) {
+        saveCameraInputBtn.addEventListener('click', () => {
+            const rawText = cameraInputContent ? cameraInputContent.value.trim() : '';
+            if (!rawText) {
+                alert('请输入照片内容');
+                return;
+            }
+            sendCameraMessage(rawText);
+            if (cameraInputContent) {
+                cameraInputContent.value = '';
+            }
+            closeCameraInputModal();
         });
     }
 
@@ -3821,8 +4001,21 @@ ${localImageSection}
 
     let currentSpriteContext = null; // { realName, msgId, spriteEl, isFavorited }
 
+    function getSpriteSnapshot(realName, msgId, fallbackSprite) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        const msg = history.find(m => m.id === msgId);
+        if (msg && msg.sprite) {
+            return { ...msg.sprite };
+        }
+        if (fallbackSprite) {
+            return { ...fallbackSprite };
+        }
+        return null;
+    }
+
     function showSpriteModal(spriteData, realName, msgId, spriteEl) {
-        if (!spriteData) return;
+        const latestSprite = getSpriteSnapshot(realName, msgId, spriteData);
+        if (!latestSprite) return;
         
         // Ensure modal exists
         if (!document.body.contains(spriteModal)) {
@@ -3833,26 +4026,26 @@ ${localImageSection}
             realName,
             msgId,
             spriteEl,
-            isFavorited: !!spriteData.isFavorited
+            isFavorited: !!latestSprite.isFavorited
         };
 
         const charName = localStorage.getItem('chat_remark_' + realName) || realName;
         spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的随笔`;
         
         // Build Content
-        let html = `<div>${spriteData.content}</div>`;
-        if (spriteData.secret) {
+        let html = `<div>${latestSprite.content}</div>`;
+        if (latestSprite.secret) {
              html += `
                 <div style="margin-top: 15px; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 10px;">
                     <span style="text-decoration: line-through; color: #888; font-size: 0.9em;">
-                        ${spriteData.secret}
+                        ${latestSprite.secret}
                     </span>
                 </div>
              `;
         }
 
         spriteBody.innerHTML = html;
-        spriteBody.style.borderLeft = `4px solid ${spriteData.color || '#ccc'}`;
+        spriteBody.style.borderLeft = `4px solid ${latestSprite.color || '#ccc'}`;
         
         // Update Fav Button State
         if (currentSpriteContext.isFavorited) {
