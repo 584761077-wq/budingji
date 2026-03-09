@@ -2368,7 +2368,7 @@ function initChatRoomLogic() {
         divider.className = 'chat-time-divider';
         divider.textContent = formatTimeDividerLabel(currentMeta.timeStr, currentMeta.ts);
         if (options.prepend) {
-            const anchor = findFirstRenderableNode();
+            const anchor = options.anchor || findFirstRenderableNode();
             if (anchor) {
                 chatContent.insertBefore(divider, anchor);
             } else {
@@ -2431,7 +2431,8 @@ function initChatRoomLogic() {
                     autoScroll: false,
                     prepend: !!options.prepend,
                     forceTimeDivider,
-                    previousMeta
+                    previousMeta,
+                    anchor: options.anchor || null
                 }
             );
             previousMeta = currentMeta;
@@ -2445,7 +2446,8 @@ function initChatRoomLogic() {
         const chunk = state.history.slice(nextStart, state.startIndex);
         const prevHeight = chatContent.scrollHeight;
         const prevTop = chatContent.scrollTop;
-        renderHistoryBatch(realName, chunk, nextStart, { prepend: true, forceFirstDivider: true });
+        const anchor = findFirstRenderableNode();
+        renderHistoryBatch(realName, chunk, nextStart, { prepend: true, forceFirstDivider: true, anchor });
         state.startIndex = nextStart;
         updateLoadMoreVisibility(realName);
         const currentHeight = chatContent.scrollHeight;
@@ -2616,7 +2618,7 @@ function initChatRoomLogic() {
             }
         }
         if (shouldInsertTimeDivider(previousMeta, currentMeta, !!options.forceTimeDivider)) {
-            renderTimeDivider(currentMeta, { prepend: shouldPrepend });
+            renderTimeDivider(currentMeta, { prepend: shouldPrepend, anchor: options.anchor || null });
         }
 
         const msgRow = document.createElement('div');
@@ -2801,7 +2803,7 @@ function initChatRoomLogic() {
         }
 
         if (shouldPrepend) {
-            const anchor = findFirstRenderableNode();
+            const anchor = options.anchor || findFirstRenderableNode();
             if (anchor) {
                 chatContent.insertBefore(msgRow, anchor);
             } else {
