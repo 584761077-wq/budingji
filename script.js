@@ -699,6 +699,7 @@ function initLineApp() {
     const appLine = document.getElementById('app-line');
     const lineModal = document.getElementById('line-modal');
     const lineUserRow = document.getElementById('line-user-row');
+    const lineBackHomeBtn = document.getElementById('line-back-home-btn');
     const lineHomeUsername = document.getElementById('line-home-username');
     const lineHomeAvatar = document.getElementById('line-home-avatar');
     const lineUserSettingsModal = document.getElementById('line-user-settings-modal');
@@ -1058,16 +1059,9 @@ function initLineApp() {
         });
     });
 
-    // 为 LINE 的设置按钮添加关闭功能（模拟返回）
-    // 假设 LINE 顶部的设置按钮或者其他方式退出，这里暂时用点击“设置”图标关闭演示
-    // 或者我们可以在 LINE 内部添加一个返回按钮，或者点击底部导航的 Home 多次？
-    // 用户没说怎么退出，通常手机APP是底部上滑退出。
-    // 为了方便测试，让点击顶部设置图标关闭
-    const lineSettingsBtn = document.querySelector('.line-header-icons .line-icon-btn:last-child');
-    if (lineSettingsBtn) {
-        lineSettingsBtn.addEventListener('click', () => {
-            // 只是演示退出
-             lineModal.classList.remove('active');
+    if (lineBackHomeBtn && lineModal) {
+        lineBackHomeBtn.addEventListener('click', () => {
+            lineModal.classList.remove('active');
         });
     }
 

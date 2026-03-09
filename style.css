@@ -1142,6 +1142,8 @@ input:checked + .slider:before {
 
 .line-header-left {
     flex: 1;
+    display: flex;
+    align-items: center;
 }
 
 .line-header-icons {
