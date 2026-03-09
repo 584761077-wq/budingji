@@ -2833,6 +2833,7 @@ function initChatRoomLogic() {
 已开启“同步时间”。你必须把以下时间当作当前真实时间：
 ${nowDate} ${nowTime} ${weekday}
 当用户询问现在几点、今天几号、星期几、早晚时间段时，必须严格依据这个时间回答。
+在日常聊天中也要自然地依据当前时间做出符合时段的回应与安排，但不要刻意频繁提及时间。
 `
                 : '';
 
@@ -3255,6 +3256,26 @@ ${localImageSection}
         `;
     }
 
+    function clampSummaryCursor(realName, historyLength) {
+        const cursorKey = getSummaryCursorKey(realName);
+        const raw = localStorage.getItem(cursorKey);
+        if (raw === null) return;
+        const parsed = parseInt(raw, 10);
+        if (!Number.isFinite(parsed)) {
+            localStorage.removeItem(cursorKey);
+            return;
+        }
+        const clamped = Math.max(0, Math.min(parsed, historyLength));
+        if (clamped !== parsed) {
+            localStorage.setItem(cursorKey, String(clamped));
+        }
+    }
+
+    function persistChatHistory(realName, history) {
+        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        clampSummaryCursor(realName, history.length);
+    }
+
     function updateSelectCount() {
         if (multiSelectCount) {
             multiSelectCount.textContent = `已选择 ${selectedMsgIds.size} 条`;
@@ -3331,7 +3352,7 @@ ${localImageSection}
 
         let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
         history = history.filter((m) => !selectedMsgIds.has(m.id));
-        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+        persistChatHistory(realName, history);
         loadChatHistory(realName);
     }
 
@@ -3434,7 +3455,8 @@ ${localImageSection}
             
             if (msgIndex !== -1) {
                 history[msgIndex].content = newContent;
-                localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+                history = history.slice(0, msgIndex + 1);
+                persistChatHistory(realName, history);
                 
                 // Update UI (Reload history or update DOM)
                 // Reload is safer to sync everything
@@ -3524,12 +3546,13 @@ ${localImageSection}
                 }
 
                 // 保存更新后的历史记录
-                localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+                persistChatHistory(realName, history);
                 
                 // 重新加载 UI（移除屏幕上的消息）
                 loadChatHistory(realName);
                 
                 // 触发 AI 回复
+                if (history.length === 0 || history[history.length - 1].role !== 'user') return;
                 await triggerAIResponse(realName);
             });
         }
