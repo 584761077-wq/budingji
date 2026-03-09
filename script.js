@@ -2436,6 +2436,13 @@ function initChatRoomLogic() {
         msgRow.dataset.time = String(timeStr || '');
         msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
+        const voiceData = extra && extra.voice ? extra.voice : null;
+        const voiceDuration = voiceData ? Math.max(1, Number(voiceData.duration) || 1) : 0;
+        const voiceTranscriptRaw = voiceData ? String(voiceData.transcript || content || '') : '';
+        const safeVoiceTranscript = escapeHtml(voiceTranscriptRaw.trim() || '无可用转文字内容');
+        const bubbleContent = voiceData
+            ? `<button class="voice-message-btn" type="button"><span class="voice-message-duration">${voiceDuration}"</span><span class="voice-message-wave"><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span></span></button><div class="voice-transcript" style="display:none;">${safeVoiceTranscript}</div>`
+            : content;
         const quotePreview = quote ? truncateQuoteText(quote.text) : '';
         
         // 头像逻辑
@@ -2455,7 +2462,7 @@ function initChatRoomLogic() {
             <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
                 <div class="message-main">
-                    <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''}">${content}</div>
+                    <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''} ${voiceData ? 'voice-bubble' : ''}">${bubbleContent}</div>
                     ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
                 </div>
                 <div class="message-meta-info">
@@ -2531,6 +2538,18 @@ function initChatRoomLogic() {
                 targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 targetRow.classList.add('quoted-target');
                 setTimeout(() => targetRow.classList.remove('quoted-target'), 1300);
+            });
+        }
+
+        if (voiceData) {
+            bubble.addEventListener('click', (e) => {
+                if (isMultiSelectMode) return;
+                const transcriptEl = bubble.querySelector('.voice-transcript');
+                if (!transcriptEl) return;
+                const willShow = transcriptEl.style.display === 'none' || transcriptEl.style.display === '';
+                transcriptEl.style.display = willShow ? 'block' : 'none';
+                bubble.classList.toggle('voice-expanded', willShow);
+                e.stopPropagation();
             });
         }
 
@@ -2638,6 +2657,35 @@ function initChatRoomLogic() {
         normalized = normalized.replace(/<img[^>]*>/gi, (imgTag) => isLocalImageTag(imgTag) ? '[本地图片]' : imgTag);
         normalized = normalized.replace(/<[^>]+>/g, '');
         return decodeHtmlEntities(normalized).trim();
+    }
+
+    function formatTurnInputForModel(msg) {
+        if (!msg) return '';
+        const normalized = normalizeMessageForModel(msg.content);
+        if (msg.voice) {
+            const duration = Math.max(1, Number(msg.voice.duration) || estimateVoiceDurationSeconds(normalized));
+            const transcript = normalized || String(msg.voice.transcript || '').trim() || '无';
+            return `[语音消息 ${duration}" 转文字: ${transcript}]`;
+        }
+        return normalized;
+    }
+
+    function formatHistoryMessageForModel(msg, speaker) {
+        const turnText = formatTurnInputForModel(msg);
+        return `${speaker}: ${turnText || '无'}`;
+    }
+
+    function parseAssistantVoiceMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^\[语音\]([\s\S]*?)\[\/语音\]$/i) || text.match(/^<voice>([\s\S]*?)<\/voice>$/i);
+        if (!match) return null;
+        const transcript = String(match[1] || '').trim();
+        if (!transcript) return null;
+        return {
+            transcript,
+            duration: estimateVoiceDurationSeconds(transcript)
+        };
     }
 
     function extractLocalImageDataUrls(content) {
@@ -2807,7 +2855,7 @@ ${nowDate} ${nowTime} ${weekday}
             const contextHistory = fullHistory.slice(Math.max(0, fullHistory.length - limit - 1), -1);
             const contextText = contextHistory.map(msg => {
                 const speaker = msg.role === 'assistant' ? realName : userName;
-                return `${speaker}: ${normalizeMessageForModel(msg.content)}`;
+                return formatHistoryMessageForModel(msg, speaker);
             }).join('\n');
 
             const systemPrompt = `
@@ -2860,11 +2908,18 @@ ${assistantStickerRuleText}
 2. <quote> 只能引用对方上一轮消息，不得引用更早内容。
 3. 引用标签不能出现在可见消息里，必须被系统隐藏处理。
 
+[4.7 语音消息规则]
+1. 你可以发送语音消息，格式必须是：[语音]这里写语音转文字内容[/语音]
+2. 语音消息必须单独成条，不能和普通文本写在同一条消息里。
+3. 当输入里出现“[语音消息 xx" 转文字: ...]”时，表示对方刚刚发来语音，你必须知道这是语音而不是普通打字。
+4. 不是每轮都发语音，只在合适语气与情境下使用。
+
 [5.5 心绪精灵 (Mood Sprite)]
 在每轮回复的末尾，你必须生成一个“心绪精灵”的数据，用来展示你此刻的真实内心状态。
 格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
 <mood_sprite mood="开心/生气/悲伤/..." color="#RRGGBB">
 这里写你的真实内心独白，不得违背人设ooc，可以是直白、吐槽、搞笑、深情或阴阳怪气，也可以直接表露欲望，可以玩梗，可以使用颜文字。
+严禁无意义刷屏，严禁重复输出同一个字或词组超过 50字。
 ---
 这里写一句绝对不能给任何人看的秘密，不得违背人设ooc，必须直白、有趣、幽默、有新意，或者极其露骨的吐槽。
 </mood_sprite>
@@ -2887,7 +2942,7 @@ ${assistantStickerRuleText}
 <mood_sprite mood="..." color="...">...</mood_sprite>
 `;
 
-            const roundInput = currentTurn && currentTurn.role === 'user' ? normalizeMessageForModel(currentTurn.content) : '';
+            const roundInput = currentTurn && currentTurn.role === 'user' ? formatTurnInputForModel(currentTurn) : '';
             const localImageRecords = collectLocalImageInputs(currentTurn, contextHistory);
             const localImagePromptText = buildLocalImagePromptText(localImageRecords);
             const localImageSection = localImagePromptText
@@ -3029,7 +3084,9 @@ ${localImageSection}
             let hasVisibleMessage = false;
             
             for (let i = 0; i < replyMessages.length; i++) {
-                const msgContent = convertAssistantStickerTokens(replyMessages[i].trim(), assistantBoundStickers);
+                const rawPart = replyMessages[i].trim();
+                const parsedVoice = parseAssistantVoiceMessage(rawPart);
+                const msgContent = parsedVoice ? parsedVoice.transcript : convertAssistantStickerTokens(rawPart, assistantBoundStickers);
                 if (msgContent) {
                     hasVisibleMessage = true;
                     if (i > 0) {
@@ -3039,6 +3096,7 @@ ${localImageSection}
                     const isLast = i === replyMessages.length - 1;
                     const isFirst = i === 0;
                     const extra = {};
+                    if (parsedVoice) extra.voice = parsedVoice;
                     if (isLast && spriteData) extra.sprite = spriteData;
                     if (isFirst && quoteData) extra.quote = quoteData;
 
@@ -3046,7 +3104,7 @@ ${localImageSection}
                     const shouldUnread = !isChatRoomOpenFor(realName);
                     if (shouldUnread) {
                         increaseUnread(realName);
-                        showIncomingMessageToast(realName, msgContent);
+                        showIncomingMessageToast(realName, parsedVoice ? '发送了一条语音消息' : msgContent);
                     }
                     appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id, extra);
                 }
@@ -3083,10 +3141,19 @@ ${localImageSection}
     const menu = document.getElementById('chat-action-menu');
     const regenerateBtn = document.getElementById('regenerate-reply-btn');
     const uploadPhotoBtn = document.getElementById('upload-photo-btn');
+    const voiceActionBtn = document.getElementById('voice-action-btn');
     const photoInput = document.getElementById('chat-photo-input');
     const stickerBtn = document.getElementById('chat-sticker-btn');
     const stickerMenu = document.getElementById('chat-sticker-menu');
     const stickerMenuContent = document.getElementById('chat-sticker-menu-content');
+    const voiceActionModal = document.getElementById('voice-action-modal');
+    const closeVoiceActionModalBtn = document.getElementById('close-voice-action-modal');
+    const voiceActionInputBtn = document.getElementById('voice-action-input-btn');
+    const voiceActionRecordBtn = document.getElementById('voice-action-record-btn');
+    const voiceInputModal = document.getElementById('voice-input-modal');
+    const closeVoiceInputModalBtn = document.getElementById('close-voice-input-modal');
+    const voiceInputContent = document.getElementById('voice-input-content');
+    const saveVoiceInputBtn = document.getElementById('save-voice-input-btn');
 
     // Context Menu & Multi-select Logic
     const contextMenu = document.getElementById('message-context-menu');
@@ -3119,6 +3186,25 @@ ${localImageSection}
         if (stickerMenu) {
             stickerMenu.style.display = 'none';
         }
+    }
+
+    function closeVoiceActionModal() {
+        if (voiceActionModal) {
+            voiceActionModal.style.display = 'none';
+        }
+    }
+
+    function closeVoiceInputModal() {
+        if (voiceInputModal) {
+            voiceInputModal.style.display = 'none';
+        }
+    }
+
+    function estimateVoiceDurationSeconds(text) {
+        const normalized = String(text || '').replace(/\s+/g, '');
+        if (!normalized) return 1;
+        const byLength = Math.round(normalized.length / 3);
+        return Math.max(1, Math.min(60, byLength));
     }
 
     function getAvailableStickerCategories(realName) {
@@ -3480,6 +3566,93 @@ ${localImageSection}
                 }
             }
             clearPendingQuote();
+        });
+    }
+
+    if (voiceActionBtn && voiceActionModal) {
+        voiceActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            voiceActionModal.style.display = 'flex';
+        });
+    }
+
+    if (closeVoiceActionModalBtn) {
+        closeVoiceActionModalBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+        });
+    }
+
+    if (voiceActionModal) {
+        voiceActionModal.addEventListener('click', (e) => {
+            if (e.target === voiceActionModal) {
+                closeVoiceActionModal();
+            }
+        });
+    }
+
+    if (voiceActionInputBtn) {
+        voiceActionInputBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+            if (voiceInputModal) {
+                voiceInputModal.style.display = 'flex';
+                setTimeout(() => {
+                    if (voiceInputContent) {
+                        voiceInputContent.focus();
+                    }
+                }, 0);
+            }
+        });
+    }
+
+    if (voiceActionRecordBtn) {
+        voiceActionRecordBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+            alert('录音功能即将上线');
+        });
+    }
+
+    if (closeVoiceInputModalBtn) {
+        closeVoiceInputModalBtn.addEventListener('click', () => {
+            closeVoiceInputModal();
+        });
+    }
+
+    if (voiceInputModal) {
+        voiceInputModal.addEventListener('click', (e) => {
+            if (e.target === voiceInputModal) {
+                closeVoiceInputModal();
+            }
+        });
+    }
+
+    if (saveVoiceInputBtn) {
+        saveVoiceInputBtn.addEventListener('click', () => {
+            const rawText = voiceInputContent ? voiceInputContent.value.trim() : '';
+            if (!rawText) {
+                alert('请输入语音内容');
+                return;
+            }
+
+            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const duration = estimateVoiceDurationSeconds(rawText);
+            const extra = {
+                ...(pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {}),
+                voice: {
+                    duration,
+                    transcript: rawText
+                }
+            };
+            const newMsg = saveMessage(realName, 'user', rawText, extra);
+            appendMessageToUI('user', rawText, newMsg.time, realName, newMsg.id, newMsg);
+
+            if (voiceInputContent) {
+                voiceInputContent.value = '';
+            }
+            clearPendingQuote();
+            closeVoiceInputModal();
         });
     }
 

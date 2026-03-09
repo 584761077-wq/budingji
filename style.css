@@ -1605,6 +1605,12 @@ input:checked + .slider:before {
     gap: 10px;
 }
 
+.voice-action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .ins-input-group {
     margin-bottom: 15px;
 }
