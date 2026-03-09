@@ -14,8 +14,10 @@ function initTopProfileWidget() {
     const avatarInput = document.getElementById('top-avatar-input');
     const nameText = document.getElementById('profile-name-text');
     const handleText = document.getElementById('profile-handle-text');
+    const statusText = document.getElementById('top-status-text');
+    const smallAvatarText = document.getElementById('top-avatar-small-text');
 
-    if (!avatarContainer || !avatarInput || !nameText || !handleText) return;
+    if (!avatarContainer || !avatarInput || !nameText || !handleText || !statusText || !smallAvatarText) return;
 
     // --- Avatar Logic ---
     const savedAvatar = localStorage.getItem('top_profile_avatar');
@@ -46,21 +48,29 @@ function initTopProfileWidget() {
     // --- Text Editing Logic ---
     const savedName = localStorage.getItem('top_profile_name');
     const savedHandle = localStorage.getItem('top_profile_handle');
+    const savedStatus = localStorage.getItem('top_profile_status');
+    const savedSmallAvatarText = localStorage.getItem('top_profile_small_avatar_text');
 
     if (savedName) nameText.textContent = savedName;
     if (savedHandle) handleText.textContent = savedHandle;
+    if (savedStatus) statusText.textContent = savedStatus;
+    if (savedSmallAvatarText) smallAvatarText.textContent = savedSmallAvatarText;
 
-    const saveText = (key, element) => {
+    const saveText = (key, element, fallbackText) => {
         const text = element.textContent.trim();
-        localStorage.setItem(key, text);
+        const finalText = text || fallbackText;
+        element.textContent = finalText;
+        localStorage.setItem(key, finalText);
     };
 
     // Save on blur (when focus leaves the text)
-    nameText.addEventListener('blur', () => saveText('top_profile_name', nameText));
-    handleText.addEventListener('blur', () => saveText('top_profile_handle', handleText));
+    nameText.addEventListener('blur', () => saveText('top_profile_name', nameText, 'User Name'));
+    handleText.addEventListener('blur', () => saveText('top_profile_handle', handleText, '@user'));
+    statusText.addEventListener('blur', () => saveText('top_profile_status', statusText, 'Status: Online'));
+    smallAvatarText.addEventListener('blur', () => saveText('top_profile_small_avatar_text', smallAvatarText, '12:00'));
 
     // Prevent new lines (Enter key)
-    [nameText, handleText].forEach(el => {
+    [nameText, handleText, statusText, smallAvatarText].forEach(el => {
         el.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -2831,7 +2841,7 @@ ${timeSyncPrompt}
 1. 单条消息尽量 5-30 字。
 2. 可用省略号、感叹号、波浪号、语气词、适量 Emoji 表达情绪。
 3. 保持信息饥饿感，不要一次说完。
-4. 每轮可以拆成 2 到 10条短消息，使用 [SPLIT] 分隔。
+4. 每轮可以拆成 2 到 7条短消息，使用 [SPLIT] 分隔。
 5. 严禁无意义刷屏，严禁重复输出同一个字或词组超过 50字。
 6. 人设、世界书设定为绝对不可违背
 
@@ -2846,17 +2856,17 @@ ${timeSyncPrompt}
 ${assistantStickerRuleText}
 
 [4.6 引用规则]
-1. 需要引用对方上一条消息时，只能使用一次以下格式：<quote>原文</quote>
-2. <quote> 只能引用对方上一条消息，不得引用更早内容。
+1. 需要引用对方上一轮消息时，只能使用一次以下格式：<quote>原文</quote>
+2. <quote> 只能引用对方上一轮消息，不得引用更早内容。
 3. 引用标签不能出现在可见消息里，必须被系统隐藏处理。
 
 [5.5 心绪精灵 (Mood Sprite)]
 在每轮回复的末尾，你必须生成一个“心绪精灵”的数据，用来展示你此刻的真实内心状态。
 格式严格如下（不要用代码块，直接输出，不要被任何标签包裹）：
 <mood_sprite mood="开心/生气/悲伤/..." color="#RRGGBB">
-这里写你的真实内心独白，可以是直白、吐槽、搞笑、深情或阴阳怪气，也可以直接表露欲望，可以玩梗，可以使用颜文字。
+这里写你的真实内心独白，不得违背人设ooc，可以是直白、吐槽、搞笑、深情或阴阳怪气，也可以直接表露欲望，可以玩梗，可以使用颜文字。
 ---
-这里写一句绝对不能给任何人看的秘密，必须直白、有趣、幽默、有新意，或者极其露骨的吐槽。
+这里写一句绝对不能给任何人看的秘密，不得违背人设ooc，必须直白、有趣、幽默、有新意，或者极其露骨的吐槽。
 </mood_sprite>
 
 [5.6 深度隐形思维链]
@@ -2871,7 +2881,7 @@ ${assistantStickerRuleText}
 4. 【本能反应】：完全基于我的人设和世界书补充，遇到刚才的那句话，我最本能的反应是什么？（无需过滤，真实呈现我的性格特质）
 5. 【内心思考】：现在我对于刚才的话的内心独白是？
 6. 【思考】：作为我，现在最符合本人和真人的回复是？如果很像ai，这就是错的
-7. 【输出生成】：严格按照推演结果，生成多条符合人设的短消息草稿。禁止掉格式。
+7. 【输出生成】：严格按照推演结果，生成规范内的多条符合人设的短消息草稿。禁止掉格式。
 </think>
 消息1[SPLIT]消息2[SPLIT]消息3
 <mood_sprite mood="..." color="...">...</mood_sprite>

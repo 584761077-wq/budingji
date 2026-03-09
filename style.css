@@ -417,7 +417,7 @@ body {
     justify-content: center;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    color: var(--color-secondary);
+    color: #000000;
     font-size: 0.85rem;
 }
 
@@ -431,13 +431,30 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    color: #8e8e93;
+    color: #000000;
     flex-shrink: 0; /* Prevent shrinking */
+    overflow: hidden;
 }
 
-.top-avatar-small svg {
-    width: 18px;
-    height: 18px;
+.top-glass-capsule-small span,
+.top-avatar-small span {
+    color: #000000;
+    outline: none;
+    display: block;
+}
+
+.top-glass-capsule-small span {
+    max-width: 100%;
+    text-align: center;
+}
+
+.top-avatar-small span {
+    width: 100%;
+    padding: 0 6px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Split Layout */
