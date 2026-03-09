@@ -772,10 +772,35 @@
                                     <div class="friend-profile-name" id="friend-profile-name">好友</div>
                                     <div class="friend-profile-signature" id="friend-profile-signature">这个人很神秘，还没有签名</div>
                                 </div>
+                                <button class="friend-profile-delete-btn" id="friend-profile-delete-btn" type="button" aria-label="删除好友">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 6h18"></path>
+                                        <path d="M8 6V4h8v2"></path>
+                                        <path d="M6 6l1 14h10l1-14"></path>
+                                    </svg>
+                                </button>
                             </div>
                             <div class="friend-profile-actions">
                                 <button class="friend-profile-btn" id="friend-profile-feed-btn" type="button">动态</button>
                                 <button class="friend-profile-btn" id="friend-profile-info-btn" type="button">信息</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ins-modal-overlay" id="friend-delete-confirm-modal" style="display: none;">
+                        <div class="ins-modal">
+                            <div class="ins-modal-header">
+                                <h3>删除好友</h3>
+                                <button class="ins-modal-close" id="close-friend-delete-confirm">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                            <div class="ins-modal-body">
+                                <div class="delete-confirm-text" id="friend-delete-confirm-text">确定删除该好友吗？</div>
+                            </div>
+                            <div class="ins-modal-footer delete-confirm-actions">
+                                <button class="ins-btn-secondary" id="cancel-friend-delete-confirm" type="button">取消</button>
+                                <button class="ins-btn-danger" id="confirm-friend-delete-confirm" type="button">删除</button>
                             </div>
                         </div>
                     </div>

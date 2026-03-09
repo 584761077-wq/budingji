@@ -716,6 +716,12 @@ function initLineApp() {
     const friendProfileSignature = document.getElementById('friend-profile-signature');
     const friendProfileFeedBtn = document.getElementById('friend-profile-feed-btn');
     const friendProfileInfoBtn = document.getElementById('friend-profile-info-btn');
+    const friendProfileDeleteBtn = document.getElementById('friend-profile-delete-btn');
+    const friendDeleteConfirmModal = document.getElementById('friend-delete-confirm-modal');
+    const friendDeleteConfirmText = document.getElementById('friend-delete-confirm-text');
+    const closeFriendDeleteConfirmBtn = document.getElementById('close-friend-delete-confirm');
+    const cancelFriendDeleteConfirmBtn = document.getElementById('cancel-friend-delete-confirm');
+    const confirmFriendDeleteConfirmBtn = document.getElementById('confirm-friend-delete-confirm');
     const lineUserStorageKey = 'line_home_users';
     const lineSelectedUserStorageKey = 'line_home_selected_user_id';
     let lineUserDraft = [];
@@ -850,6 +856,92 @@ function initLineApp() {
         activeFriendRealName = '';
     };
 
+    const openFriendDeleteConfirmModal = (displayName) => {
+        if (!friendDeleteConfirmModal) return;
+        if (friendDeleteConfirmText) {
+            friendDeleteConfirmText.textContent = `确定删除「${displayName || '该好友'}」吗？删除后会从好友列表和聊天列表移除，相关聊天记录也会被清除。`;
+        }
+        friendDeleteConfirmModal.style.display = 'flex';
+    };
+
+    const closeFriendDeleteConfirmModal = () => {
+        if (!friendDeleteConfirmModal) return;
+        friendDeleteConfirmModal.style.display = 'none';
+    };
+
+    const removeNameFromStorageList = (storageKey, realName) => {
+        const raw = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (!Array.isArray(raw)) return;
+        const normalized = String(realName || '').trim();
+        if (!normalized) return;
+        const next = raw.filter((name) => String(name || '').trim() !== normalized);
+        if (JSON.stringify(raw) !== JSON.stringify(next)) {
+            localStorage.setItem(storageKey, JSON.stringify(next));
+        }
+    };
+
+    const removeFriendData = (realName) => {
+        const normalized = String(realName || '').trim();
+        if (!normalized) return;
+        const selector = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(normalized) : normalized;
+        const friendItem = document.querySelector(`#friends-list .group-subitem[data-real-name="${selector}"]`);
+        if (friendItem && friendItem.parentNode) {
+            friendItem.parentNode.removeChild(friendItem);
+        }
+        const chatItem = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${selector}"]`);
+        if (chatItem && chatItem.parentNode) {
+            chatItem.parentNode.removeChild(chatItem);
+        }
+        removeNameFromStorageList('global_friends_list', normalized);
+        removeNameFromStorageList('global_chat_list', normalized);
+        localStorage.removeItem('chat_history_' + normalized);
+        localStorage.removeItem('chat_remark_' + normalized);
+        localStorage.removeItem('chat_persona_' + normalized);
+        localStorage.removeItem('chat_avatar_' + normalized);
+        localStorage.removeItem('chat_signature_' + normalized);
+        localStorage.removeItem('chat_user_realname_' + normalized);
+        localStorage.removeItem('chat_user_remark_' + normalized);
+        localStorage.removeItem('chat_user_persona_' + normalized);
+        localStorage.removeItem('chat_user_avatar_' + normalized);
+        localStorage.removeItem('chat_worldbooks_' + normalized);
+        localStorage.removeItem('chat_context_limit_' + normalized);
+        localStorage.removeItem('chat_long_term_memory_' + normalized);
+        localStorage.removeItem(getMemoryDiaryKey(normalized));
+        localStorage.removeItem(getSummaryLimitKey(normalized));
+        localStorage.removeItem(getAutoSummaryEnabledKey(normalized));
+        localStorage.removeItem(getTimeSyncEnabledKey(normalized));
+        localStorage.removeItem(getSummaryCursorKey(normalized));
+        localStorage.removeItem(getUnreadCountKey(normalized));
+        localStorage.removeItem(getChatWallpaperStorageKey(normalized));
+
+        const chatListContainer = document.getElementById('line-chat-list');
+        const emptyPlaceholder = chatListContainer ? chatListContainer.querySelector('.empty-chat-placeholder') : null;
+        if (emptyPlaceholder) {
+            const hasItems = chatListContainer.querySelectorAll('.chat-list-item').length > 0;
+            emptyPlaceholder.style.display = hasItems ? 'none' : 'block';
+        }
+        refreshChatListPreviews();
+        refreshAllUnreadBadges();
+        if (typeof saveGlobalData === 'function') {
+            saveGlobalData();
+        }
+
+        const chatRoom = document.getElementById('chat-room');
+        const chatRoomName = document.getElementById('chat-room-name');
+        if (chatRoom && chatRoomName) {
+            const currentRealName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            if (currentRealName === normalized) {
+                chatRoom.style.display = 'none';
+                chatRoomName.textContent = '';
+                chatRoomName.dataset.realName = '';
+                const chatContent = document.querySelector('.chat-room-content');
+                if (chatContent) {
+                    chatContent.innerHTML = '';
+                }
+            }
+        }
+    };
+
     const ensureChatItem = (realName, displayName) => {
         const chatListContainer = document.getElementById('line-chat-list');
         if (!chatListContainer) return null;
@@ -876,6 +968,11 @@ function initLineApp() {
             <div class="chat-item-unread hidden"></div>
         `;
         chatListContainer.insertBefore(chatItem, chatListContainer.firstChild);
+        updateChatListItemPreview(realName, chatItem);
+        sortChatListByLastMessage();
+        if (typeof saveGlobalData === 'function') {
+            saveGlobalData();
+        }
         return chatItem;
     };
 
@@ -1022,6 +1119,41 @@ function initLineApp() {
             const targetRealName = activeFriendRealName;
             closeFriendProfileModal();
             openFriendChat(targetRealName);
+        });
+    }
+
+    if (friendProfileDeleteBtn) {
+        friendProfileDeleteBtn.addEventListener('click', () => {
+            if (!activeFriendRealName) return;
+            const targetRealName = activeFriendRealName;
+            const displayName = friendProfileName ? friendProfileName.textContent.trim() : targetRealName;
+            openFriendDeleteConfirmModal(displayName || targetRealName);
+        });
+    }
+
+    if (friendDeleteConfirmModal) {
+        friendDeleteConfirmModal.addEventListener('click', (e) => {
+            if (e.target === friendDeleteConfirmModal) {
+                closeFriendDeleteConfirmModal();
+            }
+        });
+    }
+
+    if (closeFriendDeleteConfirmBtn) {
+        closeFriendDeleteConfirmBtn.addEventListener('click', closeFriendDeleteConfirmModal);
+    }
+
+    if (cancelFriendDeleteConfirmBtn) {
+        cancelFriendDeleteConfirmBtn.addEventListener('click', closeFriendDeleteConfirmModal);
+    }
+
+    if (confirmFriendDeleteConfirmBtn) {
+        confirmFriendDeleteConfirmBtn.addEventListener('click', () => {
+            if (!activeFriendRealName) return;
+            const targetRealName = activeFriendRealName;
+            removeFriendData(targetRealName);
+            closeFriendDeleteConfirmModal();
+            closeFriendProfileModal();
         });
     }
 
@@ -2429,6 +2561,7 @@ function initChatRoomLogic() {
         if (state && Array.isArray(state.history)) {
             state.history.push(newMsg);
         }
+        refreshChatListPreviewFor(realName);
         return newMsg;
     }
 
@@ -3502,6 +3635,7 @@ ${localImageSection}
         history = history.filter((m) => !selectedMsgIds.has(m.id));
         persistChatHistory(realName, history);
         loadChatHistory(realName);
+        refreshChatListPreviewFor(realName);
     }
 
     function showContextMenu(e, id, content, realName, role, timeStr) {
@@ -3609,6 +3743,7 @@ ${localImageSection}
                 // Update UI (Reload history or update DOM)
                 // Reload is safer to sync everything
                 loadChatHistory(realName);
+                refreshChatListPreviewFor(realName);
             }
 
             editModal.style.display = 'none';
@@ -4667,10 +4802,12 @@ function initChatSettingsLogic(chatRoomNameEl) {
             if (!shouldClear) return;
 
             localStorage.removeItem('chat_history_' + realName);
+            localStorage.removeItem(getSummaryCursorKey(realName));
             const chatContent = document.querySelector('.chat-room-content');
             if (chatContent) {
                 chatContent.innerHTML = '';
             }
+            refreshChatListPreviewFor(realName);
         });
     }
 
@@ -5286,6 +5423,99 @@ function setUnreadCount(realName, count) {
     return normalized;
 }
 
+function buildChatListPreviewFromMessage(msg) {
+    if (!msg) return '';
+    if (msg.voice) return '语音消息';
+    const content = msg.content;
+    if (typeof content !== 'string') return '';
+    const temp = document.createElement('div');
+    temp.innerHTML = content;
+    temp.querySelectorAll('.camera-photo-placeholder').forEach((el) => {
+        const text = String(el.dataset.photoText || '').trim();
+        const token = `图片${text ? `:${text}` : ''}`;
+        el.replaceWith(document.createTextNode(token));
+    });
+    const text = (temp.textContent || temp.innerText || '').trim();
+    if (text) return text;
+    if (content.includes('chat-inline-sticker')) return '贴图';
+    if (content.includes('camera-photo-placeholder')) return '图片';
+    if (/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/i.test(content)) return '图片';
+    if (/<img[^>]*>/i.test(content)) return '图片';
+    return '';
+}
+
+function getLatestChatMessageMeta(realName) {
+    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    if (!Array.isArray(history) || history.length === 0) {
+        return { message: null, ts: 0 };
+    }
+    let latest = null;
+    history.forEach((msg, index) => {
+        const rawTs = Number(msg && msg.ts);
+        const sortKey = Number.isFinite(rawTs) ? rawTs : index;
+        if (!latest || sortKey >= latest.sortKey) {
+            latest = {
+                message: msg,
+                ts: Number.isFinite(rawTs) ? rawTs : 0,
+                sortKey
+            };
+        }
+    });
+    return latest ? { message: latest.message, ts: latest.ts || 0 } : { message: null, ts: 0 };
+}
+
+function updateChatListItemPreview(realName, chatItem) {
+    const chatListContainer = document.getElementById('line-chat-list');
+    if (!chatListContainer) return;
+    const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName;
+    const item = chatItem || chatListContainer.querySelector(`.chat-list-item[data-real-name="${selectorName}"]`);
+    if (!item) return;
+    const meta = getLatestChatMessageMeta(realName);
+    const preview = buildChatListPreviewFromMessage(meta.message);
+    const msgEl = item.querySelector('.chat-item-msg');
+    if (msgEl) {
+        msgEl.textContent = preview || '点击开始聊天';
+    }
+    item.dataset.lastTs = String(meta.ts || 0);
+}
+
+function sortChatListByLastMessage() {
+    const chatListContainer = document.getElementById('line-chat-list');
+    if (!chatListContainer) return;
+    const items = Array.from(chatListContainer.querySelectorAll('.chat-list-item'));
+    if (items.length <= 1) return;
+    const ranked = items.map((item, index) => {
+        const ts = Number(item.dataset.lastTs || 0);
+        return { item, ts: Number.isFinite(ts) ? ts : 0, index };
+    });
+    ranked.sort((a, b) => {
+        if (a.ts !== b.ts) return b.ts - a.ts;
+        return a.index - b.index;
+    });
+    ranked.forEach(({ item }) => chatListContainer.appendChild(item));
+}
+
+function refreshChatListPreviewFor(realName) {
+    updateChatListItemPreview(realName);
+    sortChatListByLastMessage();
+    if (typeof saveGlobalData === 'function') {
+        saveGlobalData();
+    }
+}
+
+function refreshChatListPreviews() {
+    const chatListContainer = document.getElementById('line-chat-list');
+    if (!chatListContainer) return;
+    chatListContainer.querySelectorAll('.chat-list-item').forEach((item) => {
+        const realName = item.dataset.realName || item.querySelector('.chat-item-name')?.textContent || '';
+        updateChatListItemPreview(realName, item);
+    });
+    sortChatListByLastMessage();
+    if (typeof saveGlobalData === 'function') {
+        saveGlobalData();
+    }
+}
+
 function renderUnreadBadge(item, unreadCount) {
     if (!item) return;
     let badge = item.querySelector('.chat-item-unread');
@@ -5425,6 +5655,7 @@ function initGlobalPersistence() {
         }
     }
 
+    refreshChatListPreviews();
     refreshAllUnreadBadges();
 }
 
@@ -5529,6 +5760,7 @@ function initAddFriendLogic() {
             if (chatList) {
                 chatList.insertBefore(chatItem, chatList.firstChild);
             }
+            refreshChatListPreviewFor(name);
             
             // 3. 立即触发全局保存
             saveGlobalData();

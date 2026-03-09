@@ -1661,6 +1661,50 @@ input:checked + .slider:before {
     opacity: 0.8;
 }
 
+.ins-btn-secondary {
+    width: 100%;
+    height: 44px;
+    background: #e5e5ea;
+    color: #1d1d1f;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ins-btn-secondary:active {
+    opacity: 0.85;
+}
+
+.ins-btn-danger {
+    width: 100%;
+    height: 44px;
+    background: #ff3b30;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ins-btn-danger:active {
+    opacity: 0.85;
+}
+
+.delete-confirm-text {
+    font-size: 0.92rem;
+    color: #1d1d1f;
+    line-height: 1.5;
+}
+
+.delete-confirm-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
 .friend-profile-card {
     width: 84%;
     max-width: 320px;
@@ -1677,6 +1721,34 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     gap: 14px;
+    position: relative;
+}
+
+.friend-profile-delete-btn {
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.06);
+    color: #ff3b30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.friend-profile-delete-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.friend-profile-delete-btn:active {
+    transform: scale(0.94);
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .friend-profile-avatar {
