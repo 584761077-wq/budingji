@@ -1428,21 +1428,37 @@ function initStickerApp() {
 
     const parseEmojiInput = (rawText) => {
         const parsed = [];
+        const seen = new Set();
+        const normalizeUrl = (value) => String(value || '').trim().replace(/[，。,.!?！？]+$/g, '');
+        const pushEmoji = (name, url) => {
+            const finalName = String(name || '').trim();
+            const finalUrl = normalizeUrl(url);
+            if (!finalName || !/^https?:\/\//i.test(finalUrl)) return;
+            if (seen.has(finalUrl)) return;
+            seen.add(finalUrl);
+            parsed.push({
+                id: crypto.randomUUID(),
+                name: finalName,
+                url: finalUrl
+            });
+        };
+
         const pairRegex = /([^：:,\n\r，]+?)\s*[：:]\s*`?(https?:\/\/[^\s`，,\n\r]+)`?/g;
         let match;
 
         while ((match = pairRegex.exec(rawText)) !== null) {
-            const name = match[1].trim();
-            const url = match[2].trim().replace(/[，。,.!?！？]+$/g, '');
-
-            if (name && /^https?:\/\//i.test(url)) {
-                parsed.push({
-                    id: crypto.randomUUID(),
-                    name,
-                    url
-                });
-            }
+            pushEmoji(match[1], match[2]);
         }
+
+        const lines = String(rawText || '').split(/\r?\n/);
+        lines.forEach((line) => {
+            const trimmed = line.trim();
+            if (!trimmed || /[:：]/.test(trimmed)) return;
+            const spaceMatch = trimmed.match(/^(.+?)\s+(https?:\/\/\S+)$/);
+            if (spaceMatch) {
+                pushEmoji(spaceMatch[1], spaceMatch[2]);
+            }
+        });
 
         return parsed;
     };
