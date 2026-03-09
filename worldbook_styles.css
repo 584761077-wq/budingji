@@ -36,6 +36,82 @@
     height: 22px;
 }
 
+#worldbook-modal .app-content {
+    position: relative;
+}
+
+.worldbook-delete-action-btn {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: #ff3b30;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 18px rgba(255, 59, 48, 0.25);
+    cursor: pointer;
+    z-index: 5;
+}
+
+.worldbook-delete-action-btn.hidden {
+    display: none;
+}
+
+.worldbook-delete-action-btn:disabled {
+    opacity: 0.6;
+    box-shadow: none;
+}
+
+.worldbook-multi-select .wb-item-card {
+    cursor: pointer;
+}
+
+.worldbook-multi-select .wb-item-card:hover {
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.wb-item-card.selectable {
+    position: relative;
+}
+
+.wb-item-select {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #c7c7cc;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wb-item-card.selected .wb-item-select {
+    background: #1d1d1f;
+    border-color: #1d1d1f;
+}
+
+.wb-item-card.selected .wb-item-select::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffffff;
+}
+
+#worldbook-batch-delete-modal {
+    position: fixed;
+    z-index: 1600;
+}
+
 /* Categories */
 .worldbook-categories {
     padding: 15px 20px;

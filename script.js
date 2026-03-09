@@ -1918,13 +1918,19 @@ function initCharacterImportLogic() {
     function importWorldBook(charName, bookData) {
         const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
         const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
+        const safeCategories = Array.isArray(categories) ? categories : [];
         
-        // 自动创建一个分类
-        const categoryName = `导入-${charName}`;
-        if (!categories.includes(categoryName)) {
-            categories.push(categoryName);
-            localStorage.setItem('worldbook_categories', JSON.stringify(categories));
+        const baseCategoryName = `导入-${charName}`;
+        let categoryName = baseCategoryName;
+        if (safeCategories.includes(categoryName)) {
+            let index = 2;
+            while (safeCategories.includes(`${baseCategoryName}-${index}`)) {
+                index += 1;
+            }
+            categoryName = `${baseCategoryName}-${index}`;
         }
+        safeCategories.push(categoryName);
+        localStorage.setItem('worldbook_categories', JSON.stringify(safeCategories));
 
         const newIds = [];
         
@@ -5771,12 +5777,96 @@ function initAddFriendLogic() {
     }
 }
 
+const worldbookMultiSelectState = {
+    enabled: false,
+    selectedIds: new Set()
+};
+
+function getActiveWorldbookCategory() {
+    const activeTag = document.querySelector('.worldbook-categories .category-tag.active');
+    return activeTag ? activeTag.textContent : '未分类';
+}
+
+function updateWorldbookDeleteActionButtonState() {
+    const deleteActionBtn = document.getElementById('worldbook-delete-action-btn');
+    if (!deleteActionBtn) return;
+    const count = worldbookMultiSelectState.selectedIds.size;
+    deleteActionBtn.disabled = count === 0;
+}
+
+function updateWorldbookMultiSelectUI() {
+    const modal = document.getElementById('worldbook-modal');
+    const deleteActionBtn = document.getElementById('worldbook-delete-action-btn');
+    const deleteToggleBtn = document.getElementById('worldbook-batch-delete-btn');
+    const enabled = worldbookMultiSelectState.enabled;
+    if (modal) {
+        modal.classList.toggle('worldbook-multi-select', enabled);
+    }
+    if (deleteActionBtn) {
+        deleteActionBtn.classList.toggle('hidden', !enabled);
+    }
+    if (deleteToggleBtn) {
+        deleteToggleBtn.classList.toggle('active', enabled);
+    }
+    updateWorldbookDeleteActionButtonState();
+}
+
+function setWorldbookMultiSelectEnabled(enabled) {
+    worldbookMultiSelectState.enabled = !!enabled;
+    if (!worldbookMultiSelectState.enabled) {
+        worldbookMultiSelectState.selectedIds.clear();
+    }
+    updateWorldbookMultiSelectUI();
+    renderWorldBookList(getActiveWorldbookCategory());
+}
+
+function toggleWorldbookSelection(id) {
+    if (!id) return;
+    if (worldbookMultiSelectState.selectedIds.has(id)) {
+        worldbookMultiSelectState.selectedIds.delete(id);
+    } else {
+        worldbookMultiSelectState.selectedIds.add(id);
+    }
+    updateWorldbookDeleteActionButtonState();
+}
+
+function removeWorldbookItemsByIds(ids) {
+    const idSet = new Set((Array.isArray(ids) ? ids : []).map(String));
+    if (idSet.size === 0) return;
+    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const remaining = items.filter(item => !idSet.has(String(item.id)));
+    localStorage.setItem('worldbook_items', JSON.stringify(remaining));
+
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('chat_worldbooks_')) {
+            keys.push(key);
+        }
+    }
+    keys.forEach((key) => {
+        const raw = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(raw)) return;
+        const next = raw.filter((itemId) => !idSet.has(String(itemId)));
+        if (JSON.stringify(raw) !== JSON.stringify(next)) {
+            localStorage.setItem(key, JSON.stringify(next));
+        }
+    });
+}
+
 // 9. 世界书功能逻辑
 function initWorldBookApp() {
     const appWorldBook = document.getElementById('app-worldbook');
     const modal = document.getElementById('worldbook-modal');
     const closeBtn = document.getElementById('close-worldbook');
     const saveBtn = document.getElementById('save-worldbook');
+    const batchDeleteBtn = document.getElementById('worldbook-batch-delete-btn');
+    const deleteActionBtn = document.getElementById('worldbook-delete-action-btn');
+    const deleteModal = document.getElementById('worldbook-batch-delete-modal');
+    const deleteModalText = document.getElementById('worldbook-batch-delete-text');
+    const closeDeleteModalBtn = document.getElementById('close-worldbook-batch-delete');
+    const cancelDeleteModalBtn = document.getElementById('cancel-worldbook-batch-delete');
+    const confirmDeleteModalBtn = document.getElementById('confirm-worldbook-batch-delete');
     
     // 打开世界书
     if (appWorldBook) {
@@ -5788,6 +5878,9 @@ function initWorldBookApp() {
     // 关闭世界书
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
+            if (worldbookMultiSelectState.enabled) {
+                setWorldbookMultiSelectEnabled(false);
+            }
             closeAppModal(modal);
         });
     }
@@ -5811,6 +5904,10 @@ function initWorldBookApp() {
             const tags = document.querySelectorAll('.category-tag');
             tags.forEach(t => t.classList.remove('active'));
             e.target.classList.add('active');
+            if (worldbookMultiSelectState.enabled) {
+                worldbookMultiSelectState.selectedIds.clear();
+                updateWorldbookDeleteActionButtonState();
+            }
             renderWorldBookList(e.target.textContent);
         }
     });
@@ -5818,6 +5915,65 @@ function initWorldBookApp() {
     initAddWorldBookItemLogic();
     initCategoryManagerLogic();
     initWorldBookImportLogic();
+
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', () => {
+            setWorldbookMultiSelectEnabled(!worldbookMultiSelectState.enabled);
+        });
+    }
+
+    if (deleteActionBtn) {
+        deleteActionBtn.addEventListener('click', () => {
+            if (worldbookMultiSelectState.selectedIds.size === 0) {
+                alert('请先选择要删除的世界书');
+                return;
+            }
+            if (deleteModalText) {
+                deleteModalText.textContent = `确定删除选中的 ${worldbookMultiSelectState.selectedIds.size} 条世界书吗？`;
+            }
+            if (deleteModal) {
+                deleteModal.style.display = 'flex';
+                setTimeout(() => deleteModal.classList.add('active'), 10);
+            }
+        });
+    }
+
+    const closeDeleteModal = () => {
+        if (!deleteModal) return;
+        deleteModal.classList.remove('active');
+        setTimeout(() => {
+            deleteModal.style.display = 'none';
+        }, 300);
+    };
+
+    if (deleteModal) {
+        deleteModal.addEventListener('click', (e) => {
+            if (e.target === deleteModal) closeDeleteModal();
+        });
+    }
+
+    if (closeDeleteModalBtn) {
+        closeDeleteModalBtn.addEventListener('click', closeDeleteModal);
+    }
+
+    if (cancelDeleteModalBtn) {
+        cancelDeleteModalBtn.addEventListener('click', closeDeleteModal);
+    }
+
+    if (confirmDeleteModalBtn) {
+        confirmDeleteModalBtn.addEventListener('click', () => {
+            const ids = Array.from(worldbookMultiSelectState.selectedIds);
+            if (ids.length === 0) {
+                closeDeleteModal();
+                return;
+            }
+            removeWorldbookItemsByIds(ids);
+            closeDeleteModal();
+            setWorldbookMultiSelectEnabled(false);
+            renderWorldBookList(getActiveWorldbookCategory());
+            updateCategoryDropdown();
+        });
+    }
     
     // Initial render
     renderWorldBookList('未分类');
@@ -5916,7 +6072,7 @@ function initCategoryManagerLogic() {
         document.querySelectorAll('.delete-category-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const catToDelete = btn.dataset.category;
-                if (confirm(`确定删除分类 "${catToDelete}" 吗？该分类下的条目将变为"未分类"`)) {
+                if (confirm(`确定删除分类 "${catToDelete}" 吗？该分类下的世界书将被全部删除。`)) {
                     deleteCategory(catToDelete);
                 }
             });
@@ -5928,17 +6084,10 @@ function initCategoryManagerLogic() {
         categories = categories.filter(c => c !== category);
         localStorage.setItem('worldbook_categories', JSON.stringify(categories));
         
-        // Update items in this category to '未分类'
         const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
-        let updated = false;
-        items.forEach(item => {
-            if (item.category === category) {
-                item.category = '未分类';
-                updated = true;
-            }
-        });
-        if (updated) {
-            localStorage.setItem('worldbook_items', JSON.stringify(items));
+        const idsToDelete = items.filter(item => item.category === category).map(item => item.id);
+        if (idsToDelete.length > 0) {
+            removeWorldbookItemsByIds(idsToDelete);
         }
 
         renderCategoryList();
@@ -6131,17 +6280,34 @@ function renderWorldBookList(filterCategory = '未分类') {
         return item.category === filterCategory;
     });
 
+    const isMultiSelect = worldbookMultiSelectState.enabled;
     filteredItems.forEach(item => {
         const card = document.createElement('div');
         card.className = 'wb-item-card';
-        card.innerHTML = `
-            <div class="wb-item-name">${item.name}</div>
-            <div class="wb-item-category">${item.category}</div>
-        `;
-        // Click to edit
-        card.addEventListener('click', () => {
-            openWorldBookItem(item.id);
-        });
+        card.dataset.id = item.id;
+        if (isMultiSelect) {
+            card.classList.add('selectable');
+            if (worldbookMultiSelectState.selectedIds.has(item.id)) {
+                card.classList.add('selected');
+            }
+            card.innerHTML = `
+                <div class="wb-item-select"></div>
+                <div class="wb-item-name">${item.name}</div>
+                <div class="wb-item-category">${item.category}</div>
+            `;
+            card.addEventListener('click', () => {
+                toggleWorldbookSelection(item.id);
+                card.classList.toggle('selected', worldbookMultiSelectState.selectedIds.has(item.id));
+            });
+        } else {
+            card.innerHTML = `
+                <div class="wb-item-name">${item.name}</div>
+                <div class="wb-item-category">${item.category}</div>
+            `;
+            card.addEventListener('click', () => {
+                openWorldBookItem(item.id);
+            });
+        }
         listContainer.appendChild(card);
     });
 }

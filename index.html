@@ -131,6 +131,9 @@
                             <button class="toolbar-icon-btn" id="manage-categories-btn" title="管理">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                             </button>
+                            <button class="toolbar-icon-btn" id="worldbook-batch-delete-btn" title="删除">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path></svg>
+                            </button>
                         </div>
                     </div>
                     <div class="worldbook-categories">
@@ -140,6 +143,9 @@
                     <div class="worldbook-list">
                         <!-- 世界书条目将在这里显示 -->
                     </div>
+                    <button class="worldbook-delete-action-btn hidden" id="worldbook-delete-action-btn" type="button" title="删除所选">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path></svg>
+                    </button>
                 </div>
                 <input type="file" id="import-worldbook-input" accept=".txt,.md,.markdown,.docx" style="display: none;">
             </div>
@@ -221,6 +227,24 @@
                     </div>
                     <div class="ins-modal-footer">
                         <button class="ins-btn-primary" id="confirm-worldbook-import-btn">保存</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ins-modal-overlay" id="worldbook-batch-delete-modal" style="display: none;">
+                <div class="ins-modal">
+                    <div class="ins-modal-header">
+                        <h3>删除世界书</h3>
+                        <button class="ins-modal-close" id="close-worldbook-batch-delete">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="ins-modal-body">
+                        <div class="delete-confirm-text" id="worldbook-batch-delete-text">确定删除选中的世界书吗？</div>
+                    </div>
+                    <div class="ins-modal-footer delete-confirm-actions">
+                        <button class="ins-btn-secondary" id="cancel-worldbook-batch-delete" type="button">取消</button>
+                        <button class="ins-btn-danger" id="confirm-worldbook-batch-delete" type="button">删除</button>
                     </div>
                 </div>
             </div>
