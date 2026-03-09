@@ -1423,7 +1423,11 @@ function initStickerApp() {
     const parseEmojiInput = (rawText) => {
         const parsed = [];
         const seen = new Set();
-        const normalizeUrl = (value) => String(value || '').trim().replace(/[，。,.!?！？]+$/g, '');
+        const normalizeUrl = (value) => String(value || '')
+            .trim()
+            .replace(/^[<\(\[【]+/g, '')
+            .replace(/[>\)\]】]+$/g, '')
+            .replace(/[，。,.!?！？]+$/g, '');
         const pushEmoji = (name, url) => {
             const finalName = String(name || '').trim();
             const finalUrl = normalizeUrl(url);
@@ -1447,11 +1451,21 @@ function initStickerApp() {
         const lines = String(rawText || '').split(/\r?\n/);
         lines.forEach((line) => {
             const trimmed = line.trim();
-            if (!trimmed || /[:：]/.test(trimmed)) return;
-            const spaceMatch = trimmed.match(/^(.+?)\s+(https?:\/\/\S+)$/);
+            if (!trimmed) return;
+            const spaceMatch = trimmed.match(/^(.+?)\s+(https?:\/\/\S+)(?:\s+.*)?$/);
             if (spaceMatch) {
                 pushEmoji(spaceMatch[1], spaceMatch[2]);
+                return;
             }
+            const inlineUrlMatch = trimmed.match(/(https?:\/\/[^\s`，,。!！?？<>]+|www\.[^\s`，,。!！?？<>]+)/i);
+            if (!inlineUrlMatch) return;
+            const name = trimmed.slice(0, inlineUrlMatch.index).trim();
+            if (!name) return;
+            let url = inlineUrlMatch[1];
+            if (/^www\./i.test(url)) {
+                url = `https://${url}`;
+            }
+            pushEmoji(name, url);
         });
 
         return parsed;
