@@ -485,6 +485,11 @@
     margin-bottom: 0; 
 }
 
+.message-special {
+    display: block;
+    max-width: 100%;
+}
+
 .message-row.left .message-bubble {
     background: #ffffff;
     color: #1d1d1f;

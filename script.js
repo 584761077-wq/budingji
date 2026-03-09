@@ -2056,8 +2056,22 @@ async function runAutoSummaryBatches(realName, batchSize) {
     return summarized;
 }
 
+const tempChatWallpapers = {};
+
 function getChatWallpaperStorageKey(realName) {
     return 'chat_wallpaper_' + realName;
+}
+
+function setTempChatWallpaper(realName, src) {
+    const prev = tempChatWallpapers[realName];
+    if (prev && prev.startsWith('blob:') && prev !== src) {
+        URL.revokeObjectURL(prev);
+    }
+    if (src) {
+        tempChatWallpapers[realName] = src;
+    } else {
+        delete tempChatWallpapers[realName];
+    }
 }
 
 function applyChatWallpaper(realName) {
@@ -2065,8 +2079,10 @@ function applyChatWallpaper(realName) {
     const wallpaperLayer = document.querySelector('.chat-room-wallpaper');
     if (!chatRoom || !wallpaperLayer) return;
     const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(realName));
-    if (wallpaper) {
-        wallpaperLayer.style.backgroundImage = `url("${wallpaper.replace(/"/g, '\\"')}")`;
+    const fallback = tempChatWallpapers[realName] || '';
+    const applied = wallpaper || fallback;
+    if (applied) {
+        wallpaperLayer.style.backgroundImage = `url("${applied.replace(/"/g, '\\"')}")`;
         wallpaperLayer.style.opacity = '1';
     } else {
         wallpaperLayer.style.backgroundImage = 'none';
@@ -2442,6 +2458,7 @@ function initChatRoomLogic() {
         msgRow.dataset.time = String(timeStr || '');
         msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
+        const isCameraPlaceholder = typeof content === 'string' && content.includes('camera-photo-placeholder');
         const voiceData = extra && extra.voice ? extra.voice : null;
         const voiceDuration = voiceData ? Math.max(1, Number(voiceData.duration) || 1) : 0;
         const voiceTranscriptRaw = voiceData ? String(voiceData.transcript || content || '') : '';
@@ -2464,11 +2481,20 @@ function initChatRoomLogic() {
             avatarContent = currentAvatar ? `<img src="${currentAvatar}" alt="avatar">` : defaultSvg;
         }
 
+        const bubbleClasses = [
+            'message-bubble',
+            isStickerMessage ? 'sticker-bubble' : '',
+            voiceData ? 'voice-bubble' : ''
+        ].filter(Boolean).join(' ');
+        const bubbleMarkup = isCameraPlaceholder
+            ? `<div class="message-special">${bubbleContent}</div>`
+            : `<div class="${bubbleClasses}">${bubbleContent}</div>`;
+
         msgRow.innerHTML = `
             <div class="message-avatar">${avatarContent}</div>
             <div class="message-container">
                 <div class="message-main">
-                    <div class="message-bubble ${isStickerMessage ? 'sticker-bubble' : ''} ${voiceData ? 'voice-bubble' : ''}">${bubbleContent}</div>
+                    ${bubbleMarkup}
                     ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
                 </div>
                 <div class="message-meta-info">
@@ -2530,7 +2556,7 @@ function initChatRoomLogic() {
         }
         
         // 绑定长按事件
-        const bubble = msgRow.querySelector('.message-bubble');
+        const bubble = msgRow.querySelector('.message-bubble, .message-special');
         const quoteAnchor = msgRow.querySelector('.message-quote-anchor');
         let pressTimer;
 
@@ -2547,7 +2573,7 @@ function initChatRoomLogic() {
             });
         }
 
-        if (voiceData) {
+        if (voiceData && bubble) {
             bubble.addEventListener('click', (e) => {
                 if (isMultiSelectMode) return;
                 const transcriptEl = bubble.querySelector('.voice-transcript');
@@ -2559,49 +2585,51 @@ function initChatRoomLogic() {
             });
         }
 
-        // 触摸设备
-        bubble.addEventListener('touchstart', (e) => {
-            if (isMultiSelectMode) return;
-            pressTimer = setTimeout(() => {
+        if (bubble) {
+            // 触摸设备
+            bubble.addEventListener('touchstart', (e) => {
                 if (isMultiSelectMode) return;
-                showContextMenu(e, id, content, realName, role, timeStr);
-            }, 500); // 500ms 长按
-        });
-
-        bubble.addEventListener('touchend', () => {
-            clearTimeout(pressTimer);
-        });
-
-        bubble.addEventListener('touchmove', () => {
-            clearTimeout(pressTimer); // 移动取消长按
-        });
-
-        // 桌面设备 (鼠标右键或长按模拟)
-        bubble.addEventListener('mousedown', (e) => {
-            if (isMultiSelectMode) return;
-            // 左键长按
-            if (e.button === 0) {
                 pressTimer = setTimeout(() => {
                     if (isMultiSelectMode) return;
                     showContextMenu(e, id, content, realName, role, timeStr);
-                }, 500);
-            }
-        });
+                }, 500); // 500ms 长按
+            });
 
-        bubble.addEventListener('mouseup', () => {
-            clearTimeout(pressTimer);
-        });
-        
-        bubble.addEventListener('mouseleave', () => {
-            clearTimeout(pressTimer);
-        });
+            bubble.addEventListener('touchend', () => {
+                clearTimeout(pressTimer);
+            });
 
-        // 阻止默认右键菜单
-        bubble.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (isMultiSelectMode) return;
-            showContextMenu(e, id, content, realName, role, timeStr);
-        });
+            bubble.addEventListener('touchmove', () => {
+                clearTimeout(pressTimer); // 移动取消长按
+            });
+
+            // 桌面设备 (鼠标右键或长按模拟)
+            bubble.addEventListener('mousedown', (e) => {
+                if (isMultiSelectMode) return;
+                // 左键长按
+                if (e.button === 0) {
+                    pressTimer = setTimeout(() => {
+                        if (isMultiSelectMode) return;
+                        showContextMenu(e, id, content, realName, role, timeStr);
+                    }, 500);
+                }
+            });
+
+            bubble.addEventListener('mouseup', () => {
+                clearTimeout(pressTimer);
+            });
+            
+            bubble.addEventListener('mouseleave', () => {
+                clearTimeout(pressTimer);
+            });
+
+            // 阻止默认右键菜单
+            bubble.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (isMultiSelectMode) return;
+                showContextMenu(e, id, content, realName, role, timeStr);
+            });
+        }
 
         if (shouldPrepend) {
             const anchor = findFirstRenderableNode();
@@ -4249,6 +4277,46 @@ function initChatSettingsLogic(chatRoomNameEl) {
         return true;
     };
 
+    const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === 'string' ? reader.result : '';
+            if (!result) {
+                reject(new Error('empty'));
+                return;
+            }
+            resolve(result);
+        };
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.readAsDataURL(file);
+    });
+
+    const loadImageFromSrc = (src) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('load failed'));
+        img.src = src;
+    });
+
+    const prepareChatWallpaperSource = async (file) => {
+        const dataUrl = await readFileAsDataUrl(file);
+        const img = await loadImageFromSrc(dataUrl);
+        const maxDim = 1920;
+        const longest = Math.max(img.width, img.height);
+        const scale = longest > 0 ? Math.min(1, maxDim / longest) : 1;
+        if (scale >= 1) {
+            return dataUrl;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return dataUrl;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const resized = canvas.toDataURL('image/jpeg', 0.86);
+        return resized || dataUrl;
+    };
+
     // 打开设置
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
@@ -4331,22 +4399,35 @@ function initChatSettingsLogic(chatRoomNameEl) {
             chatWallpaperInput.click();
         });
 
-        chatWallpaperInput.addEventListener('change', (e) => {
+        chatWallpaperInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const src = String(event?.target?.result || '');
-                if (!src) return;
+            let src = '';
+            try {
+                src = await prepareChatWallpaperSource(file);
+            } catch (error) {
+                src = URL.createObjectURL(file);
+            }
+            let stored = false;
+            if (src && src.startsWith('data:')) {
                 try {
                     localStorage.setItem(getChatWallpaperStorageKey(realName), src);
+                    stored = true;
                 } catch (error) {
-                    alert('图片太大，无法保存到本地存储，但本次会话有效。');
+                    stored = false;
                 }
-                applyChatWallpaper(realName);
-            };
-            reader.readAsDataURL(file);
+            }
+            if (stored) {
+                setTempChatWallpaper(realName, '');
+            } else {
+                if (!src) {
+                    alert('图片读取失败，请重试。');
+                    return;
+                }
+                setTempChatWallpaper(realName, src);
+            }
+            applyChatWallpaper(realName);
             chatWallpaperInput.value = '';
         });
     }
