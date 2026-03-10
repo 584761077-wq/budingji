@@ -3253,6 +3253,23 @@ function initChatRoomLogic() {
             const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
             const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
 
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
+            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            let lastAssistantIndex = -1;
+            for (let i = fullHistory.length - 1; i >= 0; i -= 1) {
+                if (fullHistory[i] && fullHistory[i].role === 'assistant') {
+                    lastAssistantIndex = i;
+                    break;
+                }
+            }
+            const currentTurnMessages = lastAssistantIndex >= 0
+                ? fullHistory.slice(lastAssistantIndex + 1)
+                : fullHistory.slice();
+            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && msg.role === 'user');
+            const currentTurn = currentTurnUserMessages.length > 0
+                ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
+                : null;
+
             let timeGapPrompt = '';
             if (timeSyncEnabled && fullHistory.length > currentTurnUserMessages.length) {
                 const lastMsgIndex = fullHistory.length - currentTurnUserMessages.length - 1;
@@ -3310,22 +3327,6 @@ ${timeGapPrompt}
                 return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
             }).join('\n');
 
-            const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
-            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
-            let lastAssistantIndex = -1;
-            for (let i = fullHistory.length - 1; i >= 0; i -= 1) {
-                if (fullHistory[i] && fullHistory[i].role === 'assistant') {
-                    lastAssistantIndex = i;
-                    break;
-                }
-            }
-            const currentTurnMessages = lastAssistantIndex >= 0
-                ? fullHistory.slice(lastAssistantIndex + 1)
-                : fullHistory.slice();
-            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && msg.role === 'user');
-            const currentTurn = currentTurnUserMessages.length > 0
-                ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
-                : null;
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const assistantStickerRuleText = assistantBoundStickers.length > 0
                 ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
