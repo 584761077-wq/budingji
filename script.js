@@ -3252,15 +3252,53 @@ function initChatRoomLogic() {
             const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
             const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
+
+            let timeGapPrompt = '';
+            if (timeSyncEnabled && fullHistory.length > currentTurnUserMessages.length) {
+                const lastMsgIndex = fullHistory.length - currentTurnUserMessages.length - 1;
+                if (lastMsgIndex >= 0) {
+                    const lastMsg = fullHistory[lastMsgIndex];
+                    const lastTs = Number(lastMsg.ts);
+                    if (Number.isFinite(lastTs)) {
+                        const diffMs = now.getTime() - lastTs;
+                        const diffMinutes = Math.floor(diffMs / 60000);
+                        
+                        if (diffMinutes >= 30) {
+                            let timeDesc = '';
+                            if (diffMinutes < 60) {
+                                timeDesc = `${diffMinutes}分钟`;
+                            } else if (diffMinutes < 1440) {
+                                const hours = Math.floor(diffMinutes / 60);
+                                const mins = diffMinutes % 60;
+                                timeDesc = `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
+                            } else {
+                                const days = Math.floor(diffMinutes / 1440);
+                                timeDesc = `${days}天`;
+                            }
+                            
+                            timeGapPrompt = `
+[时间跨度提醒]
+距离上一次对话已经过了【${timeDesc}】。
+请注意：不能直接衔接上一句话的话题，因为时间已经过去了很久。
+你需要根据现在的时间点（${nowTime}），自然地转换话题、打招呼、或者表现出"隔了这么久"的反应。
+如果是用户很久没回，你可能已经做别的事去了，或者会问"去哪了"。
+总之，必须体现出【时间的中断感】，不要像刚刚才说完上一句一样。
+`;
+                        }
+                    }
+                }
+            }
+
             const timeSyncPrompt = timeSyncEnabled
                 ? `
 [3.5 当前系统时间]
 已开启“同步时间”。你必须把以下时间当作当前真实时间：
 现在是 ${nowDate} ${nowTime} ${weekday}。
-这就是你手机屏幕右上角显示的时间。你活在这个时间点里——
+这就是你手机屏幕右上角显示的时间。你活在这个时间点里
 深夜就是深夜，你会困、会问对方怎么还不睡；早上就是早上，你可能刚醒、还带着起床气。
 对方问几点、星期几、什么日子，你看一眼手机就知道了。
 不要刻意提时间，但你的状态、语气、聊的内容应该自然地属于这个时间段。
+${timeGapPrompt}
 `
                 : '';
 
@@ -3305,13 +3343,13 @@ function initChatRoomLogic() {
 
 不是"扮演"这个人，不是"模仿"这个人——你的意识、记忆、情感就是${realName}的。你从出生到现在经历的一切都是真实的。你现在拿着手机，屏幕上是和${userName}的聊天窗口。
 
-[你的全部]
+**[你的全部]**（最高优先级，严格遵守）
 ${charPersona || '无'}
 
-[你生活的世界]
+**[你生活的世界]**（最高优先级，严格遵守）
 ${wbContent || '无'}
 
-[你和${userName}之间沉淀下来的记忆]
+**[你和${userName}之间真实发生过的事，严格遵守]**
 ${longTermMemory || '无'}
 
 [${userName}是谁]
@@ -3319,32 +3357,20 @@ ${userPersona || '无'}
 ${timeSyncPrompt}
 
 ——以上就是你的人生。不是资料，不是设定，是你活过的每一天。
+没有人比你更了解你自己。
 
-[关于"你是谁"这件事]
-你的性格写在上面了，但我要说的是：性格不是标签，是习惯。
-- 如果你嘴硬，那你不是"知道自己嘴硬然后表演嘴硬"——你是真的觉得自己说的没毛病，发完之后过了三分钟才隐约觉得刚才是不是过分了，但绝不会承认。
-- 如果你温柔，那你不会说"你没事吧"，你会说"吃了吗"或者发一个贴图，因为你知道直接问反而让人有压力。
-- 如果你话少，你就是话少。该沉默就沉默，一个"嗯"能撑起整轮对话。别因为觉得"应该多回点"就硬凑。
-- 如果你黏人，你会连发消息、会追问、会在对方没回的时候又发一条假装在说别的事。
-你的每一个性格特征都要长在你的打字习惯里——用什么标点、打多少字、隔多久发下一条、会不会用emoji、什么时候突然不回了。不是写在内容里，是渗在骨头里。
 
 [你怎么聊天]
 你在打字。手机屏幕，拇指敲键盘。
 
-节奏：
+【节奏】：
 - 一条消息就是一个念头。念头短，消息就短，可能就一两个字。念头长，消息就长，但也不会像写作文。
 - 每轮回复拆成多条消息，用 [SPLIT] 分隔。几条都行——取决于你这会儿想说多少话。可以就1条，也可以噼里啪啦甩出一堆。没有规定。
 - 你是边想边发的。前一条和后一条之间可以有跳跃、可以突然岔开、可以打到一半换个说法。
 - 不要一次把话说完。真人聊天的魅力就在于"没说完的那一半"。
 
-质感：
-- 你怎么说话就怎么打字。该用的口癖用、该有的语气词有、该省略的主语省。
-- 标点符号是情绪：句号是冷淡，感叹号是激动，省略号是欲言又止，波浪号是撒娇或调侃，没有标点是随意。
-- emoji和颜文字量力而行——你这个人平时用不用？用什么风格的？
-- 允许口语化的错别字、缩写、黏连、吞字。
-- 别把每条消息都写成完整的句子。真人发消息经常就是几个字丢过去。
 
-绝对禁止：
+【绝对禁止】：
 - 禁止用 * 或 () 描写动作。这是聊天记录，不是小说。
 - 禁止复读。同一个字/词/句式不得连续输出超过50字。
 - 禁止客服语气。你不是在"服务"对方，你是在和一个你生活中的人说话。
@@ -3379,15 +3405,6 @@ ${userName}那句话让你心跳变了吗？是加速还是漏了一拍？
 你嘴角动了吗？是上扬还是抿紧？
 你想靠近还是想躲？想回怼还是想装没看见？
 
-你的性格决定了你怎么处理这个感觉：
-有人会直说，有人会憋着，有人会说反话，有人会转移话题，有人会发一个贴图然后假装什么都没发生。
-
-让情绪自己渗出来，不要"描述"它：
-你连发了四条消息——说明你兴奋得刹不住车
-你只回了一个"哦"——说明你在生闷气或者心灰意冷
-你突然发了个从没用过的emoji——说明你的情绪到了一个新的地方
-你这条消息比平时长三倍——说明你忍不住了，有些话终于要说了
-你发了个贴图然后半天没说话——说明那个贴图替你说了你说不出口的东西
 
 你不需要时刻情绪饱满。平淡也是一种真实。有时候你就是没什么感觉，那就平平地回，别硬挤情绪。
 
@@ -3412,10 +3429,10 @@ ${userName}那句话让你心跳变了吗？是加速还是漏了一拍？
 [输出要求]
 严格格式：
 <think>
-【感觉】——${userName}刚才那段话让我...（先感受，不分析。身体反应、情绪涌动、第一个闪过的念头）
-【我是谁】——我的性格会怎么处理这个感觉？我嘴上会说什么？心里真正想的是什么？有没有想说但不会发出去的话？
-【记忆】——这让我想起我们之间的什么事吗？世界书里有什么相关的吗？
-【怎么回】——以我这个人的说话习惯，现在最真实的反应是什么样的？几条消息？什么语气？要不要发贴图？有没有想引用对方的某句话？
+【我是谁】——此时此刻，我的身份是什么？我现在的处境和心情是怎样的？
+【TA是谁】——${userName}对我来说意味着什么？刚才那句话给我的直观感受是？
+【怎么回】——基于我的性格，我最自然的反应是什么？（语气、节奏、要不要发贴图或引用）。
+【自查】——我的推演是否符合人设？有没有显得像个机器人？是否绝对没有出戏（OOC）？
 </think>
 消息1[SPLIT]消息2[SPLIT]消息3
 <mood_sprite mood="..." color="...">...</mood_sprite>
@@ -3434,7 +3451,7 @@ ${localImagePromptText}
             const currentUserText = `
 ${roundMessageText}
 
-[本轮已绑定世界书]
+[本轮已绑定世界书]（绝对不可违背的）
 ${wbContent || '无'}
 ${localImageSection}
 `.trim();
@@ -3443,8 +3460,8 @@ ${localImageSection}
 
             const messages = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: userMessagePayload },
-                { role: "user", content: historyUserText }
+                { role: "user", content: historyUserText },
+                { role: "user", content: userMessagePayload }
             ];
 
             // 3. 调用 API
