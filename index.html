@@ -1329,5 +1329,33 @@
 
     <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
     <script src="script.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js').then((registration) => {
+                    console.log('SW registered: ', registration);
+                    
+                    // 检查更新
+                    registration.onupdatefound = () => {
+                        const installingWorker = registration.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed') {
+                                if (navigator.serviceWorker.controller) {
+                                    // 新内容可用
+                                    if (confirm('检测到新版本，点击确定立即更新。')) {
+                                        window.location.reload();
+                                    }
+                                } else {
+                                    console.log('Content is cached for offline use.');
+                                }
+                            }
+                        };
+                    };
+                }).catch((registrationError) => {
+                    console.log('SW registration failed: ', registrationError);
+                });
+            });
+        }
+    </script>
 </body>
 </html>
