@@ -493,6 +493,7 @@
 .message-row.left .message-bubble {
     background: #ffffff;
     color: #1d1d1f;
+    border: 1px solid #e5e5ea;
 }
 
 .message-row.right .message-bubble {

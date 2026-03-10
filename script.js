@@ -3503,10 +3503,15 @@ ${localImageSection}
             // But if AI messes up and puts sprite in the middle, we should catch it.
             // Let's use a loop to extract all sprite tags and use the last one found, removing all from text.
             
-            const spriteRegex = /<mood_sprite\s+mood=["']([^"']+)["']\s+color=["']([^"']+)["']\s*>([\s\S]*?)<\/mood_sprite>/gi;
+            const spriteRegex = /<mood_sprite\b([^>]*)>([\s\S]*?)<\/mood_sprite\s*>/gi;
             let match;
             while ((match = spriteRegex.exec(visibleReply)) !== null) {
-                const rawContent = match[3].trim();
+                const attrText = String(match[1] || '');
+                const rawContent = String(match[2] || '').trim();
+                const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+                const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+                const moodValue = moodMatch ? moodMatch[2] : '未知';
+                const colorValue = colorMatch ? colorMatch[2] : '#FFD700';
                 let mainContent = rawContent;
                 let secretContent = '';
 
@@ -3520,14 +3525,45 @@ ${localImageSection}
                 }
 
                 spriteData = {
-                    mood: match[1],
-                    color: match[2],
+                    mood: moodValue,
+                    color: colorValue,
                     content: mainContent,
                     secret: secretContent
                 };
             }
             // Remove all tags from visible text
-            visibleReply = visibleReply.replace(spriteRegex, '').trim();
+            visibleReply = visibleReply.replace(spriteRegex, '').replace(/<\/?mood_sprite\b[^>]*>/gi, '').trim();
+            const lowerVisible = visibleReply.toLowerCase();
+            const unmatchedIndex = lowerVisible.lastIndexOf('<mood_sprite');
+            if (unmatchedIndex !== -1) {
+                const tail = visibleReply.slice(unmatchedIndex);
+                const openMatch = tail.match(/^<mood_sprite\b([^>]*)>([\s\S]*)$/i);
+                if (openMatch) {
+                    const attrText = String(openMatch[1] || '');
+                    const rawContent = String(openMatch[2] || '').trim();
+                    const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+                    const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+                    const moodValue = moodMatch ? moodMatch[2] : '未知';
+                    const colorValue = colorMatch ? colorMatch[2] : '#FFD700';
+                    if (rawContent) {
+                        let mainContent = rawContent;
+                        let secretContent = '';
+                        const separatorRegex = /\n\s*-{3,}\s*\n/i;
+                        const splitMatch = rawContent.split(separatorRegex);
+                        if (splitMatch.length > 1) {
+                            mainContent = splitMatch[0].trim();
+                            secretContent = splitMatch[1].trim();
+                        }
+                        spriteData = {
+                            mood: moodValue,
+                            color: colorValue,
+                            content: mainContent,
+                            secret: secretContent
+                        };
+                    }
+                }
+                visibleReply = visibleReply.slice(0, unmatchedIndex).replace(/<\/?mood_sprite\b[^>]*>/gi, '').trim();
+            }
 
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
