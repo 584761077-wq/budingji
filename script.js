@@ -3195,18 +3195,21 @@ function initChatRoomLogic() {
     function convertAssistantStickerTokens(content, allowedStickers) {
         if (typeof content !== 'string') return '';
         const byName = new Map(allowedStickers.map(item => [item.name, item]));
-        // 支持 [贴图:name] 和 【贴图:name】，支持全角冒号
-        return content
-            .replace(/(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi, (match, rawName) => {
-                const name = String(rawName || '').trim();
-                const sticker = byName.get(name);
-                if (!sticker) {
-                    // 如果找不到贴图，直接过滤掉，不显示任何错误提示
-                    return '';
-                }
-                return `<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`;
-            })
-            .trim();
+        const tokenRegex = /(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi;
+        const stickers = [];
+        let matchedAnyToken = false;
+        let match;
+        while ((match = tokenRegex.exec(content)) !== null) {
+            matchedAnyToken = true;
+            const name = String(match[1] || '').trim();
+            const sticker = byName.get(name);
+            if (!sticker) continue;
+            stickers.push(`<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`);
+        }
+        if (matchedAnyToken) {
+            return stickers.join('');
+        }
+        return content.trim();
     }
 
     // 触发 AI 回复
@@ -3511,7 +3514,7 @@ ${localImageSection}
                 const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
                 const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
                 const moodValue = moodMatch ? moodMatch[2] : '未知';
-                const colorValue = colorMatch ? colorMatch[2] : '#FFD700';
+                const colorValue = colorMatch ? colorMatch[2] : '#fffffcff';
                 let mainContent = rawContent;
                 let secretContent = '';
 
