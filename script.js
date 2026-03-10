@@ -3071,6 +3071,15 @@ function initChatRoomLogic() {
         return `${speaker}: ${turnText || '无'}`;
     }
 
+    function buildTurnInputBlockForModel(messages) {
+        if (!Array.isArray(messages) || messages.length === 0) return '';
+        const parts = messages.map((msg) => {
+            if (!msg || msg.role !== 'user') return '';
+            return formatTurnInputForModel(msg);
+        }).map((text) => String(text || '').trim()).filter(Boolean);
+        return parts.join('\n');
+    }
+
     function parseAssistantVoiceMessage(rawText) {
         const text = String(rawText || '').trim();
         if (!text) return null;
@@ -3117,16 +3126,19 @@ function initChatRoomLogic() {
             });
         }
 
-        if (currentTurn && currentTurn.role === 'user') {
-            const images = extractLocalImageDataUrls(currentTurn.content);
-            if (images.length > 0) {
-                records.push({
-                    source: '本轮输入',
-                    text: normalizeMessageForModel(currentTurn.content),
-                    images
-                });
-            }
-        }
+        const currentTurns = Array.isArray(currentTurn) ? currentTurn : (currentTurn ? [currentTurn] : []);
+        const currentLabelBase = currentTurns.length > 1 ? '本轮第' : '本轮输入';
+        currentTurns.forEach((msg, index) => {
+            if (!msg || msg.role !== 'user') return;
+            const images = extractLocalImageDataUrls(msg.content);
+            if (images.length === 0) return;
+            const source = currentTurns.length > 1 ? `${currentLabelBase}${index + 1}条消息` : currentLabelBase;
+            records.push({
+                source,
+                text: normalizeMessageForModel(msg.content),
+                images
+            });
+        });
 
         return records;
     }
@@ -3262,13 +3274,27 @@ function initChatRoomLogic() {
 
             const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
             const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
-            const currentTurn = fullHistory.length > 0 ? fullHistory[fullHistory.length - 1] : null;
+            let lastAssistantIndex = -1;
+            for (let i = fullHistory.length - 1; i >= 0; i -= 1) {
+                if (fullHistory[i] && fullHistory[i].role === 'assistant') {
+                    lastAssistantIndex = i;
+                    break;
+                }
+            }
+            const currentTurnMessages = lastAssistantIndex >= 0
+                ? fullHistory.slice(lastAssistantIndex + 1)
+                : fullHistory.slice();
+            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && msg.role === 'user');
+            const currentTurn = currentTurnUserMessages.length > 0
+                ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
+                : null;
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const assistantStickerRuleText = assistantBoundStickers.length > 0
                 ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
                 : '无';
 
-            const contextHistory = fullHistory.slice(Math.max(0, fullHistory.length - limit - 1), -1);
+            const historyCandidates = lastAssistantIndex >= 0 ? fullHistory.slice(0, lastAssistantIndex + 1) : [];
+            const contextHistory = historyCandidates.slice(Math.max(0, historyCandidates.length - limit));
             const contextText = contextHistory.map(msg => {
                 const speaker = msg.role === 'assistant' ? realName : userName;
                 return formatHistoryMessageForModel(msg, speaker);
@@ -3386,7 +3412,7 @@ ${userName}那句话让你心跳变了吗？是加速还是漏了一拍？
 [输出要求]
 严格格式：
 <think>
-【感觉】——${userName}刚才那句话让我...（先感受，不分析。身体反应、情绪涌动、第一个闪过的念头）
+【感觉】——${userName}刚才那段话让我...（先感受，不分析。身体反应、情绪涌动、第一个闪过的念头）
 【我是谁】——我的性格会怎么处理这个感觉？我嘴上会说什么？心里真正想的是什么？有没有想说但不会发出去的话？
 【记忆】——这让我想起我们之间的什么事吗？世界书里有什么相关的吗？
 【怎么回】——以我这个人的说话习惯，现在最真实的反应是什么样的？几条消息？什么语气？要不要发贴图？有没有想引用对方的某句话？
@@ -3395,8 +3421,8 @@ ${userName}那句话让你心跳变了吗？是加速还是漏了一拍？
 <mood_sprite mood="..." color="...">...</mood_sprite>
 `;
 
-            const roundInput = currentTurn && currentTurn.role === 'user' ? formatTurnInputForModel(currentTurn) : '';
-            const localImageRecords = collectLocalImageInputs(currentTurn, contextHistory);
+            const roundInput = buildTurnInputBlockForModel(currentTurnUserMessages);
+            const localImageRecords = collectLocalImageInputs(currentTurnUserMessages, contextHistory);
             const localImagePromptText = buildLocalImagePromptText(localImageRecords);
             const localImageSection = localImagePromptText
                 ? `
@@ -3404,22 +3430,21 @@ ${userName}那句话让你心跳变了吗？是加速还是漏了一拍？
 ${localImagePromptText}
 `
                 : '';
-            const runtimeInput = `
-[本轮输入]
-${roundInput || '无'}
-
-[上下文]
-${contextText || '无'}
+            const roundMessageText = `[本轮消息开始]\n${roundInput || '无'}\n[本轮消息结束]`;
+            const currentUserText = `
+${roundMessageText}
 
 [本轮已绑定世界书]
 ${wbContent || '无'}
 ${localImageSection}
-`;
-            const userMessagePayload = buildUserMessagePayload(runtimeInput, localImageRecords);
+`.trim();
+            const historyUserText = `[历史上下文]\n${contextText || '无'}`;
+            const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
 
             const messages = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: userMessagePayload }
+                { role: "user", content: userMessagePayload },
+                { role: "user", content: historyUserText }
             ];
 
             // 3. 调用 API
