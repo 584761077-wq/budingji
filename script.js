@@ -3,11 +3,184 @@ document.addEventListener('DOMContentLoaded', () => {
     initStandWidget();
     initApiErrorModal();
     initSettings();
+    runChatIdMigration();
     initLineApp();
     initStickerApp();
     initAppearanceSettings();
     initTopProfileWidget();
 });
+
+function createChatId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return `chat_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function parseChatMeta(raw) {
+    if (!raw) return { realName: '', remark: '' };
+    try {
+        const parsed = JSON.parse(raw);
+        return {
+            realName: String(parsed?.realName || '').trim(),
+            remark: String(parsed?.remark || '').trim()
+        };
+    } catch (error) {
+        return { realName: '', remark: '' };
+    }
+}
+
+function getChatMeta(chatId) {
+    return parseChatMeta(localStorage.getItem('chat_meta_' + chatId));
+}
+
+function setChatMeta(chatId, meta) {
+    const normalized = {
+        realName: String(meta?.realName || '').trim(),
+        remark: String(meta?.remark || '').trim()
+    };
+    localStorage.setItem('chat_meta_' + chatId, JSON.stringify(normalized));
+}
+
+function getChatRemark(chatId) {
+    return String(localStorage.getItem('chat_remark_' + chatId) || '').trim();
+}
+
+function setChatRemark(chatId, remark) {
+    const normalized = String(remark || '').trim();
+    if (normalized) {
+        localStorage.setItem('chat_remark_' + chatId, normalized);
+    } else {
+        localStorage.removeItem('chat_remark_' + chatId);
+    }
+    const meta = getChatMeta(chatId);
+    setChatMeta(chatId, { realName: meta.realName, remark: normalized });
+}
+
+function getChatDisplayName(chatId) {
+    const remark = getChatRemark(chatId);
+    if (remark) return remark;
+    const meta = getChatMeta(chatId);
+    return meta.remark || meta.realName || '';
+}
+
+function getChatRealName(chatId) {
+    return getChatMeta(chatId).realName || '';
+}
+
+function runChatIdMigration() {
+    const migrationKey = 'chat_id_migration_v1_done';
+    if (localStorage.getItem(migrationKey) === 'true') return;
+
+    const existingMap = new Map();
+    for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith('chat_meta_')) continue;
+        const chatId = key.slice('chat_meta_'.length);
+        const meta = getChatMeta(chatId);
+        if (meta.realName) {
+            existingMap.set(meta.realName, chatId);
+        }
+    }
+
+    const realNames = new Set();
+    for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith('chat_history_')) continue;
+        const realName = key.slice('chat_history_'.length);
+        if (realName) realNames.add(realName);
+    }
+    ['global_friends_list', 'global_chat_list'].forEach((listKey) => {
+        const raw = JSON.parse(localStorage.getItem(listKey) || '[]');
+        if (!Array.isArray(raw)) return;
+        raw.forEach((name) => {
+            const normalized = String(name || '').trim();
+            if (normalized) realNames.add(normalized);
+        });
+    });
+
+    const mapping = new Map(existingMap);
+    const ensureChatId = (realName) => {
+        const normalized = String(realName || '').trim();
+        if (!normalized) return '';
+        if (mapping.has(normalized)) return mapping.get(normalized);
+        const newId = createChatId();
+        mapping.set(normalized, newId);
+        return newId;
+    };
+
+    const migrateValue = (oldKey, newKey) => {
+        const value = localStorage.getItem(oldKey);
+        if (value === null) return;
+        if (localStorage.getItem(newKey) === null) {
+            localStorage.setItem(newKey, value);
+        }
+    };
+
+    realNames.forEach((realName) => {
+        const chatId = ensureChatId(realName);
+        if (!chatId) return;
+        const remark = localStorage.getItem('chat_remark_' + realName) || '';
+        const meta = getChatMeta(chatId);
+        const nextMeta = {
+            realName: meta.realName || realName,
+            remark: meta.remark || remark
+        };
+        setChatMeta(chatId, nextMeta);
+        if (remark && !localStorage.getItem('chat_remark_' + chatId)) {
+            localStorage.setItem('chat_remark_' + chatId, remark);
+        }
+
+        migrateValue('chat_history_' + realName, 'chat_history_' + chatId);
+        migrateValue('chat_persona_' + realName, 'chat_persona_' + chatId);
+        migrateValue('chat_avatar_' + realName, 'chat_avatar_' + chatId);
+        migrateValue('chat_remark_' + realName, 'chat_remark_' + chatId);
+        migrateValue('chat_worldbooks_' + realName, 'chat_worldbooks_' + chatId);
+        migrateValue('chat_wallpaper_' + realName, 'chat_wallpaper_' + chatId);
+        migrateValue('chat_time_sync_' + realName, 'chat_time_sync_' + chatId);
+        migrateValue('chat_time_sync_enabled_' + realName, 'chat_time_sync_' + chatId);
+        migrateValue('chat_summary_' + realName, 'chat_summary_' + chatId);
+        migrateValue('chat_long_memory_' + realName, 'chat_long_memory_' + chatId);
+        migrateValue('chat_long_term_memory_' + realName, 'chat_long_memory_' + chatId);
+        migrateValue('chat_user_realname_' + realName, 'chat_user_realname_' + chatId);
+        migrateValue('chat_user_remark_' + realName, 'chat_user_remark_' + chatId);
+        migrateValue('chat_user_persona_' + realName, 'chat_user_persona_' + chatId);
+        migrateValue('chat_user_avatar_' + realName, 'chat_user_avatar_' + chatId);
+        migrateValue('chat_signature_' + realName, 'chat_signature_' + chatId);
+        migrateValue('chat_context_limit_' + realName, 'chat_context_limit_' + chatId);
+        migrateValue('chat_memory_diary_' + realName, 'chat_memory_diary_' + chatId);
+        migrateValue('chat_summary_limit_' + realName, 'chat_summary_limit_' + chatId);
+        migrateValue('chat_auto_summary_enabled_' + realName, 'chat_auto_summary_enabled_' + chatId);
+        migrateValue('chat_summary_cursor_' + realName, 'chat_summary_cursor_' + chatId);
+        migrateValue('chat_unread_count_' + realName, 'chat_unread_count_' + chatId);
+    });
+
+    ['global_friends_list', 'global_chat_list'].forEach((listKey) => {
+        const raw = JSON.parse(localStorage.getItem(listKey) || '[]');
+        if (!Array.isArray(raw)) return;
+        const next = raw.map((name) => ensureChatId(name)).filter(Boolean);
+        localStorage.setItem(listKey, JSON.stringify(next));
+    });
+
+    const targetMap = JSON.parse(localStorage.getItem('sticker_category_targets_v1') || '{}');
+    if (targetMap && typeof targetMap === 'object') {
+        Object.keys(targetMap).forEach((categoryId) => {
+            const targets = Array.isArray(targetMap[categoryId]) ? targetMap[categoryId] : [];
+            const nextTargets = targets.map((target) => {
+                const raw = String(target || '').trim();
+                if (!raw) return '';
+                if (raw === '我') return raw;
+                if (mapping.has(raw)) return mapping.get(raw);
+                if (localStorage.getItem('chat_meta_' + raw)) return raw;
+                return raw;
+            }).filter(Boolean);
+            targetMap[categoryId] = nextTargets;
+        });
+        localStorage.setItem('sticker_category_targets_v1', JSON.stringify(targetMap));
+    }
+
+    localStorage.setItem(migrationKey, 'true');
+}
 
 function initTopProfileWidget() {
     const avatarContainer = document.querySelector('.top-avatar-large');
@@ -727,7 +900,7 @@ function initLineApp() {
     const lineSelectedUserStorageKey = 'line_home_selected_user_id';
     let lineUserDraft = [];
     let lineSelectedUserId = '';
-    let activeFriendRealName = '';
+    let activeFriendChatId = '';
 
     const getLineUsers = () => {
         const raw = JSON.parse(localStorage.getItem(lineUserStorageKey) || '[]');
@@ -842,10 +1015,10 @@ function initLineApp() {
         lineUserAddOverlay.style.display = 'none';
     };
 
-    const getFriendSignature = (realName) => {
-        const signature = localStorage.getItem('chat_signature_' + realName)
-            || localStorage.getItem('chat_persona_' + realName)
-            || localStorage.getItem('chat_user_persona_' + realName)
+    const getFriendSignature = (chatId) => {
+        const signature = localStorage.getItem('chat_signature_' + chatId)
+            || localStorage.getItem('chat_persona_' + chatId)
+            || localStorage.getItem('chat_user_persona_' + chatId)
             || '';
         const normalized = String(signature || '').replace(/\s+/g, ' ').trim();
         return normalized || '这个人很神秘，还没有签名';
@@ -854,7 +1027,7 @@ function initLineApp() {
     const closeFriendProfileModal = () => {
         if (!friendProfileModal) return;
         friendProfileModal.style.display = 'none';
-        activeFriendRealName = '';
+        activeFriendChatId = '';
     };
 
     const openFriendDeleteConfirmModal = (displayName) => {
@@ -870,10 +1043,10 @@ function initLineApp() {
         friendDeleteConfirmModal.style.display = 'none';
     };
 
-    const removeNameFromStorageList = (storageKey, realName) => {
+    const removeNameFromStorageList = (storageKey, chatId) => {
         const raw = JSON.parse(localStorage.getItem(storageKey) || '[]');
         if (!Array.isArray(raw)) return;
-        const normalized = String(realName || '').trim();
+        const normalized = String(chatId || '').trim();
         if (!normalized) return;
         const next = raw.filter((name) => String(name || '').trim() !== normalized);
         if (JSON.stringify(raw) !== JSON.stringify(next)) {
@@ -881,20 +1054,21 @@ function initLineApp() {
         }
     };
 
-    const removeFriendData = (realName) => {
-        const normalized = String(realName || '').trim();
+    const removeFriendData = (chatId) => {
+        const normalized = String(chatId || '').trim();
         if (!normalized) return;
         const selector = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(normalized) : normalized;
-        const friendItem = document.querySelector(`#friends-list .group-subitem[data-real-name="${selector}"]`);
+        const friendItem = document.querySelector(`#friends-list .group-subitem[data-chat-id="${selector}"]`);
         if (friendItem && friendItem.parentNode) {
             friendItem.parentNode.removeChild(friendItem);
         }
-        const chatItem = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${selector}"]`);
+        const chatItem = document.querySelector(`#line-chat-list .chat-list-item[data-chat-id="${selector}"]`);
         if (chatItem && chatItem.parentNode) {
             chatItem.parentNode.removeChild(chatItem);
         }
         removeNameFromStorageList('global_friends_list', normalized);
         removeNameFromStorageList('global_chat_list', normalized);
+        localStorage.removeItem('chat_meta_' + normalized);
         localStorage.removeItem('chat_history_' + normalized);
         localStorage.removeItem('chat_remark_' + normalized);
         localStorage.removeItem('chat_persona_' + normalized);
@@ -906,7 +1080,7 @@ function initLineApp() {
         localStorage.removeItem('chat_user_avatar_' + normalized);
         localStorage.removeItem('chat_worldbooks_' + normalized);
         localStorage.removeItem('chat_context_limit_' + normalized);
-        localStorage.removeItem('chat_long_term_memory_' + normalized);
+        localStorage.removeItem('chat_long_memory_' + normalized);
         localStorage.removeItem(getMemoryDiaryKey(normalized));
         localStorage.removeItem(getSummaryLimitKey(normalized));
         localStorage.removeItem(getAutoSummaryEnabledKey(normalized));
@@ -930,11 +1104,11 @@ function initLineApp() {
         const chatRoom = document.getElementById('chat-room');
         const chatRoomName = document.getElementById('chat-room-name');
         if (chatRoom && chatRoomName) {
-            const currentRealName = chatRoomName.dataset.realName || chatRoomName.textContent;
-            if (currentRealName === normalized) {
+            const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            if (currentChatId === normalized) {
                 chatRoom.style.display = 'none';
                 chatRoomName.textContent = '';
-                chatRoomName.dataset.realName = '';
+                chatRoomName.dataset.chatId = '';
                 const chatContent = document.querySelector('.chat-room-content');
                 if (chatContent) {
                     chatContent.innerHTML = '';
@@ -943,21 +1117,21 @@ function initLineApp() {
         }
     };
 
-    const ensureChatItem = (realName, displayName) => {
+    const ensureChatItem = (chatId, displayName) => {
         const chatListContainer = document.getElementById('line-chat-list');
         if (!chatListContainer) return null;
-        const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName;
-        let chatItem = chatListContainer.querySelector(`.chat-list-item[data-real-name="${selectorName}"]`);
+        const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(chatId) : chatId;
+        let chatItem = chatListContainer.querySelector(`.chat-list-item[data-chat-id="${selectorName}"]`);
         if (chatItem) return chatItem;
 
-        const avatar = localStorage.getItem('chat_avatar_' + realName);
+        const avatar = localStorage.getItem('chat_avatar_' + chatId);
         const avatarHtml = avatar
             ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
             : defaultFriendAvatarHtml;
 
         chatItem = document.createElement('div');
         chatItem.className = 'chat-list-item';
-        chatItem.dataset.realName = realName;
+        chatItem.dataset.chatId = chatId;
         chatItem.innerHTML = `
             <div class="chat-item-avatar">
                 ${avatarHtml}
@@ -969,7 +1143,7 @@ function initLineApp() {
             <div class="chat-item-unread hidden"></div>
         `;
         chatListContainer.insertBefore(chatItem, chatListContainer.firstChild);
-        updateChatListItemPreview(realName, chatItem);
+        updateChatListItemPreview(chatId, chatItem);
         sortChatListByLastMessage();
         if (typeof saveGlobalData === 'function') {
             saveGlobalData();
@@ -977,12 +1151,13 @@ function initLineApp() {
         return chatItem;
     };
 
-    const openFriendChat = (realName) => {
-        const friendItem = document.querySelector(`#friends-list .group-subitem[data-real-name="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName}"]`);
+    const openFriendChat = (chatId) => {
+        const friendItem = document.querySelector(`#friends-list .group-subitem[data-chat-id="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(chatId) : chatId}"]`);
         const displayName = friendItem?.querySelector('span')?.textContent?.trim()
-            || localStorage.getItem('chat_remark_' + realName)
-            || realName;
-        const chatItem = ensureChatItem(realName, displayName);
+            || getChatDisplayName(chatId)
+            || getChatRealName(chatId)
+            || chatId;
+        const chatItem = ensureChatItem(chatId, displayName);
         if (!chatItem) return;
 
         const emptyPlaceholder = document.querySelector('.empty-chat-placeholder');
@@ -998,15 +1173,15 @@ function initLineApp() {
 
     const openFriendProfileModal = (item) => {
         if (!item || !friendProfileModal || !friendProfileAvatar || !friendProfileName || !friendProfileSignature) return;
-        const realName = String(item.dataset.realName || '').trim() || String(item.querySelector('span')?.textContent || '').trim();
-        if (!realName) return;
-        const displayName = String(item.querySelector('span')?.textContent || realName).trim();
+        const chatId = String(item.dataset.chatId || '').trim();
+        if (!chatId) return;
+        const displayName = String(item.querySelector('span')?.textContent || getChatDisplayName(chatId) || getChatRealName(chatId)).trim();
         const avatarEl = item.querySelector('.subitem-avatar');
 
-        activeFriendRealName = realName;
+        activeFriendChatId = chatId;
         friendProfileName.textContent = displayName;
         friendProfileAvatar.innerHTML = avatarEl ? avatarEl.innerHTML : defaultFriendAvatarHtml;
-        friendProfileSignature.textContent = getFriendSignature(realName);
+        friendProfileSignature.textContent = getFriendSignature(chatId);
         friendProfileModal.style.display = 'flex';
     };
     
@@ -1109,19 +1284,19 @@ function initLineApp() {
 
     if (friendProfileInfoBtn) {
         friendProfileInfoBtn.addEventListener('click', () => {
-            if (!activeFriendRealName) return;
-            const targetRealName = activeFriendRealName;
+            if (!activeFriendChatId) return;
+            const targetChatId = activeFriendChatId;
             closeFriendProfileModal();
-            openFriendChat(targetRealName);
+            openFriendChat(targetChatId);
         });
     }
 
     if (friendProfileDeleteBtn) {
         friendProfileDeleteBtn.addEventListener('click', () => {
-            if (!activeFriendRealName) return;
-            const targetRealName = activeFriendRealName;
-            const displayName = friendProfileName ? friendProfileName.textContent.trim() : targetRealName;
-            openFriendDeleteConfirmModal(displayName || targetRealName);
+            if (!activeFriendChatId) return;
+            const targetChatId = activeFriendChatId;
+            const displayName = friendProfileName ? friendProfileName.textContent.trim() : getChatDisplayName(targetChatId) || getChatRealName(targetChatId) || targetChatId;
+            openFriendDeleteConfirmModal(displayName || targetChatId);
         });
     }
 
@@ -1143,9 +1318,9 @@ function initLineApp() {
 
     if (confirmFriendDeleteConfirmBtn) {
         confirmFriendDeleteConfirmBtn.addEventListener('click', () => {
-            if (!activeFriendRealName) return;
-            const targetRealName = activeFriendRealName;
-            removeFriendData(targetRealName);
+            if (!activeFriendChatId) return;
+            const targetChatId = activeFriendChatId;
+            removeFriendData(targetChatId);
             closeFriendDeleteConfirmModal();
             closeFriendProfileModal();
         });
@@ -1385,18 +1560,19 @@ function initStickerApp() {
     const getChatTargets = () => {
         const friends = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
         const chats = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
-        const merged = ['我', ...friends, ...chats];
+        const merged = [...friends, ...chats];
         const unique = [];
         const seen = new Set();
 
-        merged.forEach((name) => {
-            const trimmed = String(name || '').trim();
+        merged.forEach((chatId) => {
+            const trimmed = String(chatId || '').trim();
             if (!trimmed || seen.has(trimmed)) return;
             seen.add(trimmed);
-            unique.push(trimmed);
+            const label = getChatDisplayName(trimmed) || getChatRealName(trimmed) || trimmed;
+            unique.push({ id: trimmed, label });
         });
 
-        return unique;
+        return [{ id: '我', label: '我' }, ...unique];
     };
 
     const openTargetModal = (categoryId) => {
@@ -1407,8 +1583,8 @@ function initStickerApp() {
 
         targetList.innerHTML = allTargets.map((target) => `
             <label class="sticker-target-item">
-                <span class="sticker-target-name">${target}</span>
-                <input type="checkbox" class="sticker-target-checkbox" value="${target}" ${selectedTargets.has(target) ? 'checked' : ''}>
+                <span class="sticker-target-name">${target.label}</span>
+                <input type="checkbox" class="sticker-target-checkbox" value="${target.id}" ${selectedTargets.has(target.id) ? 'checked' : ''}>
             </label>
         `).join('');
 
@@ -1886,11 +2062,13 @@ function initCharacterImportLogic() {
             charData = data.data;
         }
 
-        const name = charData.name;
-        if (!name) {
+        const realName = charData.name;
+        if (!realName) {
             alert('导入失败：找不到角色名字');
             return;
         }
+        const chatId = createChatId();
+        setChatMeta(chatId, { realName, remark: '' });
 
         // 1. 保存角色基本信息
         // 构建人设 Prompt
@@ -1905,22 +2083,22 @@ function initCharacterImportLogic() {
             persona += '\n\n[Scenario]\n' + charData.scenario;
         }
 
-        localStorage.setItem('chat_persona_' + name, persona);
+        localStorage.setItem('chat_persona_' + chatId, persona);
         
         // 2. 保存头像
         if (avatarSrc) {
-            localStorage.setItem('chat_avatar_' + name, avatarSrc);
+            localStorage.setItem('chat_avatar_' + chatId, avatarSrc);
         }
 
         // 3. 处理世界书 (Character Book)
         if (charData.character_book && charData.character_book.entries) {
-            importWorldBook(name, charData.character_book);
+            importWorldBook(chatId, realName, charData.character_book);
         }
 
         // 4. 处理开场白 (First Message)
         if (charData.first_mes) {
             // 检查是否已有历史记录，没有才添加
-            const history = JSON.parse(localStorage.getItem('chat_history_' + name) || '[]');
+            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
             if (history.length === 0) {
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -1929,22 +2107,22 @@ function initCharacterImportLogic() {
                     content: charData.first_mes,
                     time: timeStr
                 });
-                localStorage.setItem('chat_history_' + name, JSON.stringify(history));
+                localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
             }
         }
 
         // 5. 添加到好友列表和聊天列表 (如果不存在)
-        addCharacterToLists(name, avatarSrc);
+        addCharacterToLists(chatId, realName, avatarSrc);
 
-        alert(`角色 "${name}" 导入成功！`);
+        alert(`角色 "${realName}" 导入成功！`);
     }
 
-    function importWorldBook(charName, bookData) {
+    function importWorldBook(chatId, realName, bookData) {
         const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
         const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
         const safeCategories = Array.isArray(categories) ? categories : [];
         
-        const baseCategoryName = `导入-${charName}`;
+        const baseCategoryName = `导入-${realName}`;
         let categoryName = baseCategoryName;
         if (safeCategories.includes(categoryName)) {
             let index = 2;
@@ -1976,24 +2154,28 @@ function initCharacterImportLogic() {
         localStorage.setItem('worldbook_items', JSON.stringify(allItems));
 
         // 自动绑定到该角色
-        const existingBindings = JSON.parse(localStorage.getItem('chat_worldbooks_' + charName) || '[]');
+        const existingBindings = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
         const updatedBindings = [...new Set([...existingBindings, ...newIds])];
-        localStorage.setItem('chat_worldbooks_' + charName, JSON.stringify(updatedBindings));
+        localStorage.setItem('chat_worldbooks_' + chatId, JSON.stringify(updatedBindings));
     }
 
-    function addCharacterToLists(name, avatarSrc) {
+    function addCharacterToLists(chatId, realName, avatarSrc) {
         // 检查是否已在好友列表
         const friendsList = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
-        if (!friendsList.includes(name)) {
-            friendsList.unshift(name);
+        if (!friendsList.includes(chatId)) {
+            friendsList.unshift(chatId);
             localStorage.setItem('global_friends_list', JSON.stringify(friendsList));
         }
 
         // 检查是否已在聊天列表
         const chatList = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
-        if (!chatList.includes(name)) {
-            chatList.unshift(name);
+        if (!chatList.includes(chatId)) {
+            chatList.unshift(chatId);
             localStorage.setItem('global_chat_list', JSON.stringify(chatList));
+        }
+
+        if (realName) {
+            setChatMeta(chatId, { realName, remark: getChatRemark(chatId) });
         }
 
         // 刷新 UI
@@ -2008,32 +2190,32 @@ function initCharacterImportLogic() {
     }
 }
 
-function getMemoryDiaryKey(realName) {
-    return `chat_memory_diary_${realName}`;
+function getMemoryDiaryKey(chatId) {
+    return `chat_memory_diary_${chatId}`;
 }
 
-function getSummaryLimitKey(realName) {
-    return `chat_summary_limit_${realName}`;
+function getSummaryLimitKey(chatId) {
+    return `chat_summary_limit_${chatId}`;
 }
 
-function getAutoSummaryEnabledKey(realName) {
-    return `chat_auto_summary_enabled_${realName}`;
+function getAutoSummaryEnabledKey(chatId) {
+    return `chat_auto_summary_enabled_${chatId}`;
 }
 
-function getTimeSyncEnabledKey(realName) {
-    return `chat_time_sync_enabled_${realName}`;
+function getTimeSyncEnabledKey(chatId) {
+    return `chat_time_sync_${chatId}`;
 }
 
-function getSummaryCursorKey(realName) {
-    return `chat_summary_cursor_${realName}`;
+function getSummaryCursorKey(chatId) {
+    return `chat_summary_cursor_${chatId}`;
 }
 
-function getMemoryDiaries(realName) {
-    return JSON.parse(localStorage.getItem(getMemoryDiaryKey(realName)) || '[]');
+function getMemoryDiaries(chatId) {
+    return JSON.parse(localStorage.getItem(getMemoryDiaryKey(chatId)) || '[]');
 }
 
-function setMemoryDiaries(realName, diaries) {
-    localStorage.setItem(getMemoryDiaryKey(realName), JSON.stringify(diaries));
+function setMemoryDiaries(chatId, diaries) {
+    localStorage.setItem(getMemoryDiaryKey(chatId), JSON.stringify(diaries));
 }
 
 function normalizeMemorySummaryInput(value) {
@@ -2076,8 +2258,8 @@ function normalizeMemoryMessageContent(content) {
     return withStickerText.replace(/<[^>]+>/g, '').trim();
 }
 
-function buildMemoryLongTermText(realName, maxItems = 20) {
-    const diaries = getMemoryDiaries(realName).sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
+function buildMemoryLongTermText(chatId, maxItems = 20) {
+    const diaries = getMemoryDiaries(chatId).sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
     return diaries
         .slice(-maxItems)
         .map((item, idx) => `${idx + 1}. ${(item.content || '').replace(/\s+/g, ' ').trim()}`)
@@ -2085,13 +2267,13 @@ function buildMemoryLongTermText(realName, maxItems = 20) {
         .join('\n');
 }
 
-function syncMemoryLongTerm(realName) {
-    localStorage.setItem('chat_long_term_memory_' + realName, buildMemoryLongTermText(realName));
+function syncMemoryLongTerm(chatId) {
+    localStorage.setItem('chat_long_memory_' + chatId, buildMemoryLongTermText(chatId));
 }
 
-function ensureSummaryCursor(realName) {
-    const cursorKey = getSummaryCursorKey(realName);
-    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+function ensureSummaryCursor(chatId) {
+    const cursorKey = getSummaryCursorKey(chatId);
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
     const historyLength = Array.isArray(history) ? history.length : 0;
     const parsed = parseInt(localStorage.getItem(cursorKey) || '', 10);
     if (Number.isFinite(parsed)) {
@@ -2101,13 +2283,13 @@ function ensureSummaryCursor(realName) {
         }
         return clamped;
     }
-    const hasDiary = getMemoryDiaries(realName).length > 0;
+    const hasDiary = getMemoryDiaries(chatId).length > 0;
     const fallback = hasDiary ? historyLength : 0;
     localStorage.setItem(cursorKey, String(fallback));
     return fallback;
 }
 
-async function requestMemoryDiarySummary(realName, messages) {
+async function requestMemoryDiarySummary(chatId, messages) {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
     const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
@@ -2118,8 +2300,9 @@ async function requestMemoryDiarySummary(realName, messages) {
         throw new Error('当前没有可总结的聊天记录');
     }
 
-    const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || '用户';
-    const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
+    const userName = localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户';
+    const charPersona = localStorage.getItem('chat_persona_' + chatId) || '';
+    const realName = getChatRealName(chatId) || chatId;
     const chatText = messages.map((msg) => {
         const speaker = msg.role === 'assistant' ? realName : userName;
         return `${speaker}: ${normalizeMemoryMessageContent(msg.content)}`;
@@ -2142,7 +2325,7 @@ async function requestMemoryDiarySummary(realName, messages) {
 ${charPersona || '无'}
 
 对方（${userName}）的信息：
-${localStorage.getItem('chat_user_persona_' + realName) || '无'}
+${localStorage.getItem('chat_user_persona_' + chatId) || '无'}
 
 要记录的对话：
 ${chatText}
@@ -2175,25 +2358,26 @@ ${chatText}
     return content;
 }
 
-async function createMemoryDiaryEntry(realName, messages) {
-    const content = await requestMemoryDiarySummary(realName, messages);
-    const diaries = getMemoryDiaries(realName);
+async function createMemoryDiaryEntry(chatId, messages) {
+    const content = await requestMemoryDiarySummary(chatId, messages);
+    const diaries = getMemoryDiaries(chatId);
     diaries.push({
         id: crypto.randomUUID(),
         createdAt: Date.now(),
         content
     });
-    setMemoryDiaries(realName, diaries);
-    syncMemoryLongTerm(realName);
+    setMemoryDiaries(chatId, diaries);
+    syncMemoryLongTerm(chatId);
+    localStorage.setItem('chat_summary_' + chatId, content);
     return content;
 }
 
-async function runManualSummary(realName, batchSize) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+async function runManualSummary(chatId, batchSize) {
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
     if (!Array.isArray(history) || history.length === 0) {
         throw new Error('当前没有可总结的聊天记录');
     }
-    const cursor = ensureSummaryCursor(realName);
+    const cursor = ensureSummaryCursor(chatId);
     const pendingCount = history.length - cursor;
     if (pendingCount <= 0) {
         throw new Error('当前没有新的聊天记录可总结');
@@ -2201,24 +2385,24 @@ async function runManualSummary(realName, batchSize) {
     const normalizedBatch = normalizeMemorySummaryInput(batchSize);
     const end = Math.min(cursor + normalizedBatch, history.length);
     const messages = history.slice(cursor, end);
-    const content = await createMemoryDiaryEntry(realName, messages);
-    localStorage.setItem(getSummaryCursorKey(realName), String(end));
+    const content = await createMemoryDiaryEntry(chatId, messages);
+    localStorage.setItem(getSummaryCursorKey(chatId), String(end));
     return content;
 }
 
-async function runAutoSummaryBatches(realName, batchSize) {
+async function runAutoSummaryBatches(chatId, batchSize) {
     const normalizedBatch = normalizeMemorySummaryInput(batchSize);
     let summarized = 0;
     while (true) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         if (!Array.isArray(history) || history.length === 0) break;
-        const cursor = ensureSummaryCursor(realName);
+        const cursor = ensureSummaryCursor(chatId);
         const pendingCount = history.length - cursor;
         if (pendingCount < normalizedBatch) break;
         const end = Math.min(cursor + normalizedBatch, history.length);
         const messages = history.slice(cursor, end);
-        await createMemoryDiaryEntry(realName, messages);
-        localStorage.setItem(getSummaryCursorKey(realName), String(end));
+        await createMemoryDiaryEntry(chatId, messages);
+        localStorage.setItem(getSummaryCursorKey(chatId), String(end));
         summarized += 1;
     }
     return summarized;
@@ -2226,28 +2410,28 @@ async function runAutoSummaryBatches(realName, batchSize) {
 
 const tempChatWallpapers = {};
 
-function getChatWallpaperStorageKey(realName) {
-    return 'chat_wallpaper_' + realName;
+function getChatWallpaperStorageKey(chatId) {
+    return 'chat_wallpaper_' + chatId;
 }
 
-function setTempChatWallpaper(realName, src) {
-    const prev = tempChatWallpapers[realName];
+function setTempChatWallpaper(chatId, src) {
+    const prev = tempChatWallpapers[chatId];
     if (prev && prev.startsWith('blob:') && prev !== src) {
         URL.revokeObjectURL(prev);
     }
     if (src) {
-        tempChatWallpapers[realName] = src;
+        tempChatWallpapers[chatId] = src;
     } else {
-        delete tempChatWallpapers[realName];
+        delete tempChatWallpapers[chatId];
     }
 }
 
-function applyChatWallpaper(realName) {
+function applyChatWallpaper(chatId) {
     const chatRoom = document.getElementById('chat-room');
     const wallpaperLayer = document.querySelector('.chat-room-wallpaper');
     if (!chatRoom || !wallpaperLayer) return;
-    const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(realName));
-    const fallback = tempChatWallpapers[realName] || '';
+    const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(chatId));
+    const fallback = tempChatWallpapers[chatId] || '';
     const applied = wallpaper || fallback;
     if (applied) {
         wallpaperLayer.style.backgroundImage = `url("${applied.replace(/"/g, '\\"')}")`;
@@ -2276,20 +2460,20 @@ function initChatRoomLogic() {
     const replyPreviewClose = document.getElementById('chat-reply-preview-close');
     
     // 聊天状态管理
-    const chatStates = {}; // key: realName, value: { isSending: boolean }
+    const chatStates = {}; // key: chatId, value: { isSending: boolean }
     const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';
     let pendingQuote = null;
     const HISTORY_PAGE_SIZE = 30;
     const TIMESTAMP_INTERVAL_MS = 5 * 60 * 1000;
     const chatHistoryViewStates = {};
-    let activeLoadMoreRealName = '';
+    let activeLoadMoreChatId = '';
 
-    function updateSendButtonState(realName) {
+    function updateSendButtonState(chatId) {
         if (!sendBtn) return;
         // 只有当前显示的聊天室匹配时才更新按钮
-        if (!isChatRoomOpenFor(realName)) return;
+        if (!isChatRoomOpenFor(chatId)) return;
         
-        const isSending = chatStates[realName]?.isSending;
+        const isSending = chatStates[chatId]?.isSending;
         if (isSending) {
              sendBtn.innerHTML = `<svg class="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
              sendBtn.disabled = true;
@@ -2379,8 +2563,8 @@ function initChatRoomLogic() {
         chatContent.appendChild(divider);
     }
 
-    function normalizeChatHistory(realName) {
-        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    function normalizeChatHistory(chatId) {
+        let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         let hasChanges = false;
         history = history.map((msg) => {
             const normalized = { ...msg };
@@ -2396,15 +2580,15 @@ function initChatRoomLogic() {
             return normalized;
         });
         if (hasChanges) {
-            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+            localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
         }
         return history;
     }
 
-    function updateLoadMoreVisibility(realName) {
+    function updateLoadMoreVisibility(chatId) {
         const wrap = chatContent.querySelector('.chat-load-more-wrap');
         const btn = chatContent.querySelector('.chat-load-more-btn');
-        const state = chatHistoryViewStates[realName];
+        const state = chatHistoryViewStates[chatId];
         if (!wrap || !btn || !state) return;
         if (state.startIndex <= 0) {
             wrap.style.display = 'none';
@@ -2415,7 +2599,7 @@ function initChatRoomLogic() {
         btn.textContent = '加载更多消息';
     }
 
-    function renderHistoryBatch(realName, messages, startIndex, options = {}) {
+    function renderHistoryBatch(chatId, messages, startIndex, options = {}) {
         let previousMeta = options.previousMeta || null;
         messages.forEach((msg, index) => {
             const currentMeta = { timeStr: msg.time, ts: msg.ts };
@@ -2424,7 +2608,7 @@ function initChatRoomLogic() {
                 msg.role,
                 msg.content,
                 msg.time,
-                realName,
+                chatId,
                 msg.id,
                 msg,
                 {
@@ -2439,23 +2623,23 @@ function initChatRoomLogic() {
         });
     }
 
-    function loadMoreHistory(realName) {
-        const state = chatHistoryViewStates[realName];
+    function loadMoreHistory(chatId) {
+        const state = chatHistoryViewStates[chatId];
         if (!state || state.startIndex <= 0) return;
         const nextStart = Math.max(0, state.startIndex - HISTORY_PAGE_SIZE);
         const chunk = state.history.slice(nextStart, state.startIndex);
         const prevHeight = chatContent.scrollHeight;
         const prevTop = chatContent.scrollTop;
         const anchor = findFirstRenderableNode();
-        renderHistoryBatch(realName, chunk, nextStart, { prepend: true, forceFirstDivider: true, anchor });
+        renderHistoryBatch(chatId, chunk, nextStart, { prepend: true, forceFirstDivider: true, anchor });
         state.startIndex = nextStart;
-        updateLoadMoreVisibility(realName);
+        updateLoadMoreVisibility(chatId);
         const currentHeight = chatContent.scrollHeight;
         chatContent.scrollTop = Math.max(0, currentHeight - prevHeight + prevTop);
     }
 
-    function ensureLoadMoreControl(realName) {
-        activeLoadMoreRealName = realName;
+    function ensureLoadMoreControl(chatId) {
+        activeLoadMoreChatId = chatId;
         let wrap = chatContent.querySelector('.chat-load-more-wrap');
         let btn = chatContent.querySelector('.chat-load-more-btn');
         if (!wrap) {
@@ -2470,35 +2654,35 @@ function initChatRoomLogic() {
         }
         if (btn) {
             btn.onclick = () => {
-                if (!activeLoadMoreRealName) return;
-                loadMoreHistory(activeLoadMoreRealName);
+                if (!activeLoadMoreChatId) return;
+                loadMoreHistory(activeLoadMoreChatId);
             };
         }
     }
 
     // 加载历史记录
-    function loadChatHistory(realName) {
+    function loadChatHistory(chatId) {
         if (isMultiSelectMode) {
             exitMultiSelectMode();
         }
         chatContent.innerHTML = '';
-        const history = normalizeChatHistory(realName);
+        const history = normalizeChatHistory(chatId);
         const startIndex = Math.max(0, history.length - HISTORY_PAGE_SIZE);
-        chatHistoryViewStates[realName] = {
+        chatHistoryViewStates[chatId] = {
             history,
             startIndex
         };
-        ensureLoadMoreControl(realName);
+        ensureLoadMoreControl(chatId);
         const chunk = history.slice(startIndex);
-        renderHistoryBatch(realName, chunk, startIndex, { forceFirstDivider: true });
-        updateLoadMoreVisibility(realName);
+        renderHistoryBatch(chatId, chunk, startIndex, { forceFirstDivider: true });
+        updateLoadMoreVisibility(chatId);
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
-    function isChatRoomOpenFor(realName) {
+    function isChatRoomOpenFor(chatId) {
         if (!chatRoom || chatRoom.style.display === 'none') return false;
-        const currentRealName = chatRoomName.dataset.realName || chatRoomName.textContent;
-        return currentRealName === realName;
+        const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        return currentChatId === chatId;
     }
 
     function toPlainMessageText(content) {
@@ -2540,14 +2724,14 @@ function initChatRoomLogic() {
         updateReplyPreviewUI();
     }
 
-    function showIncomingMessageToast(realName, content) {
+    function showIncomingMessageToast(chatId, content) {
         if (!toastStack) return;
-        if (isChatRoomOpenFor(realName)) return;
+        if (isChatRoomOpenFor(chatId)) return;
 
         const toast = document.createElement('div');
         toast.className = 'ins-message-toast';
         const preview = toPlainMessageText(content) || '你收到了一条新消息';
-        const title = localStorage.getItem('chat_remark_' + realName) || realName;
+        const title = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
         toast.innerHTML = `
             <div class="ins-message-toast-title">${title}</div>
             <div class="ins-message-toast-content">${preview}</div>
@@ -2561,9 +2745,9 @@ function initChatRoomLogic() {
         }, 2800);
     }
 
-    function increaseUnread(realName) {
-        const nextUnread = setUnreadCount(realName, getUnreadCount(realName) + 1);
-        const row = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${CSS.escape(realName)}"]`);
+    function increaseUnread(chatId) {
+        const nextUnread = setUnreadCount(chatId, getUnreadCount(chatId) + 1);
+        const row = document.querySelector(`#line-chat-list .chat-list-item[data-chat-id="${CSS.escape(chatId)}"]`);
         if (row) {
             renderUnreadBadge(row, nextUnread);
         } else {
@@ -2571,9 +2755,9 @@ function initChatRoomLogic() {
         }
     }
 
-    function clearUnread(realName) {
-        setUnreadCount(realName, 0);
-        const row = document.querySelector(`#line-chat-list .chat-list-item[data-real-name="${CSS.escape(realName)}"]`);
+    function clearUnread(chatId) {
+        setUnreadCount(chatId, 0);
+        const row = document.querySelector(`#line-chat-list .chat-list-item[data-chat-id="${CSS.escape(chatId)}"]`);
         if (row) {
             renderUnreadBadge(row, 0);
         } else {
@@ -2582,25 +2766,25 @@ function initChatRoomLogic() {
     }
 
     // 保存消息
-    function saveMessage(realName, role, content, extra = {}) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    function saveMessage(chatId, role, content, extra = {}) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
         history.push(newMsg);
-        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
-        const state = chatHistoryViewStates[realName];
+        localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+        const state = chatHistoryViewStates[chatId];
         if (state && Array.isArray(state.history)) {
             state.history.push(newMsg);
         }
-        refreshChatListPreviewFor(realName);
+        refreshChatListPreviewFor(chatId);
         return newMsg;
     }
 
     // 添加消息到 UI
-    function appendMessageToUI(role, content, timeStr, realName, id, extra = {}, options = {}) {
+    function appendMessageToUI(role, content, timeStr, chatId, id, extra = {}, options = {}) {
         // 防止串台：只有当前打开的聊天室是该角色时才上屏
-        if (!isChatRoomOpenFor(realName)) return;
+        if (!isChatRoomOpenFor(chatId)) return;
         const shouldPrepend = !!options.prepend;
         const shouldAutoScroll = options.autoScroll !== false;
         const currentMeta = {
@@ -2642,12 +2826,12 @@ function initChatRoomLogic() {
         // 头像逻辑
         let avatarContent = '';
         if (role === 'user') {
-            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
+            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
             avatarContent = userAvatarSrc 
                 ? `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
                 : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
         } else {
-            const currentAvatar = localStorage.getItem('chat_avatar_' + realName);
+            const currentAvatar = localStorage.getItem('chat_avatar_' + chatId);
             const defaultSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
             avatarContent = currentAvatar ? `<img src="${currentAvatar}" alt="avatar">` : defaultSvg;
         }
@@ -2721,7 +2905,7 @@ function initChatRoomLogic() {
 
                  spriteEl.addEventListener('click', (e) => {
                      e.stopPropagation();
-                     showSpriteModal(extra.sprite, realName, id, spriteEl);
+                    showSpriteModal(extra.sprite, chatId, id, spriteEl);
                  });
              }
         }
@@ -2762,7 +2946,7 @@ function initChatRoomLogic() {
                 if (isMultiSelectMode) return;
                 pressTimer = setTimeout(() => {
                     if (isMultiSelectMode) return;
-                    showContextMenu(e, id, content, realName, role, timeStr);
+                    showContextMenu(e, id, content, chatId, role, timeStr);
                 }, 500); // 500ms 长按
             });
 
@@ -2781,7 +2965,7 @@ function initChatRoomLogic() {
                 if (e.button === 0) {
                     pressTimer = setTimeout(() => {
                         if (isMultiSelectMode) return;
-                        showContextMenu(e, id, content, realName, role, timeStr);
+                        showContextMenu(e, id, content, chatId, role, timeStr);
                     }, 500);
                 }
             });
@@ -2798,7 +2982,7 @@ function initChatRoomLogic() {
             bubble.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 if (isMultiSelectMode) return;
-                showContextMenu(e, id, content, realName, role, timeStr);
+                showContextMenu(e, id, content, chatId, role, timeStr);
             });
         }
 
@@ -2825,10 +3009,10 @@ function initChatRoomLogic() {
                 const text = inputField.value.trim();
                 if (!text) return;
 
-                const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
                 const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
-                const newMsg = saveMessage(realName, 'user', text, extra);
-                appendMessageToUI('user', text, newMsg.time, realName, newMsg.id, newMsg);
+                const newMsg = saveMessage(chatId, 'user', text, extra);
+                appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
                 inputField.value = '';
                 clearPendingQuote();
             }
@@ -2838,8 +3022,8 @@ function initChatRoomLogic() {
     // 点击发送按钮触发 AI
     if (sendBtn) {
         sendBtn.addEventListener('click', async () => {
-            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-            await triggerAIResponse(realName);
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            await triggerAIResponse(chatId);
         });
     }
 
@@ -2985,14 +3169,14 @@ function initChatRoomLogic() {
         });
     }
 
-    function getAssistantBoundStickers(realName) {
+    function getAssistantBoundStickers(chatId) {
         const categories = JSON.parse(localStorage.getItem('sticker_categories_v1') || '[]');
         const targetMap = JSON.parse(localStorage.getItem('sticker_category_targets_v1') || '{}');
         const stickerMap = new Map();
 
         categories.forEach((category) => {
             const targets = targetMap[category.id] || [];
-            if (!targets.includes(realName)) return;
+            if (!targets.includes(chatId)) return;
             if (!Array.isArray(category.emojis)) return;
 
             category.emojis.forEach((emoji) => {
@@ -3026,11 +3210,11 @@ function initChatRoomLogic() {
     }
 
     // 触发 AI 回复
-    async function triggerAIResponse(realName) {
+    async function triggerAIResponse(chatId) {
         // UI Loading 状态 (使用全局管理)
-        chatStates[realName] = chatStates[realName] || {};
-        chatStates[realName].isSending = true;
-        updateSendButtonState(realName);
+        chatStates[chatId] = chatStates[chatId] || {};
+        chatStates[chatId].isSending = true;
+        updateSendButtonState(chatId);
 
         try {
             // 1. 获取设置
@@ -3042,12 +3226,13 @@ function initChatRoomLogic() {
                 throw new Error('请先在设置中配置 API URL 和 Key');
             }
 
-            const charPersona = localStorage.getItem('chat_persona_' + realName) || '';
-            const userName = localStorage.getItem('chat_user_realname_' + realName) || localStorage.getItem('chat_user_remark_' + realName) || 'User';
-            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
-            const longTermMemory = buildMemoryLongTermText(realName);
-            localStorage.setItem('chat_long_term_memory_' + realName, longTermMemory);
-            const timeSyncEnabled = localStorage.getItem(getTimeSyncEnabledKey(realName)) === 'true';
+            const charPersona = localStorage.getItem('chat_persona_' + chatId) || '';
+            const userName = localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User';
+            const userPersona = localStorage.getItem('chat_user_persona_' + chatId) || '';
+            const longTermMemory = buildMemoryLongTermText(chatId);
+            localStorage.setItem('chat_long_memory_' + chatId, longTermMemory);
+            const timeSyncEnabled = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
+            const realName = getChatRealName(chatId) || getChatDisplayName(chatId) || chatId;
             const now = new Date();
             const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
@@ -3064,7 +3249,7 @@ function initChatRoomLogic() {
 `
                 : '';
 
-            const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+            const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
             const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
             const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
             const wbContent = boundWorldbooks.map(item => {
@@ -3072,10 +3257,10 @@ function initChatRoomLogic() {
                 return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
             }).join('\n');
 
-            const limit = parseInt(localStorage.getItem('chat_context_limit_' + realName) || '100');
-            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
+            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
             const currentTurn = fullHistory.length > 0 ? fullHistory[fullHistory.length - 1] : null;
-            const assistantBoundStickers = getAssistantBoundStickers(realName);
+            const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const assistantStickerRuleText = assistantBoundStickers.length > 0
                 ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
                 : '无';
@@ -3370,13 +3555,13 @@ ${localImageSection}
                     if (isLast && spriteData) extra.sprite = spriteData;
                     if (isFirst && quoteData) extra.quote = quoteData;
 
-                    const newMsg = saveMessage(realName, 'assistant', msgContent, extra);
-                    const shouldUnread = !isChatRoomOpenFor(realName);
+                    const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
+                    const shouldUnread = !isChatRoomOpenFor(chatId);
                     if (shouldUnread) {
-                        increaseUnread(realName);
-                        showIncomingMessageToast(realName, parsedVoice ? '发送了一条语音消息' : msgContent);
+                        increaseUnread(chatId);
+                        showIncomingMessageToast(chatId, parsedVoice ? '发送了一条语音消息' : msgContent);
                     }
-                    appendMessageToUI('assistant', msgContent, newMsg.time, realName, newMsg.id, extra);
+                    appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
                 }
             }
 
@@ -3384,11 +3569,11 @@ ${localImageSection}
                 throw new Error('API 未返回可显示文字');
             }
 
-            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(realName)) === 'true';
+            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(chatId)) === 'true';
             if (autoSummaryEnabled) {
-                const summaryLimit = normalizeMemorySummaryInput(localStorage.getItem(getSummaryLimitKey(realName)) || '30');
+                const summaryLimit = normalizeMemorySummaryInput(localStorage.getItem(getSummaryLimitKey(chatId)) || '30');
                 try {
-                    await runAutoSummaryBatches(realName, summaryLimit);
+                    await runAutoSummaryBatches(chatId, summaryLimit);
                 } catch (summaryError) {
                     console.error(summaryError);
                     showApiErrorModal(summaryError.message || '自动总结失败');
@@ -3399,10 +3584,10 @@ ${localImageSection}
             console.error(error);
             showApiErrorModal(error.message || 'AI 请求失败');
         } finally {
-            if (chatStates[realName]) {
-                chatStates[realName].isSending = false;
+            if (chatStates[chatId]) {
+                chatStates[chatId].isSending = false;
             }
-            updateSendButtonState(realName);
+            updateSendButtonState(chatId);
         }
     }
 
@@ -3448,7 +3633,7 @@ ${localImageSection}
     const multiSelectCancelBtn = document.getElementById('multi-select-cancel');
     const multiSelectDeleteBtn = document.getElementById('multi-select-delete');
 
-    let currentContextMsg = null; // { id, content, realName }
+    let currentContextMsg = null; // { id, content, chatId }
     const stickerStorageKey = 'sticker_categories_v1';
     const stickerTargetStorageKey = 'sticker_category_targets_v1';
     let activeStickerCategoryId = null;
@@ -3513,27 +3698,27 @@ ${localImageSection}
     }
 
     function sendCameraMessage(text) {
-        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
         const content = buildCameraPlaceholderHtml(text);
         const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
-        const newMsg = saveMessage(realName, 'user', content, extra);
-        appendMessageToUI('user', content, newMsg.time, realName, newMsg.id, newMsg);
+        const newMsg = saveMessage(chatId, 'user', content, extra);
+        appendMessageToUI('user', content, newMsg.time, chatId, newMsg.id, newMsg);
         clearPendingQuote();
     }
 
-    function getAvailableStickerCategories(realName) {
+    function getAvailableStickerCategories(chatId) {
         const categories = JSON.parse(localStorage.getItem(stickerStorageKey) || '[]');
         const targetMap = JSON.parse(localStorage.getItem(stickerTargetStorageKey) || '{}');
         return categories.filter(category => {
             if (!category || !Array.isArray(category.emojis) || category.emojis.length === 0) return false;
             const targets = targetMap[category.id] || [];
-            return targets.includes('我') || targets.includes(realName);
+            return targets.includes('我') || targets.includes(chatId);
         });
     }
 
-    function renderStickerMenu(realName) {
+    function renderStickerMenu(chatId) {
         if (!stickerMenuContent) return;
-        const categories = getAvailableStickerCategories(realName);
+        const categories = getAvailableStickerCategories(chatId);
 
         if (categories.length === 0) {
             activeStickerCategoryId = null;
@@ -3569,8 +3754,8 @@ ${localImageSection}
         `;
     }
 
-    function clampSummaryCursor(realName, historyLength) {
-        const cursorKey = getSummaryCursorKey(realName);
+    function clampSummaryCursor(chatId, historyLength) {
+        const cursorKey = getSummaryCursorKey(chatId);
         const raw = localStorage.getItem(cursorKey);
         if (raw === null) return;
         const parsed = parseInt(raw, 10);
@@ -3584,9 +3769,9 @@ ${localImageSection}
         }
     }
 
-    function persistChatHistory(realName, history) {
-        localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
-        clampSummaryCursor(realName, history.length);
+    function persistChatHistory(chatId, history) {
+        localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+        clampSummaryCursor(chatId, history.length);
     }
 
     function updateSelectCount() {
@@ -3659,23 +3844,23 @@ ${localImageSection}
             alert('请先选择要删除的消息');
             return;
         }
-        const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
         const shouldDelete = confirm(`确定彻底删除选中的 ${selectedMsgIds.size} 条消息吗？\n删除后会同时从聊天记录和发送给 AI 的上下文中移除，且不可恢复。`);
         if (!shouldDelete) return;
 
-        let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+        let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         history = history.filter((m) => !selectedMsgIds.has(m.id));
-        persistChatHistory(realName, history);
-        loadChatHistory(realName);
-        refreshChatListPreviewFor(realName);
+        persistChatHistory(chatId, history);
+        loadChatHistory(chatId);
+        refreshChatListPreviewFor(chatId);
     }
 
-    function showContextMenu(e, id, content, realName, role, timeStr) {
+    function showContextMenu(e, id, content, chatId, role, timeStr) {
         if (isMultiSelectMode) return;
         // Prevent default browser context menu
         e.preventDefault();
         
-        currentContextMsg = { id, content, realName, role, timeStr };
+        currentContextMsg = { id, content, chatId, role, timeStr };
         
         // Calculate position
         let x = e.clientX || (e.touches && e.touches[0].clientX);
@@ -3763,19 +3948,19 @@ ${localImageSection}
             }
 
             // Update Data
-            const realName = currentContextMsg.realName;
-            let history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+            const chatId = currentContextMsg.chatId;
+            let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
             const msgIndex = history.findIndex(m => m.id === currentContextMsg.id);
             
             if (msgIndex !== -1) {
                 history[msgIndex].content = newContent;
                 history = history.slice(0, msgIndex + 1);
-                persistChatHistory(realName, history);
+                persistChatHistory(chatId, history);
                 
                 // Update UI (Reload history or update DOM)
                 // Reload is safer to sync everything
-                loadChatHistory(realName);
-                refreshChatListPreviewFor(realName);
+                loadChatHistory(chatId);
+                refreshChatListPreviewFor(chatId);
             }
 
             editModal.style.display = 'none';
@@ -3854,8 +4039,8 @@ ${localImageSection}
             regenerateBtn.addEventListener('click', async () => {
                 menu.style.display = 'none'; // 关闭菜单
                 
-                const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-                const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+                const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
                 
                 // 检查是否有消息
                 if (history.length === 0) return;
@@ -3873,14 +4058,14 @@ ${localImageSection}
                 }
 
                 // 保存更新后的历史记录
-                persistChatHistory(realName, history);
+                persistChatHistory(chatId, history);
                 
                 // 重新加载 UI（移除屏幕上的消息）
-                loadChatHistory(realName);
+                loadChatHistory(chatId);
                 
                 // 触发 AI 回复
                 if (history.length === 0 || history[history.length - 1].role !== 'user') return;
-                await triggerAIResponse(realName);
+                await triggerAIResponse(chatId);
             });
         }
     }
@@ -3898,7 +4083,7 @@ ${localImageSection}
             photoInput.value = '';
             if (files.length === 0) return;
 
-            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             const quoteExtra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : null;
 
             for (let i = 0; i < files.length; i++) {
@@ -3908,8 +4093,8 @@ ${localImageSection}
                     if (!dataUrl) continue;
                     const imageContent = `<img src="${dataUrl}" alt="${escapeHtml(file.name || '本地图片')}" class="chat-inline-local-image">`;
                     const extra = i === 0 && quoteExtra ? quoteExtra : {};
-                    const newMsg = saveMessage(realName, 'user', imageContent, extra);
-                    appendMessageToUI('user', imageContent, newMsg.time, realName, newMsg.id, newMsg);
+                    const newMsg = saveMessage(chatId, 'user', imageContent, extra);
+                    appendMessageToUI('user', imageContent, newMsg.time, chatId, newMsg.id, newMsg);
                 } catch (error) {
                     showApiErrorModal(error.message || '图片上传失败');
                     break;
@@ -4059,7 +4244,7 @@ ${localImageSection}
                 return;
             }
 
-            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             const duration = estimateVoiceDurationSeconds(rawText);
             const extra = {
                 ...(pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {}),
@@ -4068,8 +4253,8 @@ ${localImageSection}
                     transcript: rawText
                 }
             };
-            const newMsg = saveMessage(realName, 'user', rawText, extra);
-            appendMessageToUI('user', rawText, newMsg.time, realName, newMsg.id, newMsg);
+            const newMsg = saveMessage(chatId, 'user', rawText, extra);
+            appendMessageToUI('user', rawText, newMsg.time, chatId, newMsg.id, newMsg);
 
             if (voiceInputContent) {
                 voiceInputContent.value = '';
@@ -4097,9 +4282,9 @@ ${localImageSection}
     if (stickerBtn && stickerMenu) {
         stickerBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
-            stickerMenu.dataset.realName = realName;
-            renderStickerMenu(realName);
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            stickerMenu.dataset.chatId = chatId;
+            renderStickerMenu(chatId);
             menu.style.display = 'none';
             if (stickerMenu.style.display === 'none') {
                 stickerMenu.style.display = 'block';
@@ -4117,8 +4302,8 @@ ${localImageSection}
                 const categoryId = tabBtn.dataset.categoryId;
                 if (categoryId) {
                     activeStickerCategoryId = categoryId;
-                    const realName = stickerMenu.dataset.realName || chatRoomName.dataset.realName || chatRoomName.textContent;
-                    renderStickerMenu(realName);
+                    const chatId = stickerMenu.dataset.chatId || chatRoomName.dataset.chatId || chatRoomName.textContent;
+                    renderStickerMenu(chatId);
                 }
                 return;
             }
@@ -4130,11 +4315,11 @@ ${localImageSection}
             const stickerUrl = stickerBtnEl.dataset.url || '';
             if (!/^https?:\/\//i.test(stickerUrl)) return;
 
-            const realName = chatRoomName.dataset.realName || chatRoomName.textContent;
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             const stickerContent = `<img src="${stickerUrl}" alt="${escapeHtml(stickerName)}" class="chat-inline-sticker">`;
             const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
-            const newMsg = saveMessage(realName, 'user', stickerContent, extra);
-            appendMessageToUI('user', stickerContent, newMsg.time, realName, newMsg.id, newMsg);
+            const newMsg = saveMessage(chatId, 'user', stickerContent, extra);
+            appendMessageToUI('user', stickerContent, newMsg.time, chatId, newMsg.id, newMsg);
             clearPendingQuote();
             closeStickerMenu();
         });
@@ -4147,35 +4332,25 @@ ${localImageSection}
     }
 
     // 打开聊天室的通用函数
-    function openChatRoom(name) {
+    function openChatRoom(chatId) {
         if (!chatRoom) return;
         exitMultiSelectMode();
         closeStickerMenu();
         clearPendingQuote();
-        
-        let realName = name;
-        const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
-        for (const item of chatItems) {
-            const itemName = item.querySelector('.chat-item-name').textContent;
-            if (itemName === name) {
-                realName = item.dataset.realName || name;
-                break;
-            }
-        }
-        
-        // 更新聊天室标题和数据集
-        chatRoomName.textContent = name;
-        chatRoomName.dataset.realName = realName;
-        clearUnread(realName);
-        applyChatWallpaper(realName);
+
+        const displayName = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        chatRoomName.textContent = displayName;
+        chatRoomName.dataset.chatId = chatId;
+        clearUnread(chatId);
+        applyChatWallpaper(chatId);
         
         chatRoom.style.display = 'flex';
         
         // 同步按钮状态
-        updateSendButtonState(realName);
+        updateSendButtonState(chatId);
 
         // 加载真实历史记录
-        loadChatHistory(realName);
+        loadChatHistory(chatId);
     }
 
     // 绑定事件委托，处理聊天列表点击（包括动态添加的项）
@@ -4184,8 +4359,9 @@ ${localImageSection}
             // 找到被点击的 chat-list-item
             const item = e.target.closest('.chat-list-item');
             if (item) {
-                const name = item.querySelector('.chat-item-name').textContent;
-                openChatRoom(name);
+                const chatId = item.dataset.chatId || '';
+                if (!chatId) return;
+                openChatRoom(chatId);
             }
         });
     }
@@ -4234,10 +4410,10 @@ ${localImageSection}
     const spriteFavBtn = spriteModal.querySelector('.mood-sprite-fav');
     const spriteBody = spriteModal.querySelector('.mood-sprite-body');
 
-    let currentSpriteContext = null; // { realName, msgId, spriteEl, isFavorited }
+    let currentSpriteContext = null; // { chatId, msgId, spriteEl, isFavorited }
 
-    function getSpriteSnapshot(realName, msgId, fallbackSprite) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    function getSpriteSnapshot(chatId, msgId, fallbackSprite) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         const msg = history.find(m => m.id === msgId);
         if (msg && msg.sprite) {
             return { ...msg.sprite };
@@ -4248,8 +4424,8 @@ ${localImageSection}
         return null;
     }
 
-    function showSpriteModal(spriteData, realName, msgId, spriteEl) {
-        const latestSprite = getSpriteSnapshot(realName, msgId, spriteData);
+    function showSpriteModal(spriteData, chatId, msgId, spriteEl) {
+        const latestSprite = getSpriteSnapshot(chatId, msgId, spriteData);
         if (!latestSprite) return;
         
         // Ensure modal exists
@@ -4258,13 +4434,13 @@ ${localImageSection}
         }
 
         currentSpriteContext = {
-            realName,
+            chatId,
             msgId,
             spriteEl,
             isFavorited: !!latestSprite.isFavorited
         };
 
-        const charName = localStorage.getItem('chat_remark_' + realName) || realName;
+        const charName = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
         spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的随笔`;
         
         // Build Content
@@ -4301,7 +4477,7 @@ ${localImageSection}
             return;
         }
 
-        const { realName, msgId, spriteEl, isFavorited } = currentSpriteContext;
+        const { chatId, msgId, spriteEl, isFavorited } = currentSpriteContext;
 
         if (!isFavorited) {
             // Not favorited -> Disappear logic
@@ -4318,7 +4494,7 @@ ${localImageSection}
             }
 
             // Update storage to mark as dismissed
-            updateMessageExtra(realName, msgId, (extra) => {
+            updateMessageExtra(chatId, msgId, (extra) => {
                 if (extra.sprite) {
                     extra.sprite.isDismissed = true;
                 }
@@ -4343,7 +4519,7 @@ ${localImageSection}
         }
 
         // Update Storage
-        updateMessageExtra(currentSpriteContext.realName, currentSpriteContext.msgId, (extra) => {
+        updateMessageExtra(currentSpriteContext.chatId, currentSpriteContext.msgId, (extra) => {
             if (extra.sprite) {
                 extra.sprite.isFavorited = currentSpriteContext.isFavorited;
                 // If favorited, ensure it's not dismissed
@@ -4356,8 +4532,8 @@ ${localImageSection}
     }
 
     // Helper to safely update message extra data
-    function updateMessageExtra(realName, msgId, callback) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    function updateMessageExtra(chatId, msgId, callback) {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         const index = history.findIndex(m => m.id === msgId);
         if (index !== -1) {
             const msg = history[index];
@@ -4381,7 +4557,7 @@ ${localImageSection}
             // but currently we only care about sprite.
             
             history[index] = msg;
-            localStorage.setItem('chat_history_' + realName, JSON.stringify(history));
+            localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
         }
     }
 
@@ -4527,17 +4703,14 @@ function initChatSettingsLogic(chatRoomNameEl) {
     // 打开设置
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
-            const currentName = chatRoomNameEl.textContent;
-            
-            // 获取真名
-            const realName = chatRoomNameEl.dataset.realName || currentName;
-            
-            // 获取 Chat 已保存的数据
-            const remarkName = localStorage.getItem('chat_remark_' + realName) || '';
-            const persona = localStorage.getItem('chat_persona_' + realName) || '';
-            const avatarSrc = localStorage.getItem('chat_avatar_' + realName);
+            const chatId = chatRoomNameEl.dataset.chatId || '';
+            if (!chatId) return;
+            const meta = getChatMeta(chatId);
+            const remarkName = getChatRemark(chatId);
+            const persona = localStorage.getItem('chat_persona_' + chatId) || '';
+            const avatarSrc = localStorage.getItem('chat_avatar_' + chatId);
 
-            realNameInput.value = realName;
+            realNameInput.value = meta.realName || '';
             remarkInput.value = remarkName;
             personaInput.value = persona;
             
@@ -4551,10 +4724,10 @@ function initChatSettingsLogic(chatRoomNameEl) {
 
             // 获取 User 已保存的数据 (针对当前聊天室)
             // Key 格式: chat_user_{field}_{realName}
-            const userRealName = localStorage.getItem('chat_user_realname_' + realName) || '';
-            const userRemark = localStorage.getItem('chat_user_remark_' + realName) || '';
-            const userPersona = localStorage.getItem('chat_user_persona_' + realName) || '';
-            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + realName);
+            const userRealName = localStorage.getItem('chat_user_realname_' + chatId) || '';
+            const userRemark = localStorage.getItem('chat_user_remark_' + chatId) || '';
+            const userPersona = localStorage.getItem('chat_user_persona_' + chatId) || '';
+            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
 
             userRealNameInput.value = userRealName;
             userRemarkInput.value = userRemark;
@@ -4574,7 +4747,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
             userAvatarInput.value = '';
             
             // 渲染选中的世界书
-            renderSelectedWorldBooks(realName);
+            renderSelectedWorldBooks(chatId);
             
             modal.classList.add('active');
         });
@@ -4609,7 +4782,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
         chatWallpaperInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             let src = '';
             try {
                 src = await prepareChatWallpaperSource(file);
@@ -4619,22 +4792,22 @@ function initChatSettingsLogic(chatRoomNameEl) {
             let stored = false;
             if (src && src.startsWith('data:')) {
                 try {
-                    localStorage.setItem(getChatWallpaperStorageKey(realName), src);
+                    localStorage.setItem(getChatWallpaperStorageKey(chatId), src);
                     stored = true;
                 } catch (error) {
                     stored = false;
                 }
             }
             if (stored) {
-                setTempChatWallpaper(realName, '');
+                setTempChatWallpaper(chatId, '');
             } else {
                 if (!src) {
                     alert('图片读取失败，请重试。');
                     return;
                 }
-                setTempChatWallpaper(realName, src);
+                setTempChatWallpaper(chatId, src);
             }
-            applyChatWallpaper(realName);
+            applyChatWallpaper(chatId);
             chatWallpaperInput.value = '';
         });
     }
@@ -4688,7 +4861,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
     // 保存设置
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            const oldRealName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            if (!chatId) return;
             const newRealName = realNameInput.value.trim();
             const newRemark = remarkInput.value.trim();
             const newPersona = personaInput.value.trim();
@@ -4699,35 +4873,24 @@ function initChatSettingsLogic(chatRoomNameEl) {
             }
 
             // --- 保存 Chat 设置 ---
-            // 保存备注
-            if (newRemark) {
-                localStorage.setItem('chat_remark_' + newRealName, newRemark);
-            } else {
-                localStorage.removeItem('chat_remark_' + newRealName);
-            }
+            setChatRemark(chatId, newRemark);
+            setChatMeta(chatId, { realName: newRealName, remark: newRemark });
 
             // 保存人设
             if (newPersona) {
-                localStorage.setItem('chat_persona_' + newRealName, newPersona);
+                localStorage.setItem('chat_persona_' + chatId, newPersona);
             } else {
-                localStorage.removeItem('chat_persona_' + newRealName);
+                localStorage.removeItem('chat_persona_' + chatId);
             }
 
             // 保存 Chat 头像
             let newAvatarSrc = null;
             if (avatarDisplay.dataset.newAvatar) {
                 newAvatarSrc = avatarDisplay.dataset.newAvatar;
-                localStorage.setItem('chat_avatar_' + newRealName, newAvatarSrc);
+                localStorage.setItem('chat_avatar_' + chatId, newAvatarSrc);
                 delete avatarDisplay.dataset.newAvatar;
             } else {
-                // 获取已有头像（可能迁移过来）
-                newAvatarSrc = localStorage.getItem('chat_avatar_' + newRealName);
-                if (!newAvatarSrc && oldRealName !== newRealName) {
-                    newAvatarSrc = localStorage.getItem('chat_avatar_' + oldRealName);
-                    if (newAvatarSrc) {
-                        localStorage.setItem('chat_avatar_' + newRealName, newAvatarSrc);
-                    }
-                }
+                newAvatarSrc = localStorage.getItem('chat_avatar_' + chatId);
             }
 
             // --- 保存 User 设置 ---
@@ -4736,84 +4899,38 @@ function initChatSettingsLogic(chatRoomNameEl) {
             const newUserPersona = userPersonaInput.value.trim();
 
             if (newUserRealName) {
-                localStorage.setItem('chat_user_realname_' + newRealName, newUserRealName);
+                localStorage.setItem('chat_user_realname_' + chatId, newUserRealName);
             } else {
-                localStorage.removeItem('chat_user_realname_' + newRealName);
+                localStorage.removeItem('chat_user_realname_' + chatId);
             }
             if (newUserRemark) {
-                localStorage.setItem('chat_user_remark_' + newRealName, newUserRemark);
+                localStorage.setItem('chat_user_remark_' + chatId, newUserRemark);
             } else {
-                localStorage.removeItem('chat_user_remark_' + newRealName);
+                localStorage.removeItem('chat_user_remark_' + chatId);
             }
             if (newUserPersona) {
-                localStorage.setItem('chat_user_persona_' + newRealName, newUserPersona);
+                localStorage.setItem('chat_user_persona_' + chatId, newUserPersona);
             } else {
-                localStorage.removeItem('chat_user_persona_' + newRealName);
+                localStorage.removeItem('chat_user_persona_' + chatId);
             }
 
             // 保存 User 头像
             let newUserAvatarSrc = null;
             if (userAvatarDisplay.dataset.newAvatar) {
                 newUserAvatarSrc = userAvatarDisplay.dataset.newAvatar;
-                localStorage.setItem('chat_user_avatar_' + newRealName, newUserAvatarSrc);
+                localStorage.setItem('chat_user_avatar_' + chatId, newUserAvatarSrc);
                 delete userAvatarDisplay.dataset.newAvatar;
             } else {
-                // 尝试迁移或获取
-                newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + newRealName);
-                if (!newUserAvatarSrc && oldRealName !== newRealName) {
-                    newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + oldRealName);
-                    if (newUserAvatarSrc) {
-                        localStorage.setItem('chat_user_avatar_' + newRealName, newUserAvatarSrc);
-                    }
-                }
+                newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
             }
             
             // 更新当前聊天室标题
             chatRoomNameEl.textContent = newRemark || newRealName;
-            chatRoomNameEl.dataset.realName = newRealName;
-            
-            // 如果改了真名，需要迁移旧数据
-            if (oldRealName !== newRealName) {
-                // 迁移世界书绑定
-                const wb = localStorage.getItem('chat_worldbooks_' + oldRealName);
-                if (wb) {
-                    localStorage.setItem('chat_worldbooks_' + newRealName, wb);
-                    localStorage.removeItem('chat_worldbooks_' + oldRealName);
-                }
-                const oldTimeSync = localStorage.getItem(getTimeSyncEnabledKey(oldRealName));
-                if (oldTimeSync !== null) {
-                    localStorage.setItem(getTimeSyncEnabledKey(newRealName), oldTimeSync);
-                    localStorage.removeItem(getTimeSyncEnabledKey(oldRealName));
-                }
-                
-                // 迁移 User 数据
-                const uReal = localStorage.getItem('chat_user_realname_' + oldRealName);
-                if (uReal) localStorage.setItem('chat_user_realname_' + newRealName, uReal);
-                const uRem = localStorage.getItem('chat_user_remark_' + oldRealName);
-                if (uRem) localStorage.setItem('chat_user_remark_' + newRealName, uRem);
-                const uPer = localStorage.getItem('chat_user_persona_' + oldRealName);
-                if (uPer) localStorage.setItem('chat_user_persona_' + newRealName, uPer);
-                const uAva = localStorage.getItem('chat_user_avatar_' + oldRealName);
-                if (uAva) localStorage.setItem('chat_user_avatar_' + newRealName, uAva);
-                const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(oldRealName));
-                if (wallpaper) {
-                    localStorage.setItem(getChatWallpaperStorageKey(newRealName), wallpaper);
-                }
-
-                // 清理旧数据 (Chat & User)
-                localStorage.removeItem('chat_remark_' + oldRealName);
-                localStorage.removeItem('chat_persona_' + oldRealName);
-                localStorage.removeItem('chat_avatar_' + oldRealName);
-                localStorage.removeItem('chat_user_realname_' + oldRealName);
-                localStorage.removeItem('chat_user_remark_' + oldRealName);
-                localStorage.removeItem('chat_user_persona_' + oldRealName);
-                localStorage.removeItem('chat_user_avatar_' + oldRealName);
-                localStorage.removeItem(getChatWallpaperStorageKey(oldRealName));
-            }
-            applyChatWallpaper(newRealName);
+            chatRoomNameEl.dataset.chatId = chatId;
+            applyChatWallpaper(chatId);
 
             // 更新列表
-            updateLists(oldRealName, newRealName, newRemark, newAvatarSrc);
+            updateLists(chatId, newRealName, newRemark, newAvatarSrc);
             
             // 刷新当前聊天界面的 User 头像 (如果有更新)
             refreshChatUserAvatars(newUserAvatarSrc);
@@ -4829,17 +4946,17 @@ function initChatSettingsLogic(chatRoomNameEl) {
 
     if (clearChatBtn) {
         clearChatBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             const shouldClear = confirm('确定清空当前聊天的全部消息吗？\n清空后会同时从聊天记录和发送给 AI 的上下文中彻底移除，且不可恢复。');
             if (!shouldClear) return;
 
-            localStorage.removeItem('chat_history_' + realName);
-            localStorage.removeItem(getSummaryCursorKey(realName));
+            localStorage.removeItem('chat_history_' + chatId);
+            localStorage.removeItem(getSummaryCursorKey(chatId));
             const chatContent = document.querySelector('.chat-room-content');
             if (chatContent) {
                 chatContent.innerHTML = '';
             }
-            refreshChatListPreviewFor(realName);
+            refreshChatListPreviewFor(chatId);
         });
     }
 
@@ -4854,22 +4971,15 @@ function initChatSettingsLogic(chatRoomNameEl) {
         });
     }
 
-    function updateLists(oldName, newName, newRemark, newAvatarSrc) {
-        const displayName = newRemark || newName;
+    function updateLists(chatId, newRealName, newRemark, newAvatarSrc) {
+        const displayName = newRemark || newRealName || getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
         
         // 更新好友列表
         const friendItems = document.querySelectorAll('#friends-list .group-subitem');
         friendItems.forEach(item => {
-            const span = item.querySelector('span');
-            // 获取 item 对应的真实名字
-            const itemRealName = item.dataset.realName || span.textContent;
-
-            if (itemRealName === oldName) {
+            if (item.dataset.chatId === chatId) {
+                const span = item.querySelector('span');
                 span.textContent = displayName;
-                // 更新 DOM attribute 以便下次识别真名
-                item.dataset.realName = newName; 
-                
-                // 更新头像
                 if (newAvatarSrc) {
                     const avatarDiv = item.querySelector('.subitem-avatar');
                     avatarDiv.innerHTML = `<img src="${newAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
@@ -4880,15 +4990,9 @@ function initChatSettingsLogic(chatRoomNameEl) {
         // 更新聊天列表
         const chatItems = document.querySelectorAll('#line-chat-list .chat-list-item');
         chatItems.forEach(item => {
-            const nameDiv = item.querySelector('.chat-item-name');
-            const itemRealName = item.dataset.realName || nameDiv.textContent;
-
-            if (itemRealName === oldName) {
+            if (item.dataset.chatId === chatId) {
+                const nameDiv = item.querySelector('.chat-item-name');
                 nameDiv.textContent = displayName;
-                // 更新 DOM attribute
-                item.dataset.realName = newName;
-
-                // 更新头像
                 if (newAvatarSrc) {
                     const avatarDiv = item.querySelector('.chat-item-avatar');
                     avatarDiv.innerHTML = `<img src="${newAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
@@ -4912,8 +5016,8 @@ function initTimeSettingsLogic(chatRoomNameEl) {
     if (!timeSettingsBtn || !modal || !syncToggle) return;
 
     const syncFromStorage = () => {
-        const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-        syncToggle.checked = localStorage.getItem(getTimeSyncEnabledKey(realName)) === 'true';
+        const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+        syncToggle.checked = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
     };
 
     timeSettingsBtn.addEventListener('click', () => {
@@ -4929,8 +5033,8 @@ function initTimeSettingsLogic(chatRoomNameEl) {
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            localStorage.setItem(getTimeSyncEnabledKey(realName), syncToggle.checked ? 'true' : 'false');
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            localStorage.setItem(getTimeSyncEnabledKey(chatId), syncToggle.checked ? 'true' : 'false');
             closeAppModal(modal);
         });
     }
@@ -4992,19 +5096,19 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         return extractLocalImageSources(content).length;
     };
 
-    const buildTokenStats = (realName) => {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+    const buildTokenStats = (chatId) => {
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         const safeHistory = Array.isArray(history) ? history : [];
-        const personaText = localStorage.getItem('chat_persona_' + realName) || '';
-        const longTermMemory = getMemoryDiaries(realName).map((item) => String(item?.content || '').trim()).filter(Boolean).join('\n');
-        const limit = Math.max(1, parseInt(localStorage.getItem('chat_context_limit_' + realName) || '100', 10) || 100);
+        const personaText = localStorage.getItem('chat_persona_' + chatId) || '';
+        const longTermMemory = getMemoryDiaries(chatId).map((item) => String(item?.content || '').trim()).filter(Boolean).join('\n');
+        const limit = Math.max(1, parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100', 10) || 100);
         const contextHistory = safeHistory.slice(Math.max(0, safeHistory.length - limit), safeHistory.length);
         const contextText = contextHistory.map((msg) => {
             const role = String(msg?.role || 'unknown').trim() || 'unknown';
             return `[${role}] ${normalizeMemoryMessageContent(msg?.content)}`;
         }).join('\n');
 
-        const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+        const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
         const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
         const safeWbIds = Array.isArray(wbIds) ? wbIds : [];
         const safeWbItems = Array.isArray(allWbItems) ? allWbItems : [];
@@ -5013,7 +5117,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
             return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
         }).join('\n');
-        const diaryCount = getMemoryDiaries(realName).length;
+        const diaryCount = getMemoryDiaries(chatId).length;
 
         let localImageCount = 0;
         const localImageText = safeHistory.map((msg) => {
@@ -5034,9 +5138,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         ];
     };
 
-    const renderTokenDistribution = (realName) => {
+    const renderTokenDistribution = (chatId) => {
         if (!memoryTokenDistributionEl) return;
-        const sections = buildTokenStats(realName);
+        const sections = buildTokenStats(chatId);
         const roleList = sections.filter((item) => item.tokens > 0 || item.count > 0);
         const totalTokens = sections.reduce((sum, item) => sum + item.tokens, 0);
         const totalMessages = sections.reduce((sum, item) => sum + item.count, 0);
@@ -5080,9 +5184,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         `;
     };
 
-    const renderDiaryList = (realName) => {
+    const renderDiaryList = (chatId) => {
         if (!diaryListEl) return;
-        const diaries = getMemoryDiaries(realName).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+        const diaries = getMemoryDiaries(chatId).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
         if (diaries.length === 0) {
             diaryListEl.innerHTML = '<div class="memory-diary-empty">暂无日记</div>';
             return;
@@ -5096,8 +5200,8 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         `).join('');
     };
 
-    const openDiaryDetail = (realName, diaryId) => {
-        const diaries = getMemoryDiaries(realName);
+    const openDiaryDetail = (chatId, diaryId) => {
+        const diaries = getMemoryDiaries(chatId);
         const diary = diaries.find((item) => item.id === diaryId);
         if (!diary) return;
         activeDiaryId = diary.id;
@@ -5132,18 +5236,18 @@ function initMemorySettingsLogic(chatRoomNameEl) {
 
     if (memoryBtn) {
         memoryBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const savedLimit = localStorage.getItem('chat_context_limit_' + realName) || '100';
-            const savedSummaryLimit = localStorage.getItem(getSummaryLimitKey(realName)) || '30';
-            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(realName)) === 'true';
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            const savedLimit = localStorage.getItem('chat_context_limit_' + chatId) || '100';
+            const savedSummaryLimit = localStorage.getItem(getSummaryLimitKey(chatId)) || '30';
+            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(chatId)) === 'true';
             input.value = savedLimit;
             summaryInput.value = savedSummaryLimit;
             if (autoSummaryToggle) {
                 autoSummaryToggle.checked = autoSummaryEnabled;
             }
-            ensureSummaryCursor(realName);
-            syncMemoryLongTerm(realName);
-            renderDiaryList(realName);
+            ensureSummaryCursor(chatId);
+            syncMemoryLongTerm(chatId);
+            renderDiaryList(chatId);
             openAppModal(modal);
         });
     }
@@ -5156,17 +5260,17 @@ function initMemorySettingsLogic(chatRoomNameEl) {
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             const rawLimit = input.value.trim();
             const normalizedLimit = Math.max(1, parseInt(rawLimit || '100', 10) || 100);
-            localStorage.setItem('chat_context_limit_' + realName, String(normalizedLimit));
+            localStorage.setItem('chat_context_limit_' + chatId, String(normalizedLimit));
             input.value = String(normalizedLimit);
 
             const normalizedSummaryLimit = normalizeMemorySummaryInput(summaryInput.value);
-            localStorage.setItem(getSummaryLimitKey(realName), String(normalizedSummaryLimit));
+            localStorage.setItem(getSummaryLimitKey(chatId), String(normalizedSummaryLimit));
             summaryInput.value = String(normalizedSummaryLimit);
             if (autoSummaryToggle) {
-                localStorage.setItem(getAutoSummaryEnabledKey(realName), autoSummaryToggle.checked ? 'true' : 'false');
+                localStorage.setItem(getAutoSummaryEnabledKey(chatId), autoSummaryToggle.checked ? 'true' : 'false');
             }
 
             const originalText = saveBtn.textContent;
@@ -5182,8 +5286,8 @@ function initMemorySettingsLogic(chatRoomNameEl) {
 
     if (memoryTokenBtn) {
         memoryTokenBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            renderTokenDistribution(realName);
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            renderTokenDistribution(chatId);
             openAppModal(memoryTokenModal);
         });
     }
@@ -5202,18 +5306,18 @@ function initMemorySettingsLogic(chatRoomNameEl) {
 
     if (runSummaryBtn) {
         runSummaryBtn.addEventListener('click', async () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             const batchSize = normalizeMemorySummaryInput(summaryInput.value);
             summaryInput.value = String(batchSize);
-            localStorage.setItem(getSummaryLimitKey(realName), String(batchSize));
+            localStorage.setItem(getSummaryLimitKey(chatId), String(batchSize));
 
             const originalText = runSummaryBtn.textContent;
             runSummaryBtn.textContent = '总结中...';
             runSummaryBtn.disabled = true;
 
             try {
-                await runManualSummary(realName, batchSize);
-                renderDiaryList(realName);
+                await runManualSummary(chatId, batchSize);
+                renderDiaryList(chatId);
             } catch (error) {
                 showApiErrorModal(error.message || '自动总结失败');
             } finally {
@@ -5227,8 +5331,8 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         diaryListEl.addEventListener('click', (e) => {
             const item = e.target.closest('.memory-diary-item');
             if (!item) return;
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            openDiaryDetail(realName, item.dataset.id);
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            openDiaryDetail(chatId, item.dataset.id);
         });
     }
 
@@ -5251,15 +5355,15 @@ function initMemorySettingsLogic(chatRoomNameEl) {
                 setDiaryEditMode(true);
                 return;
             }
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const diaries = getMemoryDiaries(realName);
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            const diaries = getMemoryDiaries(chatId);
             const idx = diaries.findIndex((item) => item.id === activeDiaryId);
             if (idx === -1) return;
             const nextContent = diaryDetailContent.value.trim();
             diaries[idx].content = nextContent;
-            setMemoryDiaries(realName, diaries);
-            syncMemoryLongTerm(realName);
-            renderDiaryList(realName);
+            setMemoryDiaries(chatId, diaries);
+            syncMemoryLongTerm(chatId);
+            renderDiaryList(chatId);
             if (diaryDetailView) diaryDetailView.textContent = nextContent;
             setDiaryEditMode(false);
         });
@@ -5268,12 +5372,12 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     if (diaryDeleteBtn) {
         diaryDeleteBtn.addEventListener('click', () => {
             if (!activeDiaryId) return;
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            const diaries = getMemoryDiaries(realName);
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            const diaries = getMemoryDiaries(chatId);
             const nextDiaries = diaries.filter((item) => item.id !== activeDiaryId);
-            setMemoryDiaries(realName, nextDiaries);
-            syncMemoryLongTerm(realName);
-            renderDiaryList(realName);
+            setMemoryDiaries(chatId, nextDiaries);
+            syncMemoryLongTerm(chatId);
+            renderDiaryList(chatId);
             closeDiaryDetail();
         });
     }
@@ -5291,8 +5395,8 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     // Open binding modal
     if (selector) {
         selector.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
-            renderBindingList(realName);
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            renderBindingList(chatId);
             openAppModal(modal);
         });
     }
@@ -5307,18 +5411,18 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     // Save selection
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            const realName = chatRoomNameEl.dataset.realName || chatRoomNameEl.textContent;
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             const selectedIds = Array.from(selectedIdSet);
 
-            localStorage.setItem('chat_worldbooks_' + realName, JSON.stringify(selectedIds));
-            renderSelectedWorldBooks(realName);
+            localStorage.setItem('chat_worldbooks_' + chatId, JSON.stringify(selectedIds));
+            renderSelectedWorldBooks(chatId);
             closeAppModal(modal);
         });
     }
 
-    function renderBindingList(realName) {
+    function renderBindingList(chatId) {
         const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
-        const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]')
+        const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]')
             .map(id => String(id));
         selectedIdSet = new Set(selectedIds);
 
@@ -5458,10 +5562,10 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     }
 }
 
-function renderSelectedWorldBooks(realName) {
+function renderSelectedWorldBooks(chatId) {
     const display = document.getElementById('selected-worldbooks-display');
     const placeholder = document.querySelector('.selector-placeholder');
-    const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + realName) || '[]');
+    const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
     const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
     
     if (display) display.innerHTML = '';
@@ -5482,17 +5586,17 @@ function renderSelectedWorldBooks(realName) {
     }
 }
 
-function getUnreadCountKey(realName) {
-    return `chat_unread_count_${realName}`;
+function getUnreadCountKey(chatId) {
+    return `chat_unread_count_${chatId}`;
 }
 
-function getUnreadCount(realName) {
-    return parseInt(localStorage.getItem(getUnreadCountKey(realName)) || '0', 10) || 0;
+function getUnreadCount(chatId) {
+    return parseInt(localStorage.getItem(getUnreadCountKey(chatId)) || '0', 10) || 0;
 }
 
-function setUnreadCount(realName, count) {
+function setUnreadCount(chatId, count) {
     const normalized = Math.max(0, parseInt(String(count), 10) || 0);
-    localStorage.setItem(getUnreadCountKey(realName), String(normalized));
+    localStorage.setItem(getUnreadCountKey(chatId), String(normalized));
     return normalized;
 }
 
@@ -5517,8 +5621,8 @@ function buildChatListPreviewFromMessage(msg) {
     return '';
 }
 
-function getLatestChatMessageMeta(realName) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + realName) || '[]');
+function getLatestChatMessageMeta(chatId) {
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
     if (!Array.isArray(history) || history.length === 0) {
         return { message: null, ts: 0 };
     }
@@ -5537,13 +5641,13 @@ function getLatestChatMessageMeta(realName) {
     return latest ? { message: latest.message, ts: latest.ts || 0 } : { message: null, ts: 0 };
 }
 
-function updateChatListItemPreview(realName, chatItem) {
+function updateChatListItemPreview(chatId, chatItem) {
     const chatListContainer = document.getElementById('line-chat-list');
     if (!chatListContainer) return;
-    const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(realName) : realName;
-    const item = chatItem || chatListContainer.querySelector(`.chat-list-item[data-real-name="${selectorName}"]`);
+    const selectorName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(chatId) : chatId;
+    const item = chatItem || chatListContainer.querySelector(`.chat-list-item[data-chat-id="${selectorName}"]`);
     if (!item) return;
-    const meta = getLatestChatMessageMeta(realName);
+    const meta = getLatestChatMessageMeta(chatId);
     const preview = buildChatListPreviewFromMessage(meta.message);
     const msgEl = item.querySelector('.chat-item-msg');
     if (msgEl) {
@@ -5568,8 +5672,8 @@ function sortChatListByLastMessage() {
     ranked.forEach(({ item }) => chatListContainer.appendChild(item));
 }
 
-function refreshChatListPreviewFor(realName) {
-    updateChatListItemPreview(realName);
+function refreshChatListPreviewFor(chatId) {
+    updateChatListItemPreview(chatId);
     sortChatListByLastMessage();
     if (typeof saveGlobalData === 'function') {
         saveGlobalData();
@@ -5580,8 +5684,9 @@ function refreshChatListPreviews() {
     const chatListContainer = document.getElementById('line-chat-list');
     if (!chatListContainer) return;
     chatListContainer.querySelectorAll('.chat-list-item').forEach((item) => {
-        const realName = item.dataset.realName || item.querySelector('.chat-item-name')?.textContent || '';
-        updateChatListItemPreview(realName, item);
+        const chatId = item.dataset.chatId || '';
+        if (!chatId) return;
+        updateChatListItemPreview(chatId, item);
     });
     sortChatListByLastMessage();
     if (typeof saveGlobalData === 'function') {
@@ -5608,8 +5713,9 @@ function renderUnreadBadge(item, unreadCount) {
 
 function refreshAllUnreadBadges() {
     document.querySelectorAll('#line-chat-list .chat-list-item').forEach((item) => {
-        const realName = item.dataset.realName || item.querySelector('.chat-item-name')?.textContent || '';
-        renderUnreadBadge(item, getUnreadCount(realName));
+        const chatId = item.dataset.chatId || '';
+        if (!chatId) return;
+        renderUnreadBadge(item, getUnreadCount(chatId));
     });
 }
 
@@ -5618,16 +5724,16 @@ function saveGlobalData() {
     // 保存好友列表
     const friendsList = [];
     document.querySelectorAll('#friends-list .group-subitem').forEach(item => {
-        const name = item.dataset.realName || item.querySelector('span').textContent;
-        friendsList.push(name);
+        const chatId = item.dataset.chatId || '';
+        if (chatId) friendsList.push(chatId);
     });
     localStorage.setItem('global_friends_list', JSON.stringify(friendsList));
 
     // 保存聊天列表
     const chatList = [];
     document.querySelectorAll('#line-chat-list .chat-list-item').forEach(item => {
-        const name = item.dataset.realName || item.querySelector('.chat-item-name').textContent;
-        chatList.push(name);
+        const chatId = item.dataset.chatId || '';
+        if (chatId) chatList.push(chatId);
     });
     localStorage.setItem('global_chat_list', JSON.stringify(chatList));
 }
@@ -5648,15 +5754,15 @@ function initGlobalPersistence() {
     
     if (savedFriends && friendsListContainer) {
         friendsListContainer.innerHTML = ''; // 清空现有（静态）列表，完全由 storage 重建
-        savedFriends.forEach(realName => {
-            // 获取备注和头像
-            const remark = localStorage.getItem('chat_remark_' + realName);
-            const avatar = localStorage.getItem('chat_avatar_' + realName);
+        savedFriends.forEach(chatId => {
+            const remark = getChatRemark(chatId);
+            const realName = getChatRealName(chatId) || chatId;
+            const avatar = localStorage.getItem('chat_avatar_' + chatId);
             const displayName = remark || realName;
             
             const item = document.createElement('div');
             item.className = 'group-subitem';
-            item.dataset.realName = realName; // 关键：存储真名
+            item.dataset.chatId = chatId; // 关键：存储 chatId
             
             let avatarHtml = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
             if (avatar) {
@@ -5675,7 +5781,10 @@ function initGlobalPersistence() {
         // 如果没有保存过（第一次运行），则初始化 dataset.realName 为当前静态 HTML 的内容
         friendsListContainer.querySelectorAll('.group-subitem').forEach(item => {
             const span = item.querySelector('span');
-            item.dataset.realName = span.textContent;
+            const realName = span.textContent.trim();
+            const chatId = createChatId();
+            item.dataset.chatId = chatId;
+            setChatMeta(chatId, { realName, remark: '' });
         });
         saveGlobalData(); // 保存初始状态
     }
@@ -5698,15 +5807,16 @@ function initGlobalPersistence() {
         
         if (savedChats.length > 0) {
             chatListContainer.innerHTML = ''; 
-            savedChats.forEach(realName => {
-                const remark = localStorage.getItem('chat_remark_' + realName);
-                const avatar = localStorage.getItem('chat_avatar_' + realName);
+            savedChats.forEach(chatId => {
+                const remark = getChatRemark(chatId);
+                const realName = getChatRealName(chatId) || chatId;
+                const avatar = localStorage.getItem('chat_avatar_' + chatId);
                 const displayName = remark || realName;
                 
                 const item = document.createElement('div');
                 item.className = 'chat-list-item';
-                item.dataset.realName = realName;
-                const unreadCount = getUnreadCount(realName);
+                item.dataset.chatId = chatId;
+                const unreadCount = getUnreadCount(chatId);
                 
                 let avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
                 if (avatar) {
@@ -5782,17 +5892,17 @@ function initAddFriendLogic() {
                 return;
             }
 
-            const displayName = remark || name; // 优先显示备注名
-            // 保存备注（如果添加时就有备注）
+            const displayName = remark || name;
+            const chatId = createChatId();
+            setChatMeta(chatId, { realName: name, remark });
             if (remark) {
-                localStorage.setItem('chat_remark_' + name, remark);
+                localStorage.setItem('chat_remark_' + chatId, remark);
             }
 
             // 1. 添加到好友列表
             const friendItem = document.createElement('div');
             friendItem.className = 'group-subitem';
-            // 关键：设置 dataset.realName
-            friendItem.dataset.realName = name;
+            friendItem.dataset.chatId = chatId;
             
             friendItem.innerHTML = `
                 <div class="subitem-avatar">
@@ -5817,8 +5927,7 @@ function initAddFriendLogic() {
             
             const chatItem = document.createElement('div');
             chatItem.className = 'chat-list-item';
-            // 关键：设置 dataset.realName
-            chatItem.dataset.realName = name;
+            chatItem.dataset.chatId = chatId;
             
             chatItem.innerHTML = `
                 <div class="chat-item-avatar">
@@ -5833,7 +5942,7 @@ function initAddFriendLogic() {
             if (chatList) {
                 chatList.insertBefore(chatItem, chatList.firstChild);
             }
-            refreshChatListPreviewFor(name);
+            refreshChatListPreviewFor(chatId);
             
             // 3. 立即触发全局保存
             saveGlobalData();
