@@ -3852,8 +3852,17 @@ ${localImageSection}
     }
 
     function persistChatHistory(chatId, history) {
-        localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
-        clampSummaryCursor(chatId, history.length);
+        const prevHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const prevLength = Array.isArray(prevHistory) ? prevHistory.length : 0;
+        const safeHistory = Array.isArray(history) ? history : [];
+        localStorage.setItem('chat_history_' + chatId, JSON.stringify(safeHistory));
+        clampSummaryCursor(chatId, safeHistory.length);
+        if (safeHistory.length < prevLength) {
+            setMemoryDiaries(chatId, []);
+            syncMemoryLongTerm(chatId);
+            localStorage.removeItem('chat_summary_' + chatId);
+            localStorage.setItem(getSummaryCursorKey(chatId), String(safeHistory.length));
+        }
     }
 
     function updateSelectCount() {
@@ -5138,6 +5147,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     const autoSummaryToggle = document.getElementById('memory-auto-summary-toggle');
     const runSummaryBtn = document.getElementById('run-memory-summary-btn');
     const diaryListEl = document.getElementById('memory-diary-list');
+    const diaryMessageCountEl = document.getElementById('memory-diary-message-count');
     const diaryDetailOverlay = document.getElementById('memory-diary-detail-overlay');
     const closeDiaryDetailBtn = document.getElementById('close-memory-diary-detail');
     const diaryEditBtn = document.getElementById('memory-diary-note-edit');
@@ -5268,6 +5278,11 @@ function initMemorySettingsLogic(chatRoomNameEl) {
 
     const renderDiaryList = (chatId) => {
         if (!diaryListEl) return;
+        if (diaryMessageCountEl) {
+            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const count = Array.isArray(history) ? history.length : 0;
+            diaryMessageCountEl.textContent = `消息 ${count} 条`;
+        }
         const diaries = getMemoryDiaries(chatId).sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
         if (diaries.length === 0) {
             diaryListEl.innerHTML = '<div class="memory-diary-empty">暂无日记</div>';

@@ -2098,6 +2098,12 @@ input:checked + .slider:before {
     margin-bottom: 12px;
 }
 
+.memory-diary-meta {
+    font-size: 0.78rem;
+    color: #86868b;
+    margin-bottom: 10px;
+}
+
 .memory-diary-list {
     display: flex;
     flex-direction: column;
