@@ -3224,6 +3224,71 @@ function initChatRoomLogic() {
         return content.trim();
     }
 
+    function decodeAssistantMarkupEntities(text) {
+        return String(text || '')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/&amp;/gi, '&');
+    }
+
+    function normalizeSpriteColor(colorValue) {
+        const raw = String(colorValue || '').trim();
+        if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw)) {
+            return raw;
+        }
+        return '#FFD700';
+    }
+
+    function splitSpriteContent(rawContent) {
+        const text = String(rawContent || '').trim();
+        if (!text) {
+            return { content: '', secret: '' };
+        }
+        const splitMatch = text.split(/\n\s*-{3,}\s*\n/i);
+        if (splitMatch.length > 1) {
+            return {
+                content: String(splitMatch[0] || '').trim(),
+                secret: String(splitMatch.slice(1).join('\n') || '').trim()
+            };
+        }
+        return { content: text, secret: '' };
+    }
+
+    function extractMoodSpriteFromReply(visibleReply) {
+        const normalized = decodeAssistantMarkupEntities(visibleReply);
+        const spriteRegex = /<mood_sprite\b([^>]*)>([\s\S]*?)(?:<\/mood_sprite\s*>|$)/gi;
+        let spriteData = null;
+        let match;
+        while ((match = spriteRegex.exec(normalized)) !== null) {
+            const attrText = String(match[1] || '');
+            const rawContent = String(match[2] || '').trim();
+            const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+            const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+            const parts = splitSpriteContent(rawContent);
+            spriteData = {
+                mood: moodMatch ? String(moodMatch[2] || '').trim() || '未知' : '未知',
+                color: normalizeSpriteColor(colorMatch ? colorMatch[2] : '#FFD700'),
+                content: parts.content,
+                secret: parts.secret
+            };
+        }
+        const cleanedText = normalized
+            .replace(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/gi, '')
+            .replace(/<\/?mood_sprite\b[^>]*>/gi, '')
+            .trim();
+        return { text: cleanedText, sprite: spriteData };
+    }
+
+    function stripMoodSpriteFragments(text) {
+        const normalized = decodeAssistantMarkupEntities(text);
+        return normalized
+            .replace(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/gi, '')
+            .replace(/<\/?mood_sprite\b[^>]*>/gi, '')
+            .trim();
+    }
+
     // 触发 AI 回复
     async function triggerAIResponse(chatId) {
         // UI Loading 状态 (使用全局管理)
@@ -3373,7 +3438,6 @@ ${timeSyncPrompt}
 
 【绝对禁止】：
 - 禁止用 * 或 () 描写动作。这是聊天记录，不是小说。
-- 禁止复读。同一个字/词/句式不得连续输出超过50字。
 - 禁止客服语气。你不是在"服务"对方，你是在和一个你生活中的人说话。
 - 禁止提及"AI"、"设定"、"人设"、"语言模型"、"扮演"。这些东西在你的世界里不存在。
 - 禁止凭空编造超出世界书设定的能力或物品或不存在的记忆。
@@ -3541,82 +3605,17 @@ ${localImageSection}
             }
             visibleReply = visibleReply.replace(/<quote>[\s\S]*?<\/quote>/gi, '').trim();
             
-            // Extract Sprite Data (Loop to handle multiple sprites if needed, but usually one per turn)
-            let spriteData = null;
-            // Use global flag 'g' to replace all occurrences, but capture the last one or accumulate?
-            // User requirement: "每一轮都要生成". If AI generates multiple messages with SPLIT, 
-            // the prompt says "At the end of each turn". So usually one sprite at the very end.
-            // But if AI messes up and puts sprite in the middle, we should catch it.
-            // Let's use a loop to extract all sprite tags and use the last one found, removing all from text.
-            
-            const spriteRegex = /<mood_sprite\b([^>]*)>([\s\S]*?)<\/mood_sprite\s*>/gi;
-            let match;
-            while ((match = spriteRegex.exec(visibleReply)) !== null) {
-                const attrText = String(match[1] || '');
-                const rawContent = String(match[2] || '').trim();
-                const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
-                const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
-                const moodValue = moodMatch ? moodMatch[2] : '未知';
-                const colorValue = colorMatch ? colorMatch[2] : '#fffffcff';
-                let mainContent = rawContent;
-                let secretContent = '';
-
-                // Split by separator '---' or similar
-                const separatorRegex = /\n\s*-{3,}\s*\n/i;
-                const splitMatch = rawContent.split(separatorRegex);
-                
-                if (splitMatch.length > 1) {
-                    mainContent = splitMatch[0].trim();
-                    secretContent = splitMatch[1].trim();
-                }
-
-                spriteData = {
-                    mood: moodValue,
-                    color: colorValue,
-                    content: mainContent,
-                    secret: secretContent
-                };
-            }
-            // Remove all tags from visible text
-            visibleReply = visibleReply.replace(spriteRegex, '').replace(/<\/?mood_sprite\b[^>]*>/gi, '').trim();
-            const lowerVisible = visibleReply.toLowerCase();
-            const unmatchedIndex = lowerVisible.lastIndexOf('<mood_sprite');
-            if (unmatchedIndex !== -1) {
-                const tail = visibleReply.slice(unmatchedIndex);
-                const openMatch = tail.match(/^<mood_sprite\b([^>]*)>([\s\S]*)$/i);
-                if (openMatch) {
-                    const attrText = String(openMatch[1] || '');
-                    const rawContent = String(openMatch[2] || '').trim();
-                    const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
-                    const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
-                    const moodValue = moodMatch ? moodMatch[2] : '未知';
-                    const colorValue = colorMatch ? colorMatch[2] : '#FFD700';
-                    if (rawContent) {
-                        let mainContent = rawContent;
-                        let secretContent = '';
-                        const separatorRegex = /\n\s*-{3,}\s*\n/i;
-                        const splitMatch = rawContent.split(separatorRegex);
-                        if (splitMatch.length > 1) {
-                            mainContent = splitMatch[0].trim();
-                            secretContent = splitMatch[1].trim();
-                        }
-                        spriteData = {
-                            mood: moodValue,
-                            color: colorValue,
-                            content: mainContent,
-                            secret: secretContent
-                        };
-                    }
-                }
-                visibleReply = visibleReply.slice(0, unmatchedIndex).replace(/<\/?mood_sprite\b[^>]*>/gi, '').trim();
-            }
+            const spriteExtraction = extractMoodSpriteFromReply(visibleReply);
+            const spriteData = spriteExtraction.sprite;
+            visibleReply = spriteExtraction.text;
 
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
             let hasVisibleMessage = false;
             
             for (let i = 0; i < replyMessages.length; i++) {
-                const rawPart = replyMessages[i].trim();
+                const rawPart = stripMoodSpriteFragments(replyMessages[i]);
+                if (!rawPart) continue;
                 const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
                 const msgContent = parsedPhoto
@@ -4533,21 +4532,24 @@ ${localImageSection}
 
         const charName = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
         spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的随笔`;
-        
-        // Build Content
-        let html = `<div>${latestSprite.content}</div>`;
+        spriteBody.textContent = '';
+        const mainTextEl = document.createElement('div');
+        mainTextEl.textContent = String(latestSprite.content || '').trim();
+        spriteBody.appendChild(mainTextEl);
         if (latestSprite.secret) {
-             html += `
-                <div style="margin-top: 15px; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 10px;">
-                    <span style="text-decoration: line-through; color: #888; font-size: 0.9em;">
-                        ${latestSprite.secret}
-                    </span>
-                </div>
-             `;
+            const secretWrap = document.createElement('div');
+            secretWrap.style.marginTop = '15px';
+            secretWrap.style.borderTop = '1px dashed rgba(0,0,0,0.1)';
+            secretWrap.style.paddingTop = '10px';
+            const secretText = document.createElement('span');
+            secretText.style.textDecoration = 'line-through';
+            secretText.style.color = '#888';
+            secretText.style.fontSize = '0.9em';
+            secretText.textContent = String(latestSprite.secret || '').trim();
+            secretWrap.appendChild(secretText);
+            spriteBody.appendChild(secretWrap);
         }
-
-        spriteBody.innerHTML = html;
-        spriteBody.style.borderLeft = `4px solid ${latestSprite.color || '#ccc'}`;
+        spriteBody.style.borderLeft = `4px solid ${normalizeSpriteColor(latestSprite.color)}`;
         
         // Update Fav Button State
         if (currentSpriteContext.isFavorited) {
