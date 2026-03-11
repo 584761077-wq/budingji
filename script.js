@@ -894,6 +894,7 @@ function initLineApp() {
     const friendFeedModal = document.getElementById('friend-feed-modal');
     const closeFriendFeedBtn = document.getElementById('close-friend-feed-btn');
     const friendFeedWallpaper = document.getElementById('friend-feed-wallpaper');
+    const friendFeedWallpaperInput = document.getElementById('friend-feed-wallpaper-input');
     const friendFeedAvatar = document.getElementById('friend-feed-avatar');
     const friendDeleteConfirmModal = document.getElementById('friend-delete-confirm-modal');
     const friendDeleteConfirmText = document.getElementById('friend-delete-confirm-text');
@@ -1028,6 +1029,15 @@ function initLineApp() {
         return normalized || '这个人很神秘，还没有签名';
     };
 
+    const getFriendFeedWallpaperStorageKey = (chatId) => `friend_feed_wallpaper_${String(chatId || '').trim()}`;
+
+    const buildFriendFeedWallpaperStyle = (imageUrl) => {
+        const normalized = String(imageUrl || '').trim();
+        if (!normalized) return '';
+        const safeImageUrl = normalized.replace(/"/g, '\\"');
+        return `linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.08)), url("${safeImageUrl}")`;
+    };
+
     const closeFriendProfileModal = () => {
         if (!friendProfileModal) return;
         friendProfileModal.style.display = 'none';
@@ -1036,6 +1046,10 @@ function initLineApp() {
 
     const closeFriendFeedModal = () => {
         if (!friendFeedModal) return;
+        friendFeedModal.dataset.chatId = '';
+        if (friendFeedWallpaperInput) {
+            friendFeedWallpaperInput.value = '';
+        }
         closeAppModal(friendFeedModal);
     };
 
@@ -1046,13 +1060,11 @@ function initLineApp() {
         const avatarHtml = avatarUrl
             ? `<img src="${avatarUrl}" alt="头像">`
             : (String(fallbackAvatarHtml || '').trim() || defaultFriendAvatarHtml);
+        const savedWallpaper = normalizedChatId ? String(localStorage.getItem(getFriendFeedWallpaperStorageKey(normalizedChatId)) || '').trim() : '';
+        const wallpaperStyle = buildFriendFeedWallpaperStyle(savedWallpaper || avatarUrl);
+        friendFeedModal.dataset.chatId = normalizedChatId;
         friendFeedAvatar.innerHTML = avatarHtml;
-        if (avatarUrl) {
-            const safeAvatarUrl = avatarUrl.replace(/"/g, '\\"');
-            friendFeedWallpaper.style.backgroundImage = `linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.08)), url("${safeAvatarUrl}")`;
-        } else {
-            friendFeedWallpaper.style.backgroundImage = '';
-        }
+        friendFeedWallpaper.style.backgroundImage = wallpaperStyle;
         openAppModal(friendFeedModal);
     };
 
@@ -1315,6 +1327,30 @@ function initLineApp() {
 
     if (closeFriendFeedBtn) {
         closeFriendFeedBtn.addEventListener('click', closeFriendFeedModal);
+    }
+
+    if (friendFeedWallpaper && friendFeedWallpaperInput) {
+        friendFeedWallpaper.addEventListener('click', () => {
+            friendFeedWallpaperInput.click();
+        });
+        friendFeedWallpaperInput.addEventListener('change', async (e) => {
+            const input = e.target instanceof HTMLInputElement ? e.target : null;
+            const file = input?.files?.[0];
+            if (!file) return;
+            try {
+                const imageDataUrl = await readLineUserAvatarAsDataUrl(file);
+                const wallpaperStyle = buildFriendFeedWallpaperStyle(imageDataUrl);
+                friendFeedWallpaper.style.backgroundImage = wallpaperStyle;
+                const chatId = String(friendFeedModal?.dataset?.chatId || '').trim();
+                if (chatId) {
+                    localStorage.setItem(getFriendFeedWallpaperStorageKey(chatId), imageDataUrl);
+                }
+            } catch (error) {
+                showApiErrorModal(error instanceof Error ? error.message : '图片读取失败');
+            } finally {
+                input.value = '';
+            }
+        });
     }
 
     if (friendProfileInfoBtn) {

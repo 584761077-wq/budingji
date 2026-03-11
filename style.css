@@ -1869,7 +1869,7 @@ input:checked + .slider:before {
 
 .friend-feed-wallpaper {
     position: relative;
-    height: 170px;
+    height: 190px;
     background: linear-gradient(135deg, #7f7fd5 0%, #86a8e7 50%, #91eae4 100%);
     background-size: cover;
     background-position: center;
