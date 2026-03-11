@@ -891,6 +891,10 @@ function initLineApp() {
     const friendProfileFeedBtn = document.getElementById('friend-profile-feed-btn');
     const friendProfileInfoBtn = document.getElementById('friend-profile-info-btn');
     const friendProfileDeleteBtn = document.getElementById('friend-profile-delete-btn');
+    const friendFeedModal = document.getElementById('friend-feed-modal');
+    const closeFriendFeedBtn = document.getElementById('close-friend-feed-btn');
+    const friendFeedWallpaper = document.getElementById('friend-feed-wallpaper');
+    const friendFeedAvatar = document.getElementById('friend-feed-avatar');
     const friendDeleteConfirmModal = document.getElementById('friend-delete-confirm-modal');
     const friendDeleteConfirmText = document.getElementById('friend-delete-confirm-text');
     const closeFriendDeleteConfirmBtn = document.getElementById('close-friend-delete-confirm');
@@ -1028,6 +1032,28 @@ function initLineApp() {
         if (!friendProfileModal) return;
         friendProfileModal.style.display = 'none';
         activeFriendChatId = '';
+    };
+
+    const closeFriendFeedModal = () => {
+        if (!friendFeedModal) return;
+        closeAppModal(friendFeedModal);
+    };
+
+    const openFriendFeedModal = (chatId, fallbackAvatarHtml = '') => {
+        if (!friendFeedModal || !friendFeedAvatar || !friendFeedWallpaper) return;
+        const normalizedChatId = String(chatId || '').trim();
+        const avatarUrl = normalizedChatId ? String(localStorage.getItem('chat_avatar_' + normalizedChatId) || '').trim() : '';
+        const avatarHtml = avatarUrl
+            ? `<img src="${avatarUrl}" alt="头像">`
+            : (String(fallbackAvatarHtml || '').trim() || defaultFriendAvatarHtml);
+        friendFeedAvatar.innerHTML = avatarHtml;
+        if (avatarUrl) {
+            const safeAvatarUrl = avatarUrl.replace(/"/g, '\\"');
+            friendFeedWallpaper.style.backgroundImage = `linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.08)), url("${safeAvatarUrl}")`;
+        } else {
+            friendFeedWallpaper.style.backgroundImage = '';
+        }
+        openAppModal(friendFeedModal);
     };
 
     const openFriendDeleteConfirmModal = (displayName) => {
@@ -1236,6 +1262,7 @@ function initLineApp() {
 
     if (lineBackHomeBtn && lineModal) {
         lineBackHomeBtn.addEventListener('click', () => {
+            closeFriendFeedModal();
             lineModal.classList.remove('active');
         });
     }
@@ -1278,8 +1305,16 @@ function initLineApp() {
 
     if (friendProfileFeedBtn) {
         friendProfileFeedBtn.addEventListener('click', () => {
+            if (!activeFriendChatId) return;
+            const targetChatId = activeFriendChatId;
+            const avatarHtml = friendProfileAvatar ? friendProfileAvatar.innerHTML : defaultFriendAvatarHtml;
             closeFriendProfileModal();
+            openFriendFeedModal(targetChatId, avatarHtml);
         });
+    }
+
+    if (closeFriendFeedBtn) {
+        closeFriendFeedBtn.addEventListener('click', closeFriendFeedModal);
     }
 
     if (friendProfileInfoBtn) {
@@ -3463,10 +3498,9 @@ ${assistantStickerRuleText}
 - 你也可以发：[图片:内容描述] 或 <photo>内容描述</photo>，单独成条。
 
 **[你的回复]**
-${userName}最新一轮的回复你理解了吗？
+${userName}最新一轮的回复你都理解了吗？是什么气氛？
 读懂了${userName}的所有意思了吗？
-你必须好好回应，真实的回应，创造出一个真实的富有生活性的聊天。
-
+你必须好好回应，真实的回应，创造出一个真实的、自然的、富有生活性的聊天。
 
 你不需要时刻情绪饱满。平淡也是一种真实。有时候你就是没什么感觉，那就平平地回，别硬挤情绪。
 
@@ -3479,7 +3513,7 @@ ${userName}最新一轮的回复你理解了吗？
 每轮回复最末尾，输出你的真实内心（直接输出，不要代码块）：
 <mood_sprite mood="你此刻的核心情绪" color="#RRGGBB">
 你脑子里真正在想的东西——不会发出去的那些话。
-可以碎碎念、吐槽、纠结、脸红、骂人、后悔、胡思乱想。使用颜文字。
+可以碎碎念、吐槽、纠结、脸红、骂人、后悔、胡思乱想。偶尔使用颜文字。
 像你在心里自言自语，不是在写心理分析。不得违背人设。
 ---
 一个绝对不能被任何人知道的想法。越真实直白越好。不得违背人设。
