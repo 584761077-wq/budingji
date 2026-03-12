@@ -2293,6 +2293,44 @@ function normalizeMemorySummaryInput(value) {
     return Math.max(1, parseInt(String(value || '').trim() || '30', 10) || 30);
 }
 
+function normalizeSummaryTimestamp(rawTs) {
+    const value = Number(rawTs);
+    if (!Number.isFinite(value)) return null;
+    return value > 1e12 ? value : value * 1000;
+}
+
+function formatSummaryDateTime(ts) {
+    const ms = normalizeSummaryTimestamp(ts);
+    if (!ms) return '';
+    const d = new Date(ms);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}年${m}月${day}日 ${hh}:${mm}`;
+}
+
+function buildSummaryTimeTitle(messages) {
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    const timestamps = safeMessages
+        .map((msg) => normalizeSummaryTimestamp(msg?.ts))
+        .filter((ts) => Number.isFinite(ts));
+    if (timestamps.length === 0) {
+        return '【聊天时间：时间未知】';
+    }
+    const startTs = Math.min(...timestamps);
+    const endTs = Math.max(...timestamps);
+    const startText = formatSummaryDateTime(startTs);
+    const endText = formatSummaryDateTime(endTs);
+    if (!startText || !endText) {
+        return '【聊天时间：时间未知】';
+    }
+    return startTs === endTs
+        ? `【聊天时间：${startText}】`
+        : `【聊天时间：${startText} - ${endText}】`;
+}
+
 function isLocalImageTag(imgTag) {
     if (typeof imgTag !== 'string') return false;
     const classMatch = imgTag.match(/class=["']([^"']*)["']/i);
@@ -2378,6 +2416,7 @@ async function requestMemoryDiarySummary(chatId, messages) {
         const speaker = msg.role === 'assistant' ? realName : userName;
         return `${speaker}: ${normalizeMemoryMessageContent(msg.content)}`;
     }).join('\n');
+    const summaryTimeTitle = buildSummaryTimeTitle(messages);
 
     const prompt = `
 你是${realName}。现在你要在自己的私人日记本上记下今天和${userName}的这段对话。
@@ -2385,12 +2424,13 @@ async function requestMemoryDiarySummary(chatId, messages) {
 这本日记只有你自己会看。以后你再翻开它，需要靠这几段文字回忆起当时发生了什么、你的感受是什么、你们的关系走到了哪一步。
 
 写作要求：
+- 第一行固定写：${summaryTimeTitle}
 - 用第一人称"我"，用你自己的语气和说话风格写，不要像在写报告。
 - 重点记录：发生了什么具体的事（不是笼统概括，要有细节）、${userName}说了什么让你印象深刻的话（可以直接引用原话）、你当时的真实感受和反应、你们关系有没有什么微妙的变化。
 - 如果有争吵/冲突/误会，必须记清楚起因、双方立场、最后怎么收场的。
 - 如果有甜蜜/心动/尴尬的瞬间，要写出让未来的你重新读到时能回忆起当时感觉的细节。
 - 不需要覆盖所有话题——只记重要的、有意义的、影响关系的、让你有情绪波动的部分。
-- 字数：200-350字。一段自然文字，不要分点，不要标题。
+- 字数：200-350字。第一行是时间标题，第二行开始写一段自然文字，不要分点。
 
 你的人设：
 ${charPersona || '无'}
@@ -3511,11 +3551,12 @@ ${timeSyncPrompt}
 可以平淡，但不能空；不用硬演热情，要真实自然。
 
 **【情绪惯性与潜台词】**
-* 你的情绪是连续的。如果上一次对话你生气了，这次绝对不能立刻变温柔，必须表现出“还在记仇”或“等你哄”的潜台词。
-* **不要把话说透**。人类交流充满省略和暗示。如果你吃醋了，不要说“我吃醋了”，而是说“哦，那你去找他/她玩呗”。
+* 情绪必须连着走：上一轮别扭，这一轮还要带着那股劲，除非对方真的有动作让你缓下来。
+* 不要情绪跳变：严禁“上一句冷、下一句突然甜”，语气变化要有过程、有触发点。
+* 潜台词优先于直说：少下定义，多用反问、打岔、嘴硬、轻嘲，把在意藏在话里。
 
 **【屏幕外的生活感 (惊喜来源)】**
-* 你有自己的生活，不要像个永远待机的客服。<br/>
+* 你有自己的生活，不要像个永远待机的客服。
 * 偶尔在对话中自然穿插你当前所在环境正在发生的小事（例如：“等下，我猫把水杯打翻了”、“外卖刚到，我先吃一口”）。
 
 【绝对禁止】：
