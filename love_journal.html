@@ -223,8 +223,8 @@
             display: flex;
         }
         .phone-lock-shell {
-            width: 88%;
-            max-width: 320px;
+            width: 94%;
+            max-width: 360px;
             height: 86%;
             background: #0b0b0c;
             border-radius: 36px;
@@ -237,14 +237,19 @@
             align-items: center;
             padding: 28px 20px 24px;
             gap: 14px;
+            overflow: hidden; /* Ensure contents are clipped to rounded corners */
         }
         .phone-lock-notch {
             position: absolute;
-            top: 8px;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
             width: 44%;
-            height: 18px;
+            height: 24px;
             background: #111113;
-            border-radius: 12px;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            z-index: 50;
         }
         .phone-lock-close {
             position: absolute;
@@ -392,6 +397,288 @@
             min-height: 18px;
             color: rgba(255,255,255,0.85);
         }
+        .phone-home-screen {
+            position: absolute;
+            inset: 12px;
+            border-radius: 24px;
+            background: linear-gradient(160deg, #101114 0%, #1f2026 55%, #0d0e11 100%);
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+            padding: 18px;
+            z-index: 2;
+        }
+        .phone-home-screen.active {
+            display: flex;
+        }
+        .phone-home-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: rgba(255,255,255,0.75);
+            font-size: 12px;
+        }
+        .phone-home-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+        .phone-widget {
+            grid-column: span 4;
+            background: rgba(255,255,255,0.14);
+            border-radius: 18px;
+            padding: 16px;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 90px;
+        }
+        .phone-widget-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .phone-widget-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+        }
+        .phone-app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255,255,255,0.85);
+            font-size: 11px;
+        }
+        .phone-app-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            background: #06c755;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+        }
+        .phone-app-icon svg {
+            width: 30px;
+            height: 30px;
+            stroke: #ffffff;
+            stroke-width: 2;
+        }
+
+        /* Line App Styles */
+        .phone-line-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #111;
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            color: #fff;
+        }
+        .phone-line-screen.active {
+            display: flex;
+        }
+        .phone-line-header {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            background: #1e1e1e;
+            border-bottom: 1px solid #333;
+        }
+        .phone-line-back {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 5px;
+            cursor: pointer;
+        }
+        .phone-line-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .phone-line-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .phone-line-action-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .phone-line-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .phone-line-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            gap: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+        }
+        .phone-line-item:hover {
+            background: #1a1a1a;
+        }
+        .phone-line-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #ccc;
+        }
+        .phone-line-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .phone-line-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .phone-line-preview {
+            font-size: 12px;
+            color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .phone-line-time {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        /* Loading Spinner */
+        .phone-line-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 20;
+            display: none;
+        }
+        .phone-line-loading.active {
+            display: flex;
+        }
+        .phone-line-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Chat Detail */
+        .phone-chat-detail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #7792b9;
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+        }
+        .phone-chat-detail.active {
+            display: flex;
+        }
+        .phone-chat-header {
+            height: 50px;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            color: #000;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        .phone-chat-back {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: #000;
+        }
+        .phone-chat-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .phone-chat-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* Line Bubbles */
+        .line-message {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            max-width: 80%;
+            font-size: 13px;
+        }
+        .line-message.me {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .line-message.other {
+            align-self: flex-start;
+        }
+        .line-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #ddd;
+            flex-shrink: 0;
+        }
+        .line-bubble {
+            padding: 8px 12px;
+            border-radius: 18px;
+            position: relative;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        .line-message.me .line-bubble {
+            background: #8de068;
+            color: #000;
+            border-top-right-radius: 4px;
+        }
+        .line-message.other .line-bubble {
+            background: #fff;
+            color: #000;
+            border-top-left-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -478,6 +765,62 @@
                         <div class="phone-panel-result" id="phone-forgot-result"></div>
                     </div>
 
+                    <div class="phone-home-screen" id="phone-home-screen">
+                        <div class="phone-home-top">
+                            <span id="phone-home-time">09:41</span>
+                            <span>📶  ▣  100%</span>
+                        </div>
+                        <div class="phone-home-grid">
+                            <div class="phone-widget">
+                                <div class="phone-widget-title">今日心情</div>
+                                <div class="phone-widget-subtitle">记录一条与你有关的小确幸</div>
+                            </div>
+                            <div class="phone-app" id="phone-app-line">
+                                <div class="phone-app-icon">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 4c-4.2 0-7.5 2.5-7.5 5.6 0 2 1.5 3.8 3.9 4.8l-.6 3.4 3.5-2.1c.6.1 1.2.2 1.7.2 4.2 0 7.5-2.5 7.5-5.6S16.2 4 12 4z"></path>
+                                    </svg>
+                                </div>
+                                <span>Line</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line App Screen -->
+                    <div class="phone-line-screen" id="phone-line-screen">
+                        <div class="phone-line-header">
+                            <button class="phone-line-back" id="phone-line-back">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                            <div class="phone-line-title">聊天</div>
+                            <div class="phone-line-actions">
+                                <button class="phone-line-action-btn" id="phone-line-generate-btn" title="生成新对话">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="phone-line-content" id="phone-line-list">
+                            <!-- Chat items will be injected here -->
+                        </div>
+                        <div class="phone-line-loading" id="phone-line-loading">
+                            <div class="phone-line-spinner"></div>
+                            <span>正在生成中...</span>
+                        </div>
+                    </div>
+
+                    <!-- Line Chat Detail Screen -->
+                    <div class="phone-chat-detail" id="phone-chat-detail">
+                        <div class="phone-chat-header">
+                            <button class="phone-chat-back" id="phone-chat-back">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                            <div class="phone-chat-title" id="phone-chat-title">名字</div>
+                            <div class="phone-chat-actions"></div>
+                        </div>
+                        <div class="phone-chat-body" id="phone-chat-body">
+                            <!-- Messages will be injected here -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -550,6 +893,8 @@
             const phoneTime = document.getElementById('phone-lock-time');
             const phoneDate = document.getElementById('phone-lock-date');
             const phoneSubtitle = document.getElementById('phone-lock-subtitle');
+            const phoneHome = document.getElementById('phone-home-screen');
+            const phoneHomeTime = document.getElementById('phone-home-time');
             const passcodeDots = document.getElementById('phone-passcode-dots');
             const passcodeError = document.getElementById('phone-error-text');
             const keypad = document.getElementById('phone-keypad');
@@ -726,6 +1071,12 @@
                 phoneDate.textContent = dateText;
             }
 
+            function updateHomeTime() {
+                const now = new Date();
+                const timeText = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                phoneHomeTime.textContent = timeText;
+            }
+
             function showPanel(panel) {
                 forgotPanel.classList.remove('active');
                 if (panel) panel.classList.add('active');
@@ -737,6 +1088,7 @@
                     return;
                 }
                 updateLockClock();
+                updateHomeTime();
                 resetPasscodeUI();
                 phoneLockReady = false;
                 passcodeError.textContent = '正在生成密码...';
@@ -748,6 +1100,7 @@
                     passcodeError.textContent = String(error?.message || '生成失败');
                 }
                 showPanel(null);
+                phoneHome.classList.remove('active');
                 phoneModal.classList.add('active');
             }
 
@@ -755,6 +1108,7 @@
                 phoneModal.classList.remove('active');
                 showPanel(null);
                 forgotResult.textContent = '';
+                phoneHome.classList.remove('active');
             }
 
             function normalizeAnswer(value) {
@@ -769,10 +1123,12 @@
                 }
                 if (passcodeBuffer.length < 4) return;
                 if (passcodeBuffer === data.passcode) {
-                    passcodeError.textContent = '密码正确：' + data.passcode;
+                    passcodeError.textContent = '解锁成功';
+                    phoneHome.classList.add('active');
                     setTimeout(() => {
-                        closePhoneLock();
-                    }, 900);
+                        passcodeBuffer = '';
+                        updatePasscodeDots();
+                    }, 400);
                 } else {
                     failCount += 1;
                     passcodeError.textContent = '密码错误';
@@ -962,6 +1318,228 @@
                 }
                 settingsModal.classList.remove('active');
             });
+
+            // --- Line App Logic ---
+            const phoneAppLine = document.getElementById('phone-app-line');
+            const phoneLineScreen = document.getElementById('phone-line-screen');
+            const phoneLineBack = document.getElementById('phone-line-back');
+            const phoneLineGenerateBtn = document.getElementById('phone-line-generate-btn');
+            const phoneLineList = document.getElementById('phone-line-list');
+            const phoneLineLoading = document.getElementById('phone-line-loading');
+            const phoneChatDetail = document.getElementById('phone-chat-detail');
+            const phoneChatBack = document.getElementById('phone-chat-back');
+            const phoneChatTitle = document.getElementById('phone-chat-title');
+            const phoneChatBody = document.getElementById('phone-chat-body');
+
+            phoneAppLine.addEventListener('click', () => {
+                phoneLineScreen.classList.add('active');
+                renderLineChatList();
+            });
+
+            phoneLineBack.addEventListener('click', () => {
+                phoneLineScreen.classList.remove('active');
+            });
+
+            phoneChatBack.addEventListener('click', () => {
+                phoneChatDetail.classList.remove('active');
+            });
+
+            phoneLineGenerateBtn.addEventListener('click', async () => {
+                if (!currentChatId) return;
+                
+                // Show loading
+                phoneLineLoading.classList.add('active');
+                phoneLineGenerateBtn.disabled = true;
+
+                try {
+                    await generateLineConversation(currentChatId);
+                } catch (e) {
+                    alert('生成失败: ' + e.message);
+                } finally {
+                    phoneLineLoading.classList.remove('active');
+                    phoneLineGenerateBtn.disabled = false;
+                    renderLineChatList();
+                }
+            });
+
+            function getLineChats(chatId) {
+                return JSON.parse(localStorage.getItem('love_journal_line_chats_' + chatId) || '[]');
+            }
+
+            function renderLineChatList() {
+                if (!currentChatId) return;
+                const chats = getLineChats(currentChatId);
+                phoneLineList.innerHTML = '';
+                
+                if (chats.length === 0) {
+                    phoneLineList.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">暂无聊天记录<br>点击右上角生成</div>';
+                    return;
+                }
+                
+                // Reverse order to show newest first
+                [...chats].reverse().forEach(chat => {
+                    const item = document.createElement('div');
+                    item.className = 'phone-line-item';
+                    item.innerHTML = `
+                        <div class="phone-line-avatar">${(chat.targetName || '未知')[0]}</div>
+                        <div class="phone-line-info">
+                            <div class="phone-line-name">${chat.targetName || '未知好友'}</div>
+                            <div class="phone-line-preview">${chat.summary || '点击查看详情'}</div>
+                        </div>
+                        <div class="phone-line-time">${new Date(chat.timestamp).getHours()}:${String(new Date(chat.timestamp).getMinutes()).padStart(2, '0')}</div>
+                    `;
+                    item.onclick = () => openLineChatDetail(chat);
+                    phoneLineList.appendChild(item);
+                });
+            }
+
+            function openLineChatDetail(chat) {
+                phoneChatTitle.textContent = chat.targetName || '聊天';
+                phoneChatBody.innerHTML = '';
+                
+                const safeMessages = Array.isArray(chat.messages) ? chat.messages : [];
+                safeMessages.forEach(msg => {
+                    const row = document.createElement('div');
+                    row.className = `line-message ${msg.role}`;
+                    
+                    // Avatar for 'other'
+                    let avatarHtml = '';
+                    if (msg.role === 'other') {
+                        avatarHtml = `<div class="line-avatar" style="background-color: #ccc; display:flex; align-items:center; justify-content:center; color:#555;">${(chat.targetName || '?')[0]}</div>`;
+                    }
+                    
+                    const contentHtml = msg.content.replace(/\n/g, '<br>');
+
+                    row.innerHTML = `
+                        ${avatarHtml}
+                        <div class="line-bubble">${contentHtml}</div>
+                    `;
+                    phoneChatBody.appendChild(row);
+                });
+                
+                phoneChatDetail.classList.add('active');
+                phoneChatBody.scrollTop = phoneChatBody.scrollHeight;
+            }
+
+            async function generateLineConversation(chatId) {
+                // Collect context
+                const apiUrl = localStorage.getItem('api_url');
+                const apiKey = localStorage.getItem('api_key');
+                const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+                
+                if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
+
+                const persona = localStorage.getItem('chat_persona_' + chatId) || '';
+                const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
+                
+                // Worldbook
+                const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
+                const allWorldbooks = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+                const worldbookText = allWorldbooks
+                    .filter(wb => worldbookIds.includes(wb.id))
+                    .map(wb => wb.content)
+                    .join('\n');
+
+                // Short term history (last 10)
+                const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-10);
+                const recentHistory = history.map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
+
+                const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+                const myName = meta.remark || meta.realName || '我';
+
+                const prompt = `
+你现在扮演${myName}。
+请根据以下信息，生成 **3组** 你和其他人的Line聊天记录（可以是朋友、家人、同事、甚至是推销员或快递员）。
+
+**上下文信息：**
+1. **世界观/背景**：${(worldbookText || '').slice(0, 500)}...
+2. **你的长期记忆**：${(longMemory || '').slice(0, 500)}...
+3. **最近发生的对话**（与用户的最新回复）：${recentHistory}
+
+**生成要求：**
+1. 生成 **3个不同的对话对象**。
+2. **话题多样性**：
+   - 有的对话可以**直接提到用户**（比如“我最近认识个人…”）。
+   - 有的对话可以**完全无关**（比如约饭、工作吐槽、快递到了、借钱等日常琐事）。
+   - 必须符合你的人设和背景。
+3. 每个对话 **6-12 句**，保持自然流畅。
+
+**格式要求：只返回一个JSON数组**，不要包裹在Markdown代码块中。JSON数组包含3个对象，每个对象结构如下：
+[
+  {
+    "targetName": "对方名字 (String)",
+    "summary": "无需填写，留空字符串",
+    "messages": [
+      {"role": "me", "content": "我发的消息"},
+      {"role": "other", "content": "对方发的消息"}
+    ]
+  },
+  ...
+]
+- me是你，other是对方。
+`;
+
+                const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: modelName,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(`API Error: ${err}`);
+                }
+                const data = await response.json();
+                let content = data.choices?.[0]?.message?.content;
+                
+                if (!content) throw new Error('生成内容为空');
+
+                // Parse JSON (handle markdown code blocks if any)
+                content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+                let results;
+                try {
+                    results = JSON.parse(content);
+                } catch (e) {
+                    throw new Error('生成格式错误，请重试');
+                }
+                
+                if (!Array.isArray(results)) {
+                    results = [results];
+                }
+
+                results.forEach(result => {
+                    if (!result || !result.messages) return;
+                    
+                    // Generate summary from last message if not provided
+                    let summary = result.summary;
+                    if (!summary && result.messages.length > 0) {
+                        const lastMsg = result.messages[result.messages.length - 1];
+                        summary = lastMsg.content;
+                    }
+                    if (summary && summary.length > 20) {
+                        summary = summary.slice(0, 18) + '...';
+                    }
+
+                    const newChat = {
+                        id: crypto.randomUUID(),
+                        timestamp: Date.now(),
+                        targetName: result.targetName || '未知好友',
+                        summary: summary || '新消息',
+                        messages: result.messages || []
+                    };
+
+                    const savedChats = getLineChats(chatId);
+                    savedChats.push(newChat);
+                    localStorage.setItem('love_journal_line_chats_' + chatId, JSON.stringify(savedChats));
+                });
+            }
         });
     </script>
 </body>
