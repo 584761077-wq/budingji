@@ -644,7 +644,8 @@ body {
 
 #worldbook-binding-modal,
 #memory-settings-modal,
-#memory-token-settings-modal {
+#memory-token-settings-modal,
+#manual-summary-modal {
     z-index: 1200;
 }
 

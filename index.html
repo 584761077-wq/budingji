@@ -955,7 +955,7 @@
                                 <span class="slider round"></span>
                             </label>
                         </div>
-                        <button class="memory-summary-btn" id="run-memory-summary-btn">立即自动总结</button>
+                        <button class="memory-summary-btn" id="run-memory-summary-btn">手动总结</button>
                     </div>
                     <div class="settings-card memory-diary-card">
                         <h3 class="card-title">日记</h3>
@@ -1018,6 +1018,31 @@
                     <div class="memory-diary-note-body">
                         <div id="memory-diary-detail-view" class="memory-diary-note-text"></div>
                         <textarea id="memory-diary-detail-content" class="memory-diary-note-editor" style="display: none;"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="app-modal" id="manual-summary-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-manual-summary">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">手动总结</h2>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card">
+                        <div class="memory-limit-row">
+                             <label id="manual-summary-info" style="font-weight: normal; color: #666; font-size: 0.9rem; width: 100%;">加载中...</label>
+                        </div>
+                        <div class="memory-limit-row">
+                            <label for="manual-summary-start">起始条数</label>
+                            <input type="number" id="manual-summary-start" class="candy-input memory-limit-input" placeholder="1">
+                        </div>
+                        <div class="memory-limit-row">
+                            <label for="manual-summary-end">结束条数</label>
+                            <input type="number" id="manual-summary-end" class="candy-input memory-limit-input" placeholder="50">
+                        </div>
+                        <button class="memory-summary-btn" id="start-manual-summary-btn" style="margin-top: 15px;">开始总结</button>
                     </div>
                 </div>
             </div>

@@ -2499,6 +2499,39 @@ async function runManualSummary(chatId, batchSize) {
     return content;
 }
 
+async function runRangeSummary(chatId, start, end) {
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    if (!Array.isArray(history) || history.length === 0) {
+        throw new Error('当前没有可总结的聊天记录');
+    }
+    
+    // Validate range
+    if (start < 1) start = 1;
+    if (end > history.length) end = history.length;
+    if (start > end) {
+         throw new Error('起始条数不能大于结束条数');
+    }
+
+    // Convert 1-based index to 0-based index for slice
+    const startIndex = start - 1;
+    const endIndex = end;
+
+    const messages = history.slice(startIndex, endIndex);
+    if (messages.length === 0) {
+        throw new Error('选定范围内没有消息');
+    }
+
+    const content = await createMemoryDiaryEntry(chatId, messages);
+    
+    // Update cursor if we summarized past the current cursor
+    const currentCursor = ensureSummaryCursor(chatId);
+    if (endIndex > currentCursor) {
+        localStorage.setItem(getSummaryCursorKey(chatId), String(endIndex));
+    }
+    
+    return content;
+}
+
 async function runAutoSummaryBatches(chatId, batchSize) {
     const normalizedBatch = normalizeMemorySummaryInput(batchSize);
     let summarized = 0;
@@ -5457,26 +5490,66 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         });
     }
 
+    const manualSummaryModal = document.getElementById('manual-summary-modal');
+    const closeManualSummaryBtn = document.getElementById('close-manual-summary');
+    const startManualSummaryBtn = document.getElementById('start-manual-summary-btn');
+    const manualSummaryInfo = document.getElementById('manual-summary-info');
+    const manualSummaryStartInput = document.getElementById('manual-summary-start');
+    const manualSummaryEndInput = document.getElementById('manual-summary-end');
+
     if (runSummaryBtn) {
-        runSummaryBtn.addEventListener('click', async () => {
+        runSummaryBtn.addEventListener('click', () => {
             const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
-            const batchSize = normalizeMemorySummaryInput(summaryInput.value);
-            summaryInput.value = String(batchSize);
-            localStorage.setItem(getSummaryLimitKey(chatId), String(batchSize));
+            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const cursor = ensureSummaryCursor(chatId);
+            const total = history.length;
 
-            const originalText = runSummaryBtn.textContent;
-            runSummaryBtn.textContent = '总结中...';
-            runSummaryBtn.disabled = true;
-
-            try {
-                await runManualSummary(chatId, batchSize);
-                renderDiaryList(chatId);
-            } catch (error) {
-                showApiErrorModal(error.message || '自动总结失败');
-            } finally {
-                runSummaryBtn.textContent = originalText;
-                runSummaryBtn.disabled = false;
+            if (manualSummaryInfo) {
+                manualSummaryInfo.textContent = `共 ${total} 条消息，已总结至第 ${cursor} 条`;
             }
+
+            const batchSize = normalizeMemorySummaryInput(summaryInput.value);
+            const suggestStart = cursor + 1;
+            const suggestEnd = Math.min(total, cursor + batchSize);
+            
+            if (manualSummaryStartInput) manualSummaryStartInput.value = suggestStart <= total ? suggestStart : (total > 0 ? total : 1);
+            if (manualSummaryEndInput) manualSummaryEndInput.value = suggestEnd > 0 ? suggestEnd : batchSize;
+
+            openAppModal(manualSummaryModal);
+        });
+    }
+
+    if (closeManualSummaryBtn) {
+        closeManualSummaryBtn.addEventListener('click', () => {
+            closeAppModal(manualSummaryModal);
+        });
+    }
+
+    if (startManualSummaryBtn) {
+        startManualSummaryBtn.addEventListener('click', async () => {
+             const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+             const start = parseInt(manualSummaryStartInput.value, 10);
+             const end = parseInt(manualSummaryEndInput.value, 10);
+             
+             if (isNaN(start) || isNaN(end)) {
+                 showApiErrorModal('请输入有效的数字');
+                 return;
+             }
+ 
+             const originalText = startManualSummaryBtn.textContent;
+             startManualSummaryBtn.textContent = '总结中...';
+             startManualSummaryBtn.disabled = true;
+ 
+             try {
+                 await runRangeSummary(chatId, start, end);
+                 renderDiaryList(chatId);
+                 closeAppModal(manualSummaryModal);
+             } catch (error) {
+                 showApiErrorModal(error.message || '总结失败');
+             } finally {
+                 startManualSummaryBtn.textContent = originalText;
+                 startManualSummaryBtn.disabled = false;
+             }
         });
     }
 
