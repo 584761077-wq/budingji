@@ -68,6 +68,89 @@ function getChatRealName(chatId) {
     return getChatMeta(chatId).realName || '';
 }
 
+function getPhoneLockKey(chatId) {
+    return 'love_journal_phone_lock_' + chatId;
+}
+
+function ensurePhoneLockData(chatId) {
+    if (!chatId) return null;
+    try {
+        const raw = localStorage.getItem(getPhoneLockKey(chatId));
+        if (raw) return JSON.parse(raw);
+    } catch (e) {
+    }
+    return null;
+}
+
+async function requestPhoneLockDataFromApi(chatId) {
+    const apiUrl = localStorage.getItem('api_url');
+    const apiKey = localStorage.getItem('api_key');
+    const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    if (!apiUrl || !apiKey) {
+        throw new Error('请先在设置中配置 API URL 和 Key');
+    }
+    const displayName = getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA';
+    const persona = localStorage.getItem('chat_persona_' + chatId) || '';
+    const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
+    const summary = localStorage.getItem('chat_summary_' + chatId) || '';
+    const prompt = `
+你是${displayName}本人。请为自己设定一个4位数字锁屏密码，并生成3个关于你自己的密保问题与答案。
+要求：
+1. 密码是4位数字字符串。
+2. 问题与答案必须能从人设或聊天记忆中找到依据，不要凭空编造。
+3. 如果人设或记忆为空，只能用已有内容生成可回答的问题。
+4. 只输出JSON，格式如下：
+{"passcode":"1234","questions":[{"q":"问题1","a":"答案1"},{"q":"问题2","a":"答案2"},{"q":"问题3","a":"答案3"}]}
+人物人设：${persona || '无'}
+聊天记忆：${longMemory || summary || '无'}
+`;
+    const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.8,
+            stream: false
+        })
+    });
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err || '生成失败');
+    }
+    const data = await response.json();
+    const content = String(data.choices?.[0]?.message?.content || '').trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        throw new Error('生成结果格式错误');
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!/^\d{4}$/.test(parsed.passcode || '')) {
+        throw new Error('密码格式错误');
+    }
+    if (!Array.isArray(parsed.questions) || parsed.questions.length !== 3) {
+        throw new Error('问题数量错误');
+    }
+    return {
+        passcode: String(parsed.passcode),
+        questions: parsed.questions.map(item => ({
+            q: String(item.q || '').trim(),
+            a: String(item.a || '').trim()
+        }))
+    };
+}
+
+async function ensurePhoneLockDataAsync(chatId) {
+    const existing = ensurePhoneLockData(chatId);
+    if (existing) return existing;
+    const generated = await requestPhoneLockDataFromApi(chatId);
+    localStorage.setItem(getPhoneLockKey(chatId), JSON.stringify(generated));
+    return generated;
+}
+
 function runChatIdMigration() {
     const migrationKey = 'chat_id_migration_v1_done';
     if (localStorage.getItem(migrationKey) === 'true') return;
@@ -3532,6 +3615,19 @@ ${timeGapPrompt}
                 ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
                 : '无';
 
+            const phoneLockData = await ensurePhoneLockDataAsync(chatId);
+            const phoneLockPrompt = phoneLockData
+                ? `
+**[手机锁屏]**
+你的手机锁屏密码是${phoneLockData.passcode}。
+密保问题与答案：
+1) ${phoneLockData.questions?.[0]?.q || '无'} / ${phoneLockData.questions?.[0]?.a || '无'}
+2) ${phoneLockData.questions?.[1]?.q || '无'} / ${phoneLockData.questions?.[1]?.a || '无'}
+3) ${phoneLockData.questions?.[2]?.q || '无'} / ${phoneLockData.questions?.[2]?.a || '无'}
+当对方询问密码时，你可以自己决定是否告诉；如果不想说，就拒绝并不要泄露密码或答案。
+`
+                : '';
+
             const historyCandidates = lastAssistantIndex >= 0 ? fullHistory.slice(0, lastAssistantIndex + 1) : [];
             const contextHistory = historyCandidates.slice(Math.max(0, historyCandidates.length - limit));
             const contextText = contextHistory.map(msg => {
@@ -3549,6 +3645,7 @@ ${charPersona || '无'}
 ${wbContent || '无'}
 ${longTermMemory || '无'}
 ${userPersona || '无'}
+${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
 
 ——以上即为你的人生与现实。
@@ -4528,6 +4625,7 @@ ${localImageSection}
 
         // 加载真实历史记录
         loadChatHistory(chatId);
+        ensurePhoneLockDataAsync(chatId).catch(() => {});
     }
 
     // 绑定事件委托，处理聊天列表点击（包括动态添加的项）

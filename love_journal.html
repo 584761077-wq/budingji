@@ -193,6 +193,205 @@
             z-index: 10;
             display: none; /* Hidden by default until loaded */
         }
+        .love-journal-phone-btn {
+            position: absolute;
+            left: 18px;
+            top: 65%;
+            width: 40px;
+            height: 40px;
+            color: rgba(29, 29, 31, 0.6);
+            z-index: 6;
+            background: transparent;
+            border: none;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .phone-lock-modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(6px);
+        }
+        .phone-lock-modal.active {
+            display: flex;
+        }
+        .phone-lock-shell {
+            width: 88%;
+            max-width: 320px;
+            height: 86%;
+            background: #0b0b0c;
+            border-radius: 36px;
+            border: 6px solid #111113;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            position: relative;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 28px 20px 24px;
+            gap: 14px;
+        }
+        .phone-lock-notch {
+            position: absolute;
+            top: 8px;
+            width: 44%;
+            height: 18px;
+            background: #111113;
+            border-radius: 12px;
+        }
+        .phone-lock-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.14);
+            color: #ffffff;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .phone-lock-header {
+            text-align: center;
+            margin-top: 18px;
+        }
+        .phone-lock-time {
+            font-size: 34px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .phone-lock-date {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            margin-top: 4px;
+        }
+        .phone-lock-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .phone-lock-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            margin-top: -6px;
+        }
+        .phone-passcode-dots {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .phone-passcode-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.7);
+            background: transparent;
+        }
+        .phone-passcode-dot.filled {
+            background: #ffffff;
+        }
+        .phone-error-text {
+            min-height: 16px;
+            font-size: 12px;
+            color: #ffb4b4;
+        }
+        .phone-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            width: 100%;
+            margin-top: 6px;
+        }
+        .phone-keypad-btn {
+            width: 100%;
+            height: 48px;
+            border-radius: 14px;
+            border: none;
+            background: rgba(255,255,255,0.12);
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .phone-keypad-btn:active {
+            background: rgba(255,255,255,0.24);
+        }
+        .phone-forgot-btn {
+            margin-top: 6px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.8);
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+        }
+        .phone-forgot-btn.visible {
+            display: block;
+        }
+        .phone-panel {
+            position: absolute;
+            inset: 24px 18px;
+            background: #1c1c1e;
+            border-radius: 20px;
+            padding: 18px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        .phone-panel.active {
+            display: flex;
+        }
+        .phone-panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .phone-panel-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            text-align: center;
+        }
+        .phone-input {
+            width: 100%;
+            border-radius: 12px;
+            border: none;
+            padding: 10px 12px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.12);
+            color: #ffffff;
+            outline: none;
+        }
+        .phone-panel-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #ffffff;
+            color: #0b0b0c;
+        }
+        .phone-panel-secondary {
+            background: rgba(255,255,255,0.12);
+            color: #ffffff;
+        }
+        .phone-panel-result {
+            font-size: 13px;
+            text-align: center;
+            min-height: 18px;
+            color: rgba(255,255,255,0.85);
+        }
     </style>
 </head>
 <body>
@@ -225,6 +424,63 @@
                 </div>
             </div>
             
+            <button class="love-journal-phone-btn" id="love-journal-phone-btn" aria-label="打开手机">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="7" y="2.5" width="10" height="19" rx="2"></rect>
+                    <line x1="11" y1="18.5" x2="13" y2="18.5"></line>
+                </svg>
+            </button>
+
+            <div id="phone-lock-modal" class="phone-lock-modal">
+                <div class="phone-lock-shell">
+                    <div class="phone-lock-notch"></div>
+                    <button class="phone-lock-close" id="phone-lock-close" aria-label="关闭">×</button>
+                    <div class="phone-lock-header">
+                        <div class="phone-lock-time" id="phone-lock-time">09:41</div>
+                        <div class="phone-lock-date" id="phone-lock-date">星期一 1月1日</div>
+                    </div>
+                    <div class="phone-lock-title">输入密码</div>
+                    <div class="phone-lock-subtitle" id="phone-lock-subtitle">这个角色的手机</div>
+                    <div class="phone-passcode-dots" id="phone-passcode-dots">
+                        <div class="phone-passcode-dot"></div>
+                        <div class="phone-passcode-dot"></div>
+                        <div class="phone-passcode-dot"></div>
+                        <div class="phone-passcode-dot"></div>
+                    </div>
+                    <div class="phone-error-text" id="phone-error-text"></div>
+                    <div class="phone-keypad" id="phone-keypad">
+                        <button class="phone-keypad-btn" data-digit="1">1</button>
+                        <button class="phone-keypad-btn" data-digit="2">2</button>
+                        <button class="phone-keypad-btn" data-digit="3">3</button>
+                        <button class="phone-keypad-btn" data-digit="4">4</button>
+                        <button class="phone-keypad-btn" data-digit="5">5</button>
+                        <button class="phone-keypad-btn" data-digit="6">6</button>
+                        <button class="phone-keypad-btn" data-digit="7">7</button>
+                        <button class="phone-keypad-btn" data-digit="8">8</button>
+                        <button class="phone-keypad-btn" data-digit="9">9</button>
+                        <button class="phone-keypad-btn" data-action="empty"></button>
+                        <button class="phone-keypad-btn" data-digit="0">0</button>
+                        <button class="phone-keypad-btn" data-action="delete">⌫</button>
+                    </div>
+                    <button class="phone-forgot-btn" id="phone-forgot-btn">忘记密码？</button>
+
+                    <div class="phone-panel" id="phone-forgot-panel">
+                        <div class="phone-panel-title">验证身份</div>
+                        <div class="phone-panel-subtitle">答对三个问题会显示密码</div>
+                        <div id="phone-question-1"></div>
+                        <input class="phone-input" id="phone-answer-1" placeholder="输入答案">
+                        <div id="phone-question-2"></div>
+                        <input class="phone-input" id="phone-answer-2" placeholder="输入答案">
+                        <div id="phone-question-3"></div>
+                        <input class="phone-input" id="phone-answer-3" placeholder="输入答案">
+                        <button class="phone-panel-btn" id="phone-forgot-submit">提交</button>
+                        <button class="phone-panel-btn phone-panel-secondary" id="phone-forgot-cancel">返回</button>
+                        <div class="phone-panel-result" id="phone-forgot-result"></div>
+                    </div>
+
+                </div>
+            </div>
+
             <div id="character-avatar-display" class="character-avatar-display"></div>
 
             <div class="content-area">
@@ -288,9 +544,35 @@
             const closeSelectionBtn = document.getElementById('close-selection-btn');
             const headerTitle = document.querySelector('.header-title');
             const characterAvatarDisplay = document.getElementById('character-avatar-display');
-
+            const phoneBtn = document.getElementById('love-journal-phone-btn');
+            const phoneModal = document.getElementById('phone-lock-modal');
+            const phoneCloseBtn = document.getElementById('phone-lock-close');
+            const phoneTime = document.getElementById('phone-lock-time');
+            const phoneDate = document.getElementById('phone-lock-date');
+            const phoneSubtitle = document.getElementById('phone-lock-subtitle');
+            const passcodeDots = document.getElementById('phone-passcode-dots');
+            const passcodeError = document.getElementById('phone-error-text');
+            const keypad = document.getElementById('phone-keypad');
+            const forgotBtn = document.getElementById('phone-forgot-btn');
+            const forgotPanel = document.getElementById('phone-forgot-panel');
+            const forgotResult = document.getElementById('phone-forgot-result');
+            const forgotSubmit = document.getElementById('phone-forgot-submit');
+            const forgotCancel = document.getElementById('phone-forgot-cancel');
+            const questionEls = [
+                document.getElementById('phone-question-1'),
+                document.getElementById('phone-question-2'),
+                document.getElementById('phone-question-3')
+            ];
+            const answerEls = [
+                document.getElementById('phone-answer-1'),
+                document.getElementById('phone-answer-2'),
+                document.getElementById('phone-answer-3')
+            ];
             let tempWallpaper = null;
             let currentChatId = localStorage.getItem('love_journal_current_chat_id') || null;
+            let passcodeBuffer = '';
+            let failCount = 0;
+            let phoneLockReady = false;
 
             // Load saved state
             loadCurrentCharacter();
@@ -301,6 +583,7 @@
                     loveJournalBg.style.backgroundImage = '';
                     placeholderContent.style.display = 'block';
                     characterAvatarDisplay.style.display = 'none';
+                    phoneSubtitle.textContent = '这个角色的手机';
                     return;
                 }
 
@@ -308,6 +591,7 @@
                 const meta = JSON.parse(localStorage.getItem('chat_meta_' + currentChatId) || '{}');
                 const displayName = meta.remark || meta.realName || '未知';
                 headerTitle.textContent = displayName + ' 的恋爱志';
+                phoneSubtitle.textContent = displayName + ' 的手机';
                 
                 const avatar = localStorage.getItem('chat_avatar_' + currentChatId);
                 if (avatar) {
@@ -326,6 +610,210 @@
                 } else {
                     loveJournalBg.style.backgroundImage = '';
                     placeholderContent.style.display = 'block';
+                }
+            }
+
+            function getPhoneLockKey(chatId) {
+                return 'love_journal_phone_lock_' + chatId;
+            }
+
+            function getPhoneLockData() {
+                if (!currentChatId) return null;
+                try {
+                    const raw = localStorage.getItem(getPhoneLockKey(currentChatId));
+                    if (!raw) return null;
+                    return JSON.parse(raw);
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function savePhoneLockData(data) {
+                if (!currentChatId) return;
+                localStorage.setItem(getPhoneLockKey(currentChatId), JSON.stringify(data));
+            }
+
+            async function requestPhoneLockDataFromApi() {
+                const apiUrl = localStorage.getItem('api_url');
+                const apiKey = localStorage.getItem('api_key');
+                const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+                if (!apiUrl || !apiKey) {
+                    throw new Error('请先在设置中配置 API URL 和 Key');
+                }
+                const meta = JSON.parse(localStorage.getItem('chat_meta_' + currentChatId) || '{}');
+                const persona = localStorage.getItem('chat_persona_' + currentChatId) || '';
+                const longMemory = localStorage.getItem('chat_long_memory_' + currentChatId) || '';
+                const summary = localStorage.getItem('chat_summary_' + currentChatId) || '';
+                const displayName = meta.remark || meta.realName || 'TA';
+                const prompt = `
+你是${displayName}本人。请为自己设定一个4位数字锁屏密码，并生成3个关于你自己的密保问题与答案。
+要求：
+1. 密码是4位数字字符串。
+2. 问题与答案必须能从人设或聊天记忆中找到依据，不要凭空编造。
+3. 如果人设或记忆为空，只能用已有内容生成可回答的问题。
+4. 只输出JSON，格式如下：
+{"passcode":"1234","questions":[{"q":"问题1","a":"答案1"},{"q":"问题2","a":"答案2"},{"q":"问题3","a":"答案3"}]}
+人物人设：${persona || '无'}
+聊天记忆：${longMemory || summary || '无'}
+`;
+                const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: modelName,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.8,
+                        stream: false
+                    })
+                });
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(err || '生成失败');
+                }
+                const data = await response.json();
+                const content = String(data.choices?.[0]?.message?.content || '').trim();
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error('生成结果格式错误');
+                }
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (!/^\d{4}$/.test(parsed.passcode || '')) {
+                    throw new Error('密码格式错误');
+                }
+                if (!Array.isArray(parsed.questions) || parsed.questions.length !== 3) {
+                    throw new Error('问题数量错误');
+                }
+                return {
+                    passcode: String(parsed.passcode),
+                    questions: parsed.questions.map(item => ({
+                        q: String(item.q || '').trim(),
+                        a: String(item.a || '').trim()
+                    }))
+                };
+            }
+
+            async function ensurePhoneLockData() {
+                const existing = getPhoneLockData();
+                if (existing) return existing;
+                const generated = await requestPhoneLockDataFromApi();
+                savePhoneLockData(generated);
+                return generated;
+            }
+
+            function resetPasscodeUI() {
+                passcodeBuffer = '';
+                failCount = 0;
+                passcodeError.textContent = '';
+                forgotBtn.classList.remove('visible');
+                updatePasscodeDots();
+            }
+
+            function updatePasscodeDots() {
+                const dots = passcodeDots.querySelectorAll('.phone-passcode-dot');
+                dots.forEach((dot, index) => {
+                    dot.classList.toggle('filled', index < passcodeBuffer.length);
+                });
+            }
+
+            function updateLockClock() {
+                const now = new Date();
+                const timeText = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const dateText = now.toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' });
+                phoneTime.textContent = timeText;
+                phoneDate.textContent = dateText;
+            }
+
+            function showPanel(panel) {
+                forgotPanel.classList.remove('active');
+                if (panel) panel.classList.add('active');
+            }
+
+            async function openPhoneLock() {
+                if (!currentChatId) {
+                    alert('请先选择一个恋爱对象');
+                    return;
+                }
+                updateLockClock();
+                resetPasscodeUI();
+                phoneLockReady = false;
+                passcodeError.textContent = '正在生成密码...';
+                try {
+                    await ensurePhoneLockData();
+                    phoneLockReady = true;
+                    passcodeError.textContent = '';
+                } catch (error) {
+                    passcodeError.textContent = String(error?.message || '生成失败');
+                }
+                showPanel(null);
+                phoneModal.classList.add('active');
+            }
+
+            function closePhoneLock() {
+                phoneModal.classList.remove('active');
+                showPanel(null);
+                forgotResult.textContent = '';
+            }
+
+            function normalizeAnswer(value) {
+                return String(value || '').trim().toLowerCase();
+            }
+
+            function verifyPasscode() {
+                const data = getPhoneLockData();
+                if (!data) {
+                    passcodeError.textContent = '这个角色还没有设置密码';
+                    return;
+                }
+                if (passcodeBuffer.length < 4) return;
+                if (passcodeBuffer === data.passcode) {
+                    passcodeError.textContent = '密码正确：' + data.passcode;
+                    setTimeout(() => {
+                        closePhoneLock();
+                    }, 900);
+                } else {
+                    failCount += 1;
+                    passcodeError.textContent = '密码错误';
+                    passcodeBuffer = '';
+                    updatePasscodeDots();
+                    if (failCount >= 3) {
+                        forgotBtn.classList.add('visible');
+                    }
+                }
+            }
+
+            async function bindQuestions() {
+                try {
+                    const data = await ensurePhoneLockData();
+                    if (!data) return;
+                    questionEls.forEach((el, index) => {
+                        el.textContent = data.questions[index]?.q || '';
+                    });
+                    answerEls.forEach((el) => {
+                        el.value = '';
+                    });
+                    forgotResult.textContent = '';
+                } catch (error) {
+                    forgotResult.textContent = String(error?.message || '生成失败');
+                }
+            }
+
+            async function handleForgotSubmit() {
+                try {
+                    const data = await ensurePhoneLockData();
+                    if (!data) return;
+                    const correct = data.questions.every((item, index) => {
+                        return normalizeAnswer(answerEls[index].value) === normalizeAnswer(item.a);
+                    });
+                    if (correct) {
+                        forgotResult.textContent = '密码是：' + data.passcode;
+                    } else {
+                        forgotResult.textContent = '答案不正确';
+                    }
+                } catch (error) {
+                    forgotResult.textContent = String(error?.message || '生成失败');
                 }
             }
 
@@ -401,6 +889,42 @@
                     wallpaperPreview.style.backgroundImage = '';
                 }
                 tempWallpaper = null; // Reset temp
+            });
+
+            phoneBtn.addEventListener('click', openPhoneLock);
+            phoneCloseBtn.addEventListener('click', closePhoneLock);
+            phoneModal.addEventListener('click', (event) => {
+                if (event.target === phoneModal) {
+                    closePhoneLock();
+                }
+            });
+
+            keypad.addEventListener('click', (event) => {
+                const target = event.target.closest('.phone-keypad-btn');
+                if (!target || forgotPanel.classList.contains('active') || !phoneLockReady) return;
+                const digit = target.getAttribute('data-digit');
+                const action = target.getAttribute('data-action');
+                if (digit) {
+                    if (passcodeBuffer.length < 4) {
+                        passcodeBuffer += digit;
+                        updatePasscodeDots();
+                        if (passcodeBuffer.length === 4) {
+                            verifyPasscode();
+                        }
+                    }
+                } else if (action === 'delete') {
+                    passcodeBuffer = passcodeBuffer.slice(0, -1);
+                    updatePasscodeDots();
+                }
+            });
+
+            forgotBtn.addEventListener('click', () => {
+                bindQuestions();
+                showPanel(forgotPanel);
+            });
+            forgotSubmit.addEventListener('click', handleForgotSubmit);
+            forgotCancel.addEventListener('click', () => {
+                showPanel(null);
             });
 
             // Close Settings (without saving if not saved)
