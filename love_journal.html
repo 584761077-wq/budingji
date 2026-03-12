@@ -30,6 +30,70 @@
         .app-modal.active {
             display: flex;
         }
+        /* Selection Modal Styles */
+        .selection-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 150;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .selection-modal.active {
+            display: flex;
+        }
+        .selection-card {
+            width: 80%;
+            max-width: 320px;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-height: 70%;
+            display: flex;
+            flex-direction: column;
+        }
+        .selection-header {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+        .friend-list {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .friend-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 12px;
+        }
+        .friend-item:hover {
+            background: #f5f5f7;
+        }
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e5e5ea;
+            object-fit: cover;
+        }
+        .friend-name {
+            font-size: 16px;
+            color: #1d1d1f;
+            font-weight: 500;
+        }
+        
         .settings-header {
             display: flex;
             justify-content: space-between;
@@ -114,6 +178,21 @@
             position: relative;
             z-index: 5; /* Above background but below header */
         }
+        .character-avatar-display {
+            position: absolute;
+            top: 100px; /* Below header area */
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            background-color: #e5e5ea;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 10;
+            display: none; /* Hidden by default until loaded */
+        }
     </style>
 </head>
 <body>
@@ -121,7 +200,7 @@
         <div class="phone-frame" style="background: #fff; position: relative; overflow: hidden;"> 
             <!-- Background Layer -->
             <div id="love-journal-bg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background-size: cover; background-position: center; transition: background-image 0.3s ease;"></div>
-
+ 
             <div class="love-journal-header">
                 <div class="header-left">
                     <button class="header-btn" onclick="window.location.href='index.html'">
@@ -146,6 +225,8 @@
                 </div>
             </div>
             
+            <div id="character-avatar-display" class="character-avatar-display"></div>
+
             <div class="content-area">
                 <!-- Placeholder Content -->
                 <div id="placeholder-content" style="text-align: center; color: #86868b; margin-top: 100px;">
@@ -153,6 +234,17 @@
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                     </svg>
                     <p>记录每一个心动瞬间</p>
+                </div>
+            </div>
+
+            <!-- Character Selection Modal -->
+            <div id="selection-modal" class="selection-modal">
+                <div class="selection-card">
+                    <div class="selection-header">选择恋爱对象</div>
+                    <div class="friend-list" id="friend-list-container">
+                        <!-- Friend items will be injected here -->
+                    </div>
+                    <button id="close-selection-btn" style="margin-top: 15px; padding: 12px; border: none; background: #f2f2f2; border-radius: 12px; font-weight: 600; cursor: pointer;">取消</button>
                 </div>
             </div>
 
@@ -182,7 +274,9 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const settingsBtn = document.getElementById('settings-btn');
+            const switchBtn = document.getElementById('switch-btn');
             const settingsModal = document.getElementById('settings-modal');
+            const selectionModal = document.getElementById('selection-modal');
             const closeSettingsBtn = document.getElementById('close-settings-btn');
             const saveSettingsBtn = document.getElementById('save-settings-btn');
             const uploadWallpaperBtn = document.getElementById('upload-wallpaper-btn');
@@ -190,21 +284,115 @@
             const wallpaperPreview = document.getElementById('wallpaper-preview');
             const loveJournalBg = document.getElementById('love-journal-bg');
             const placeholderContent = document.getElementById('placeholder-content');
+            const friendListContainer = document.getElementById('friend-list-container');
+            const closeSelectionBtn = document.getElementById('close-selection-btn');
+            const headerTitle = document.querySelector('.header-title');
+            const characterAvatarDisplay = document.getElementById('character-avatar-display');
 
             let tempWallpaper = null;
+            let currentChatId = localStorage.getItem('love_journal_current_chat_id') || null;
 
-            // Load saved wallpaper
-            const savedWallpaper = localStorage.getItem('love_journal_wallpaper');
-            if (savedWallpaper) {
-                loveJournalBg.style.backgroundImage = `url('${savedWallpaper}')`;
-                placeholderContent.style.display = 'none'; // Hide placeholder if wallpaper exists
+            // Load saved state
+            loadCurrentCharacter();
+
+            function loadCurrentCharacter() {
+                if (!currentChatId) {
+                    headerTitle.textContent = '恋爱志';
+                    loveJournalBg.style.backgroundImage = '';
+                    placeholderContent.style.display = 'block';
+                    characterAvatarDisplay.style.display = 'none';
+                    return;
+                }
+
+                // Get character name and avatar
+                const meta = JSON.parse(localStorage.getItem('chat_meta_' + currentChatId) || '{}');
+                const displayName = meta.remark || meta.realName || '未知';
+                headerTitle.textContent = displayName + ' 的恋爱志';
+                
+                const avatar = localStorage.getItem('chat_avatar_' + currentChatId);
+                if (avatar) {
+                    characterAvatarDisplay.style.backgroundImage = `url('${avatar}')`;
+                } else {
+                    // Default avatar SVG
+                    characterAvatarDisplay.style.backgroundImage = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662'/%3E%3C/svg%3E")`;
+                }
+                characterAvatarDisplay.style.display = 'block';
+
+                // Load character specific wallpaper
+                const savedWallpaper = localStorage.getItem('love_journal_wallpaper_' + currentChatId);
+                if (savedWallpaper) {
+                    loveJournalBg.style.backgroundImage = `url('${savedWallpaper}')`;
+                    placeholderContent.style.display = 'none';
+                } else {
+                    loveJournalBg.style.backgroundImage = '';
+                    placeholderContent.style.display = 'block';
+                }
+            }
+
+            // Open Selection Modal
+            switchBtn.addEventListener('click', () => {
+                renderFriendList();
+                selectionModal.classList.add('active');
+            });
+
+            closeSelectionBtn.addEventListener('click', () => {
+                selectionModal.classList.remove('active');
+            });
+
+            function renderFriendList() {
+                friendListContainer.innerHTML = '';
+                
+                // Get friend list from localStorage (same logic as main app)
+                let friendList = [];
+                try {
+                    friendList = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
+                } catch (e) {
+                    friendList = [];
+                }
+
+                if (friendList.length === 0) {
+                    friendListContainer.innerHTML = '<div style="text-align:center; color:#86868b; padding: 20px;">暂无好友</div>';
+                    return;
+                }
+
+                friendList.forEach(chatId => {
+                    // Fetch details
+                    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+                    const displayName = meta.remark || meta.realName || '未知';
+                    const avatar = localStorage.getItem('chat_avatar_' + chatId);
+
+                    const item = document.createElement('div');
+                    item.className = 'friend-item';
+                    item.onclick = () => {
+                        currentChatId = chatId;
+                        localStorage.setItem('love_journal_current_chat_id', chatId);
+                        loadCurrentCharacter();
+                        selectionModal.classList.remove('active');
+                    };
+
+                    const img = document.createElement('img');
+                    img.className = 'friend-avatar';
+                    img.src = avatar || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%238e8e93\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'10\'/%3E%3Cpath d=\'M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662\'/%3E%3C/svg%3E';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'friend-name';
+                    nameSpan.textContent = displayName;
+
+                    item.appendChild(img);
+                    item.appendChild(nameSpan);
+                    friendListContainer.appendChild(item);
+                });
             }
 
             // Open Settings
             settingsBtn.addEventListener('click', () => {
+                if (!currentChatId) {
+                    alert('请先选择一个恋爱对象');
+                    return;
+                }
                 settingsModal.classList.add('active');
-                // Always fetch the latest saved wallpaper
-                const currentSavedWallpaper = localStorage.getItem('love_journal_wallpaper');
+                // Always fetch the latest saved wallpaper for THIS character
+                const currentSavedWallpaper = localStorage.getItem('love_journal_wallpaper_' + currentChatId);
                 if (currentSavedWallpaper) {
                     wallpaperPreview.style.backgroundImage = `url('${currentSavedWallpaper}')`;
                     wallpaperPreview.style.display = 'block';
@@ -243,8 +431,8 @@
 
             // Save Settings
             saveSettingsBtn.addEventListener('click', () => {
-                if (tempWallpaper) {
-                    localStorage.setItem('love_journal_wallpaper', tempWallpaper);
+                if (tempWallpaper && currentChatId) {
+                    localStorage.setItem('love_journal_wallpaper_' + currentChatId, tempWallpaper);
                     loveJournalBg.style.backgroundImage = `url('${tempWallpaper}')`;
                     placeholderContent.style.display = 'none'; // Hide placeholder on save
                 }
