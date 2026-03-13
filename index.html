@@ -631,7 +631,7 @@
                                     </div>
                                     <span>贴图</span>
                                 </div>
-                                <div class="line-mid-item">
+                                <div class="line-mid-item" id="theme-icon-btn">
                                     <div class="line-mid-icon">
                                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
                                     </div>
@@ -1319,6 +1319,69 @@
                 </div>
             </div>
             <input type="file" id="sticker-import-input" accept=".txt,.md,.markdown,.docx" style="display: none;">
+            <div class="app-modal" id="theme-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-theme">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">主题</h2>
+                    <button class="header-btn save-btn" id="save-theme">保存</button>
+                </div>
+                <div class="app-content theme-content">
+                    <div class="theme-toolbar">
+                        <button class="toolbar-icon-btn" id="open-add-theme-modal" title="添加主题">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                    </div>
+                    <div class="theme-category-grid" id="theme-category-grid"></div>
+                    <div class="theme-detail-view" id="theme-detail-view" style="display: none;">
+                        <div class="theme-detail-header">
+                            <button class="theme-detail-back" id="theme-detail-back">返回</button>
+                            <span class="theme-detail-title" id="theme-detail-title"></span>
+                        </div>
+                        <textarea class="theme-css-preview" id="theme-css-preview" readonly></textarea>
+                    </div>
+                </div>
+                <div class="ins-modal-overlay" id="add-theme-overlay" style="display: none;">
+                    <div class="ins-modal">
+                        <div class="ins-modal-header">
+                            <h3>添加主题</h3>
+                            <button class="ins-modal-close" id="cancel-add-theme">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <div class="ins-modal-body">
+                            <div class="ins-input-group">
+                                <label>主题名称</label>
+                                <input type="text" id="theme-name-input" placeholder="例如：奶油粉">
+                            </div>
+                            <div class="ins-input-group">
+                                <label>自定义 CSS</label>
+                                <textarea id="theme-css-input" class="theme-css-input" placeholder=".chat-room {&#10;  background: #fff5f8;&#10;}"></textarea>
+                            </div>
+                        </div>
+                        <div class="ins-modal-footer">
+                            <button class="ins-btn-primary" id="confirm-add-theme">添加</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="ins-modal-overlay" id="theme-target-overlay" style="display: none;">
+                    <div class="ins-modal">
+                        <div class="ins-modal-header">
+                            <h3>绑定聊天角色</h3>
+                            <button class="ins-modal-close" id="cancel-theme-target">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <div class="ins-modal-body">
+                            <div class="theme-target-list" id="theme-target-list"></div>
+                        </div>
+                        <div class="ins-modal-footer">
+                            <button class="ins-btn-primary" id="save-theme-target">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 长按消息菜单 -->

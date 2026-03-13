@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     runMediaMigration();
     initLineApp();
     initStickerApp();
+    initThemeApp();
     initAppearanceSettings();
     initTopProfileWidget();
 });
@@ -2580,6 +2581,232 @@ function initStickerApp() {
     }
 }
 
+function initThemeApp() {
+    const themeBtn = document.getElementById('theme-icon-btn');
+    const modal = document.getElementById('theme-modal');
+    const closeBtn = document.getElementById('close-theme');
+    const saveBtn = document.getElementById('save-theme');
+    const openAddBtn = document.getElementById('open-add-theme-modal');
+    const overlay = document.getElementById('add-theme-overlay');
+    const cancelAddBtn = document.getElementById('cancel-add-theme');
+    const confirmAddBtn = document.getElementById('confirm-add-theme');
+    const nameInput = document.getElementById('theme-name-input');
+    const cssInput = document.getElementById('theme-css-input');
+    const categoryGrid = document.getElementById('theme-category-grid');
+    const detailView = document.getElementById('theme-detail-view');
+    const detailBackBtn = document.getElementById('theme-detail-back');
+    const detailTitle = document.getElementById('theme-detail-title');
+    const cssPreview = document.getElementById('theme-css-preview');
+    const targetOverlay = document.getElementById('theme-target-overlay');
+    const cancelTargetBtn = document.getElementById('cancel-theme-target');
+    const saveTargetBtn = document.getElementById('save-theme-target');
+    const targetList = document.getElementById('theme-target-list');
+
+    if (!themeBtn || !modal) return;
+
+    const storageKey = 'theme_categories_v1';
+    const targetStorageKey = 'theme_category_targets_v1';
+    let activeTargetThemeId = null;
+    const escapeThemeHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const getThemes = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const setThemes = (themes) => localStorage.setItem(storageKey, JSON.stringify(themes));
+    const getTargetMap = () => JSON.parse(localStorage.getItem(targetStorageKey) || '{}');
+    const setTargetMap = (map) => localStorage.setItem(targetStorageKey, JSON.stringify(map));
+
+    const notifyThemeChanged = () => {
+        window.dispatchEvent(new CustomEvent('theme-binding-updated'));
+    };
+
+    const getChatTargets = () => {
+        const friends = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
+        const chats = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
+        const merged = [...friends, ...chats];
+        const unique = [];
+        const seen = new Set();
+        merged.forEach((chatId) => {
+            const trimmed = String(chatId || '').trim();
+            if (!trimmed || seen.has(trimmed)) return;
+            seen.add(trimmed);
+            const label = getChatDisplayName(trimmed) || getChatRealName(trimmed) || trimmed;
+            unique.push({ id: trimmed, label });
+        });
+        return [{ id: '我', label: '我' }, ...unique];
+    };
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    };
+
+    const openModal = () => {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+        renderThemes();
+        showThemeList();
+    };
+
+    const openAddModal = () => {
+        if (nameInput) nameInput.value = '';
+        if (cssInput) cssInput.value = '';
+        if (overlay) overlay.style.display = 'flex';
+    };
+
+    const closeAddModal = () => {
+        if (overlay) overlay.style.display = 'none';
+    };
+
+    const closeTargetModal = () => {
+        if (targetOverlay) targetOverlay.style.display = 'none';
+        activeTargetThemeId = null;
+    };
+
+    const showThemeList = () => {
+        if (detailView) detailView.style.display = 'none';
+        if (categoryGrid) categoryGrid.style.display = 'grid';
+    };
+
+    const showThemeDetail = (themeId) => {
+        const theme = getThemes().find((item) => item.id === themeId);
+        if (!theme) return;
+        if (detailTitle) detailTitle.textContent = theme.name;
+        if (cssPreview) cssPreview.value = String(theme.css || '').trim();
+        if (categoryGrid) categoryGrid.style.display = 'none';
+        if (detailView) detailView.style.display = 'flex';
+    };
+
+    const openTargetModal = (themeId) => {
+        if (!targetOverlay || !targetList) return;
+        activeTargetThemeId = themeId;
+        const targetMap = getTargetMap();
+        const selectedTargets = new Set(targetMap[themeId] || []);
+        const allTargets = getChatTargets();
+        targetList.innerHTML = allTargets.map((target) => `
+            <label class="theme-target-item">
+                <span class="theme-target-name">${escapeThemeHtml(target.label)}</span>
+                <input type="checkbox" class="theme-target-checkbox" value="${escapeThemeHtml(target.id)}" ${selectedTargets.has(target.id) ? 'checked' : ''}>
+            </label>
+        `).join('');
+        targetOverlay.style.display = 'flex';
+    };
+
+    const renderThemes = () => {
+        if (!categoryGrid) return;
+        const themes = getThemes();
+        if (themes.length === 0) {
+            categoryGrid.innerHTML = '<div class="theme-empty">还没有主题，先点上面的 + 添加</div>';
+            return;
+        }
+        categoryGrid.innerHTML = themes.map((theme) => {
+            const css = String(theme.css || '').trim();
+            const snippet = css ? css.slice(0, 140) : '暂无 CSS 内容';
+            return `
+                <div class="theme-folder-card" data-id="${escapeThemeHtml(theme.id)}">
+                    <div class="theme-folder-title">${escapeThemeHtml(theme.name)}</div>
+                    <pre class="theme-folder-snippet">${escapeThemeHtml(snippet)}</pre>
+                    <div class="theme-folder-footer">
+                        <button class="theme-folder-view-btn" type="button" data-view-id="${escapeThemeHtml(theme.id)}">查看</button>
+                        <button class="theme-folder-add-btn" type="button" data-bind-id="${escapeThemeHtml(theme.id)}">添加</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    themeBtn.addEventListener('click', openModal);
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (saveBtn) saveBtn.addEventListener('click', closeModal);
+
+    if (openAddBtn) openAddBtn.addEventListener('click', openAddModal);
+    if (cancelAddBtn) cancelAddBtn.addEventListener('click', closeAddModal);
+
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeAddModal();
+        });
+    }
+
+    if (confirmAddBtn) {
+        confirmAddBtn.addEventListener('click', () => {
+            const name = nameInput ? nameInput.value.trim() : '';
+            const css = cssInput ? cssInput.value.trim() : '';
+            if (!name) {
+                showApiErrorModal('请填写主题名称');
+                return;
+            }
+            if (!css) {
+                showApiErrorModal('请粘贴自定义 CSS');
+                return;
+            }
+            const themes = getThemes();
+            const existing = themes.find((item) => item.name === name);
+            if (existing) {
+                existing.css = css;
+            } else {
+                themes.unshift({
+                    id: crypto.randomUUID(),
+                    name,
+                    css
+                });
+            }
+            setThemes(themes);
+            renderThemes();
+            closeAddModal();
+            notifyThemeChanged();
+        });
+    }
+
+    if (categoryGrid) {
+        categoryGrid.addEventListener('click', (e) => {
+            const bindBtn = e.target.closest('.theme-folder-add-btn');
+            if (bindBtn) {
+                const themeId = String(bindBtn.dataset.bindId || '').trim();
+                if (themeId) openTargetModal(themeId);
+                return;
+            }
+            const viewBtn = e.target.closest('.theme-folder-view-btn');
+            if (viewBtn) {
+                const themeId = String(viewBtn.dataset.viewId || '').trim();
+                if (themeId) showThemeDetail(themeId);
+                return;
+            }
+            const card = e.target.closest('.theme-folder-card');
+            if (!card) return;
+            const themeId = String(card.dataset.id || '').trim();
+            if (themeId) showThemeDetail(themeId);
+        });
+    }
+
+    if (detailBackBtn) detailBackBtn.addEventListener('click', showThemeList);
+    if (cancelTargetBtn) cancelTargetBtn.addEventListener('click', closeTargetModal);
+
+    if (targetOverlay) {
+        targetOverlay.addEventListener('click', (e) => {
+            if (e.target === targetOverlay) closeTargetModal();
+        });
+    }
+
+    if (saveTargetBtn) {
+        saveTargetBtn.addEventListener('click', () => {
+            if (!activeTargetThemeId || !targetList) return;
+            const checkedTargets = Array.from(targetList.querySelectorAll('.theme-target-checkbox:checked')).map((input) => input.value);
+            const targetMap = getTargetMap();
+            targetMap[activeTargetThemeId] = checkedTargets;
+            setTargetMap(targetMap);
+            closeTargetModal();
+            notifyThemeChanged();
+        });
+    }
+}
+
 // 14. 角色卡导入功能 (JSON/PNG)
 function initCharacterImportLogic() {
     const importBtn = document.getElementById('import-character-btn');
@@ -3199,6 +3426,41 @@ function initChatRoomLogic() {
     const TIMESTAMP_INTERVAL_MS = 5 * 60 * 1000;
     const chatHistoryViewStates = {};
     let activeLoadMoreChatId = '';
+    const themeStorageKey = 'theme_categories_v1';
+    const themeTargetStorageKey = 'theme_category_targets_v1';
+    const themeStyleId = 'line-chat-theme-style';
+
+    function ensureThemeStyleTag() {
+        let styleTag = document.getElementById(themeStyleId);
+        if (styleTag) return styleTag;
+        styleTag = document.createElement('style');
+        styleTag.id = themeStyleId;
+        document.head.appendChild(styleTag);
+        return styleTag;
+    }
+
+    function clearChatTheme() {
+        const styleTag = ensureThemeStyleTag();
+        styleTag.textContent = '';
+    }
+
+    function applyChatTheme(chatId) {
+        const styleTag = ensureThemeStyleTag();
+        const themes = JSON.parse(localStorage.getItem(themeStorageKey) || '[]');
+        const targetMap = JSON.parse(localStorage.getItem(themeTargetStorageKey) || '{}');
+        const activeTheme = themes.find((theme) => {
+            const targetIds = targetMap[theme.id];
+            return Array.isArray(targetIds) && targetIds.includes(chatId);
+        });
+        styleTag.textContent = activeTheme ? String(activeTheme.css || '').trim() : '';
+    }
+
+    window.addEventListener('theme-binding-updated', () => {
+        if (!chatRoom || chatRoom.style.display === 'none') return;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        if (!chatId) return;
+        applyChatTheme(chatId);
+    });
 
     function updateSendButtonState(chatId) {
         if (!sendBtn) return;
@@ -5223,6 +5485,7 @@ ${localImageSection}
         chatRoomName.dataset.chatId = chatId;
         clearUnread(chatId);
         applyChatWallpaper(chatId);
+        applyChatTheme(chatId);
         
         chatRoom.style.display = 'flex';
         
@@ -5253,6 +5516,7 @@ ${localImageSection}
             if (chatRoom) {
                 chatRoom.style.display = 'none';
             }
+            clearChatTheme();
             exitMultiSelectMode();
             closeStickerMenu();
             clearPendingQuote();

@@ -536,3 +536,183 @@
     height: 18px;
     accent-color: #000000;
 }
+
+.theme-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.theme-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.theme-category-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.theme-folder-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+
+.theme-folder-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.theme-folder-snippet {
+    background: #f5f5f7;
+    border: 1px solid #e5e5ea;
+    border-radius: 10px;
+    min-height: 72px;
+    max-height: 72px;
+    padding: 8px 10px;
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #636366;
+    white-space: pre-wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.theme-folder-footer {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-folder-view-btn,
+.theme-folder-add-btn {
+    border: none;
+    border-radius: 10px;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.theme-folder-view-btn {
+    background: #e5e5ea;
+    color: #1d1d1f;
+    flex: 1;
+}
+
+.theme-folder-add-btn {
+    background: #1d1d1f;
+    color: #ffffff;
+}
+
+.theme-detail-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.theme-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.theme-detail-back {
+    border: none;
+    background: #e5e5ea;
+    color: #1d1d1f;
+    border-radius: 14px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.theme-detail-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.theme-css-preview,
+.theme-css-input {
+    width: 100%;
+    border: 1px solid #e5e5ea;
+    border-radius: 10px;
+    background: #f5f5f7;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 0.84rem;
+    color: #1d1d1f;
+    line-height: 1.5;
+}
+
+.theme-css-preview {
+    min-height: 240px;
+}
+
+.theme-css-input {
+    min-height: 160px;
+}
+
+.theme-css-preview:focus,
+.theme-css-input:focus {
+    border-color: #000000;
+    background: #ffffff;
+}
+
+.theme-target-list {
+    max-height: 260px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.theme-target-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f5f5f7;
+    border: 1px solid #e5e5ea;
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.theme-target-name {
+    font-size: 0.9rem;
+    color: #1d1d1f;
+    font-weight: 500;
+}
+
+.theme-target-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #000000;
+}
+
+.theme-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #8e8e93;
+    font-size: 0.9rem;
+    padding: 24px 10px;
+}
