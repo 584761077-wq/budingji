@@ -662,6 +662,10 @@ function initSettings() {
     const streamToggle = document.getElementById('stream-toggle');
     const tempSlider = document.getElementById('temperature-slider');
     const tempValue = document.getElementById('temp-value');
+    // 数据管理
+    const backupBtn = document.getElementById('backup-data-btn');
+    const importBtn = document.getElementById('import-data-btn');
+    const importFileInput = document.getElementById('import-data-file');
 
     // --- API 预设功能开始 ---
     const apiPresetSelect = document.getElementById('api-preset-select');
@@ -948,6 +952,88 @@ function initSettings() {
             fetchBtn.textContent = '拉取';
         }
     });
+
+    // 数据备份/导入
+    function collectAllLocalStorage() {
+        const storage = {};
+        for (let i = 0; i < localStorage.length; i += 1) {
+            const key = localStorage.key(i);
+            if (!key) continue;
+            try {
+                storage[key] = localStorage.getItem(key);
+            } catch (e) {
+                // skip
+            }
+        }
+        return {
+            __meta: {
+                app: 'budingji',
+                version: 1,
+                exportedAt: new Date().toISOString()
+            },
+            storage
+        };
+    }
+    function downloadJson(obj, filename) {
+        const dataStr = JSON.stringify(obj, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    function importFromObject(obj) {
+        const payload = obj && obj.storage && typeof obj.storage === 'object' ? obj.storage : obj;
+        if (!payload || typeof payload !== 'object') {
+            showApiErrorModal('导入的数据格式不正确');
+            return;
+        }
+        if (!confirm('导入将覆盖同名数据，确定继续吗？')) return;
+        Object.keys(payload).forEach((key) => {
+            const val = payload[key];
+            try {
+                localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+            } catch (e) {
+                // skip write errors
+            }
+        });
+        alert('导入完成，页面将刷新以应用新数据');
+        location.reload();
+    }
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => {
+            const data = collectAllLocalStorage();
+            const ts = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const filename = `budingji-backup-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.json`;
+            downloadJson(data, filename);
+        });
+    }
+    if (importBtn && importFileInput) {
+        importBtn.addEventListener('click', () => {
+            importFileInput.value = '';
+            importFileInput.click();
+        });
+        importFileInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const text = String(event.target?.result || '');
+                    const json = JSON.parse(text);
+                    importFromObject(json);
+                } catch (err) {
+                    showApiErrorModal('解析导入文件失败，请确认是有效的 JSON');
+                }
+            };
+            reader.readAsText(file, 'utf-8');
+        });
+    }
 }
 
 // 4. LINE App 功能
