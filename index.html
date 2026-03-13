@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat_styles.css">
     <link rel="stylesheet" href="worldbook_styles.css">
+    <link rel="stylesheet" href="love_journal.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -78,7 +79,7 @@
                             </div>
                             <span class="app-name">世界书</span>
                         </div>
-                        <div class="app-icon candy-box" onclick="window.location.href='love_journal.html'">
+                        <div class="app-icon candy-box" id="app-love-journal">
                             <div class="icon-inner">
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -398,6 +399,176 @@
             </div>
 
             <!-- LINE App Modal -->
+            <!-- 恋爱志页面 -->
+            <div class="app-modal" id="love-journal-modal" style="display: none;">
+                <div id="love-journal-bg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background-size: cover; background-position: center; transition: background-image 0.3s ease;"></div>
+                <div class="love-journal-header">
+                    <div class="header-left">
+                        <button class="header-btn" id="lj-back-btn" aria-label="返回">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                        </button>
+                    </div>
+                    <div class="header-title">恋爱志</div>
+                    <div class="header-right">
+                        <button class="header-btn" id="switch-btn" title="切换对象">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"></path>
+                            </svg>
+                        </button>
+                        <button class="header-btn" id="settings-btn" title="设置">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button class="love-journal-phone-btn" id="love-journal-phone-btn" aria-label="打开手机">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="7" y="2.5" width="10" height="19" rx="2"></rect>
+                        <line x1="11" y1="18.5" x2="13" y2="18.5"></line>
+                    </svg>
+                </button>
+
+                <div id="phone-lock-modal" class="phone-lock-modal">
+                    <div class="phone-lock-shell">
+                        <div class="phone-lock-notch"></div>
+                        <button class="phone-lock-close" id="phone-lock-close" aria-label="关闭">×</button>
+                        <div class="phone-lock-header">
+                            <div class="phone-lock-time" id="phone-lock-time">09:41</div>
+                            <div class="phone-lock-date" id="phone-lock-date">星期一 1月1日</div>
+                        </div>
+                        <div class="phone-lock-title">输入密码</div>
+                        <div class="phone-lock-subtitle" id="phone-lock-subtitle">这个角色的手机</div>
+                        <div class="phone-passcode-dots" id="phone-passcode-dots">
+                            <div class="phone-passcode-dot"></div>
+                            <div class="phone-passcode-dot"></div>
+                            <div class="phone-passcode-dot"></div>
+                            <div class="phone-passcode-dot"></div>
+                        </div>
+                        <div class="phone-error-text" id="phone-error-text"></div>
+                        <div class="phone-keypad" id="phone-keypad">
+                            <button class="phone-keypad-btn" data-digit="1">1</button>
+                            <button class="phone-keypad-btn" data-digit="2">2</button>
+                            <button class="phone-keypad-btn" data-digit="3">3</button>
+                            <button class="phone-keypad-btn" data-digit="4">4</button>
+                            <button class="phone-keypad-btn" data-digit="5">5</button>
+                            <button class="phone-keypad-btn" data-digit="6">6</button>
+                            <button class="phone-keypad-btn" data-digit="7">7</button>
+                            <button class="phone-keypad-btn" data-digit="8">8</button>
+                            <button class="phone-keypad-btn" data-digit="9">9</button>
+                            <button class="phone-keypad-btn" data-action="empty"></button>
+                            <button class="phone-keypad-btn" data-digit="0">0</button>
+                            <button class="phone-keypad-btn" data-action="delete">⌫</button>
+                        </div>
+                        <button class="phone-forgot-btn" id="phone-forgot-btn">忘记密码？</button>
+
+                        <div class="phone-panel" id="phone-forgot-panel">
+                            <div class="phone-panel-title">验证身份</div>
+                            <div class="phone-panel-subtitle">答对三个问题会显示密码</div>
+                            <div id="phone-question-1"></div>
+                            <input class="phone-input" id="phone-answer-1" placeholder="输入答案">
+                            <div id="phone-question-2"></div>
+                            <input class="phone-input" id="phone-answer-2" placeholder="输入答案">
+                            <div id="phone-question-3"></div>
+                            <input class="phone-input" id="phone-answer-3" placeholder="输入答案">
+                            <button class="phone-panel-btn" id="phone-forgot-submit">提交</button>
+                            <button class="phone-panel-btn phone-panel-secondary" id="phone-forgot-cancel">返回</button>
+                            <div class="phone-panel-result" id="phone-forgot-result"></div>
+                        </div>
+
+                        <div class="phone-home-screen" id="phone-home-screen">
+                            <div class="phone-home-top">
+                                <span id="phone-home-time">09:41</span>
+                                <span>📶  ▣  100%</span>
+                            </div>
+                            <div class="phone-home-grid">
+                                <div class="phone-widget">
+                                    <div class="phone-widget-title">今日心情</div>
+                                    <div class="phone-widget-subtitle">记录一条与你有关的小确幸</div>
+                                </div>
+                                <div class="phone-app" id="phone-app-line">
+                                    <div class="phone-app-icon">
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                            <path d="M12 4c-4.2 0-7.5 2.5-7.5 5.6 0 2 1.5 3.8 3.9 4.8l-.6 3.4 3.5-2.1c.6.1 1.2.2 1.7.2 4.2 0 7.5-2.5 7.5-5.6S16.2 4 12 4z"></path>
+                                        </svg>
+                                    </div>
+                                    <span>Line</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="phone-line-screen" id="phone-line-screen">
+                            <div class="phone-line-header">
+                                <button class="phone-line-back" id="phone-line-back">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                                <div class="phone-line-title">聊天</div>
+                                <div class="phone-line-actions">
+                                    <button class="phone-line-action-btn" id="phone-line-generate-btn" title="生成新对话">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="phone-line-content" id="phone-line-list"></div>
+                            <div class="phone-line-loading" id="phone-line-loading">
+                                <div class="phone-line-spinner"></div>
+                                <span>正在生成中...</span>
+                            </div>
+                        </div>
+
+                        <div class="phone-chat-detail" id="phone-chat-detail">
+                            <div class="phone-chat-header">
+                                <button class="phone-chat-back" id="phone-chat-back">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                                <div class="phone-chat-title" id="phone-chat-title">名字</div>
+                                <div class="phone-chat-actions"></div>
+                            </div>
+                            <div class="phone-chat-body" id="phone-chat-body"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="character-avatar-display" class="character-avatar-display"></div>
+
+                <div class="content-area">
+                    <div id="placeholder-content" style="text-align: center; color: #86868b; margin-top: 100px;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#e5e5ea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        <p>记录每一个心动瞬间</p>
+                    </div>
+                </div>
+
+                <div id="lj-selection-modal" class="selection-modal">
+                    <div class="selection-card">
+                        <div class="selection-header">选择恋爱对象</div>
+                        <div class="friend-list" id="friend-list-container"></div>
+                        <button id="close-selection-btn" style="margin-top: 15px; padding: 12px; border: none; background: #f2f2f2; border-radius: 12px; font-weight: 600; cursor: pointer;">取消</button>
+                    </div>
+                </div>
+
+                <div id="love-journal-settings-modal" class="app-modal">
+                    <div class="settings-header">
+                        <button class="header-btn" id="close-settings-btn">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                        </button>
+                        <div class="header-title">设置</div>
+                        <button class="header-btn" id="save-settings-btn" style="font-weight: bold; font-size: 16px;">保存</button>
+                    </div>
+                    <div class="settings-content">
+                        <div class="settings-group">
+                            <div class="settings-item">
+                                <span class="settings-label">更换壁纸</span>
+                                <input type="file" id="wallpaper-input" accept="image/*" style="display: none;">
+                                <button class="action-btn" id="upload-wallpaper-btn">选择图片</button>
+                            </div>
+                            <div id="wallpaper-preview" style="margin-top: 15px; width: 100%; height: 150px; background-color: #f2f2f2; border-radius: 8px; background-size: cover; background-position: center; display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="app-modal" id="line-modal">
                 <div class="line-app-container">
                     <!-- LINE Header (Top Bar) -->
@@ -1375,6 +1546,7 @@
 
     <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
     <script src="script.js"></script>
+    <script src="love_journal.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
