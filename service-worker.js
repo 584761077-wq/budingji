@@ -69,3 +69,37 @@ self.addEventListener('fetch', (event) => {
             })
     );
 });
+
+self.addEventListener('message', (event) => {
+    const type = event?.data?.type || '';
+    if (type === 'CHECK_CACHE') {
+        (async () => {
+            const cache = await caches.open(CACHE_NAME);
+            const results = [];
+            for (const url of ASSETS_TO_CACHE) {
+                const match = await cache.match(new Request(url, { cache: 'reload' }));
+                results.push({ url, cached: !!match });
+            }
+            if (event.ports && event.ports[0]) {
+                event.ports[0].postMessage({ cacheName: CACHE_NAME, results });
+            }
+        })();
+    } else if (type === 'FILL_MISSING') {
+        (async () => {
+            const cache = await caches.open(CACHE_NAME);
+            const missing = [];
+            for (const url of ASSETS_TO_CACHE) {
+                const match = await cache.match(new Request(url, { cache: 'reload' }));
+                if (!match) missing.push(url);
+            }
+            if (missing.length > 0) {
+                try {
+                    await cache.addAll(missing);
+                } catch (e) {}
+            }
+            if (event.ports && event.ports[0]) {
+                event.ports[0].postMessage({ filled: missing.length });
+            }
+        })();
+    }
+});

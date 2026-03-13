@@ -1084,6 +1084,37 @@ function initSettings() {
                 } else {
                     alert('当前已是最新版本');
                 }
+                const reg2 = await navigator.serviceWorker.getRegistration();
+                const controller = navigator.serviceWorker.controller || (reg2 && reg2.active);
+                if (!controller) {
+                    alert('需要刷新后再进行完整性自检');
+                    return;
+                }
+                const swRequest = (type) => new Promise((resolve) => {
+                    const ch = new MessageChannel();
+                    const timer = setTimeout(() => resolve(null), 7000);
+                    ch.port1.onmessage = (e) => {
+                        clearTimeout(timer);
+                        resolve(e.data);
+                    };
+                    controller.postMessage({ type }, [ch.port2]);
+                });
+                const checkRes = await swRequest('CHECK_CACHE');
+                if (!checkRes || !Array.isArray(checkRes.results)) {
+                    alert('完整性自检失败');
+                    return;
+                }
+                const missing = checkRes.results.filter(i => !i.cached).map(i => i.url);
+                if (missing.length > 0) {
+                    if (confirm(`发现缺失 ${missing.length} 个资源，是否修复并刷新？`)) {
+                        await swRequest('FILL_MISSING');
+                        window.location.reload();
+                    } else {
+                        alert('缺失资源：\n' + missing.join('\n'));
+                    }
+                } else {
+                    alert('缓存完整性正常');
+                }
             } catch (e) {
                 alert('更新检查失败');
             }
