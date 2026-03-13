@@ -76,7 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const avatar = localStorage.getItem('chat_avatar_' + currentChatId);
     if (characterAvatarDisplay) {
       if (avatar) {
-        characterAvatarDisplay.style.backgroundImage = `url('${avatar}')`;
+        if (typeof isMediaRef === 'function' && isMediaRef(avatar)) {
+          if (typeof mediaResolveRef === 'function') {
+            mediaResolveRef(avatar).then((url) => {
+              if (url) characterAvatarDisplay.style.backgroundImage = `url('${url}')`;
+            });
+          }
+        } else {
+          characterAvatarDisplay.style.backgroundImage = `url('${avatar}')`;
+        }
       } else {
         characterAvatarDisplay.style.backgroundImage =
           `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662'/%3E%3C/svg%3E")`;
@@ -319,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     friendList.forEach(chatId => {
       const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
       const displayName = meta.remark || meta.realName || '未知';
-      const avatar = localStorage.getItem('chat_avatar_' + chatId);
+      const avatarRef = localStorage.getItem('chat_avatar_' + chatId);
       const item = document.createElement('div');
       item.className = 'friend-item';
       item.onclick = () => {
@@ -330,7 +338,18 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       const img = document.createElement('img');
       img.className = 'friend-avatar';
-      img.src = avatar || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%238e8e93\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'10\'/%3E%3Cpath d=\'M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662\'/%3E%3C/svg%3E';
+      img.src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%238e8e93\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'10\'/%3E%3Cpath d=\'M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662\'/%3E%3C/svg%3E';
+      if (avatarRef) {
+        if (typeof isMediaRef === 'function' && isMediaRef(avatarRef)) {
+          if (typeof mediaResolveRef === 'function') {
+            mediaResolveRef(avatarRef).then((url) => {
+              if (url) img.src = url;
+            });
+          }
+        } else {
+          img.src = avatarRef;
+        }
+      }
       const nameSpan = document.createElement('span');
       nameSpan.className = 'friend-name';
       nameSpan.textContent = displayName;
@@ -614,4 +633,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-

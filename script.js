@@ -6733,7 +6733,7 @@ function initGlobalPersistence() {
         savedFriends.forEach(chatId => {
             const remark = getChatRemark(chatId);
             const realName = getChatRealName(chatId) || chatId;
-            const avatar = localStorage.getItem('chat_avatar_' + chatId);
+            const avatarRef = localStorage.getItem('chat_avatar_' + chatId);
             const displayName = remark || realName;
             
             const item = document.createElement('div');
@@ -6741,8 +6741,8 @@ function initGlobalPersistence() {
             item.dataset.chatId = chatId; // 关键：存储 chatId
             
             let avatarHtml = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
-            if (avatar) {
-                avatarHtml = `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            if (avatarRef && !isMediaRef(avatarRef)) {
+                avatarHtml = `<img src="${avatarRef}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
             }
             
             item.innerHTML = `
@@ -6752,6 +6752,14 @@ function initGlobalPersistence() {
                 <span>${displayName}</span>
             `;
             friendsListContainer.appendChild(item);
+            if (avatarRef && isMediaRef(avatarRef)) {
+                mediaResolveRef(avatarRef).then((url) => {
+                    const avatarDiv = item.querySelector('.subitem-avatar');
+                    if (avatarDiv && url) {
+                        avatarDiv.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    }
+                });
+            }
         });
     } else if (friendsListContainer) {
         // 如果没有保存过（第一次运行），则初始化 dataset.realName 为当前静态 HTML 的内容
@@ -6786,7 +6794,7 @@ function initGlobalPersistence() {
             savedChats.forEach(chatId => {
                 const remark = getChatRemark(chatId);
                 const realName = getChatRealName(chatId) || chatId;
-                const avatar = localStorage.getItem('chat_avatar_' + chatId);
+                const avatarRef = localStorage.getItem('chat_avatar_' + chatId);
                 const displayName = remark || realName;
                 
                 const item = document.createElement('div');
@@ -6795,8 +6803,8 @@ function initGlobalPersistence() {
                 const unreadCount = getUnreadCount(chatId);
                 
                 let avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
-                if (avatar) {
-                    avatarHtml = `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                if (avatarRef && !isMediaRef(avatarRef)) {
+                    avatarHtml = `<img src="${avatarRef}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
                 }
 
                 item.innerHTML = `
@@ -6810,6 +6818,14 @@ function initGlobalPersistence() {
                     <div class="chat-item-unread ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount > 99 ? '99+' : unreadCount}</div>
                 `;
                 chatListContainer.appendChild(item);
+                if (avatarRef && isMediaRef(avatarRef)) {
+                    mediaResolveRef(avatarRef).then((url) => {
+                        const avatarDiv = item.querySelector('.chat-item-avatar');
+                        if (avatarDiv && url) {
+                            avatarDiv.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                        }
+                    });
+                }
             });
         }
     }
