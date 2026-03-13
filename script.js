@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initApiErrorModal();
     initSettings();
     runChatIdMigration();
+    runMediaMigration();
     initLineApp();
     initStickerApp();
     initAppearanceSettings();
@@ -27,6 +28,146 @@ function parseChatMeta(raw) {
         };
     } catch (error) {
         return { realName: '', remark: '' };
+    }
+}
+
+const mediaDBName = 'budingji-media';
+const mediaStoreName = 'images';
+const mediaUrlCache = new Map();
+function openMediaDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(mediaDBName, 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(mediaStoreName)) {
+                db.createObjectStore(mediaStoreName, { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error('db error'));
+    });
+}
+function dataUrlToBlob(dataUrl) {
+    const idx = dataUrl.indexOf(',');
+    if (idx === -1) return null;
+    const header = dataUrl.slice(0, idx);
+    const base64 = dataUrl.slice(idx + 1);
+    const mimeMatch = header.match(/data:([^;]+);base64/i);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const bin = atob(base64);
+    const len = bin.length;
+    const u8 = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) u8[i] = bin.charCodeAt(i);
+    return new Blob([u8], { type: mime });
+}
+function isMediaRef(value) {
+    return typeof value === 'string' && value.startsWith('media:');
+}
+async function mediaPut(id, blob) {
+    const db = await openMediaDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([mediaStoreName], 'readwrite');
+        const store = tx.objectStore(mediaStoreName);
+        store.put({ id, blob });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error || new Error('tx error'));
+    });
+}
+async function mediaGet(id) {
+    const db = await openMediaDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([mediaStoreName], 'readonly');
+        const store = tx.objectStore(mediaStoreName);
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+        req.onerror = () => reject(req.error || new Error('get error'));
+    });
+}
+async function mediaSaveFromDataUrl(lsKey, dataUrl) {
+    const blob = dataUrlToBlob(dataUrl);
+    if (!blob) throw new Error('invalid data url');
+    const id = encodeURIComponent(lsKey);
+    await mediaPut(id, blob);
+    return 'media:' + id;
+}
+async function mediaResolveRef(ref) {
+    if (!isMediaRef(ref)) return ref;
+    const id = ref.slice(6);
+    if (mediaUrlCache.has(id)) return mediaUrlCache.get(id);
+    const blob = await mediaGet(id);
+    if (!blob) return '';
+    const url = URL.createObjectURL(blob);
+    mediaUrlCache.set(id, url);
+    return url;
+}
+async function runMediaMigration() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        keys.push(k);
+    }
+    for (const key of keys) {
+        if (!key) continue;
+        const isTarget = key === 'top_profile_avatar'
+            || key === 'hero_stand_image'
+            || key.startsWith('chat_avatar_')
+            || key.startsWith('chat_user_avatar_')
+            || key.startsWith('chat_wallpaper_')
+            || key.startsWith('friend_feed_wallpaper_');
+        if (!isTarget) continue;
+        let val = null;
+        try { val = localStorage.getItem(key); } catch (e) {}
+        if (typeof val === 'string' && val.startsWith('data:')) {
+            try {
+                const ref = await mediaSaveFromDataUrl(key, val);
+                localStorage.setItem(key, ref);
+            } catch (e) {}
+        }
+    }
+    // Migrate data URLs inside chat histories to media refs
+    for (const key of keys) {
+        if (!key || !key.startsWith('chat_history_')) continue;
+        let raw = null;
+        try { raw = localStorage.getItem(key); } catch (e) {}
+        if (!raw) continue;
+        let history = [];
+        try { history = JSON.parse(raw) || []; } catch (e) { history = []; }
+        if (!Array.isArray(history) || history.length === 0) continue;
+        let changed = false;
+        for (let i = 0; i < history.length; i += 1) {
+            const msg = history[i];
+            if (!msg || typeof msg.content !== 'string') continue;
+            if (!/src=["']data:image\//i.test(msg.content)) continue;
+            const temp = document.createElement('div');
+            temp.innerHTML = msg.content;
+            const imgs = temp.querySelectorAll('img');
+            let innerChanged = false;
+            let idx = 0;
+            for (const img of imgs) {
+                const src = String(img.getAttribute('src') || '').trim();
+                if (!/^data:image\//i.test(src)) continue;
+                try {
+                    const idBase = `${key}_${msg.id || i}_${idx}`;
+                    const ref = await mediaSaveFromDataUrl(idBase, src);
+                    img.setAttribute('src', ref);
+                    const cls = String(img.getAttribute('class') || '').trim();
+                    if (!/\bchat-inline-local-image\b/i.test(cls)) {
+                        img.setAttribute('class', (cls ? cls + ' ' : '') + 'chat-inline-local-image');
+                    }
+                    innerChanged = true;
+                } catch (e) {
+                    // skip this image
+                }
+                idx += 1;
+            }
+            if (innerChanged) {
+                msg.content = temp.innerHTML;
+                changed = true;
+            }
+        }
+        if (changed) {
+            try { localStorage.setItem(key, JSON.stringify(history)); } catch (e) {}
+        }
     }
 }
 
@@ -278,23 +419,33 @@ function initTopProfileWidget() {
     // --- Avatar Logic ---
     const savedAvatar = localStorage.getItem('top_profile_avatar');
     if (savedAvatar) {
-        avatarContainer.innerHTML = `<img src="${savedAvatar}" alt="Profile Avatar">`;
+        if (isMediaRef(savedAvatar)) {
+            mediaResolveRef(savedAvatar).then((url) => {
+                if (url) avatarContainer.innerHTML = `<img src="${url}" alt="Profile Avatar">`;
+            });
+        } else {
+            avatarContainer.innerHTML = `<img src="${savedAvatar}" alt="Profile Avatar">`;
+        }
     }
 
     avatarContainer.addEventListener('click', () => {
         avatarInput.click();
     });
 
-    avatarInput.addEventListener('change', (e) => {
+    avatarInput.addEventListener('change', async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             const result = event.target.result;
-            if (result) {
-                localStorage.setItem('top_profile_avatar', result);
-                avatarContainer.innerHTML = `<img src="${result}" alt="Profile Avatar">`;
+            if (typeof result === 'string' && result) {
+                try {
+                    const ref = await mediaSaveFromDataUrl('top_profile_avatar', result);
+                    localStorage.setItem('top_profile_avatar', ref);
+                    const url = await mediaResolveRef(ref);
+                    if (url) avatarContainer.innerHTML = `<img src="${url}" alt="Profile Avatar">`;
+                } catch (e) {}
             }
         };
         reader.readAsDataURL(file);
@@ -570,6 +721,15 @@ function initStandWidget() {
     const renderStand = () => {
         const value = localStorage.getItem('hero_stand_image') || defaultStandImage;
         const placeholder = standFigure.querySelector('.stand-placeholder');
+        if (value && isMediaRef(value)) {
+            mediaResolveRef(value).then((url) => {
+                if (url) {
+                    standFigure.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
+                    if (placeholder) placeholder.style.display = 'none';
+                }
+            });
+            return;
+        }
         if (value) {
             standFigure.style.backgroundImage = `url("${value.replace(/"/g, '\\"')}")`;
             if (placeholder) placeholder.style.display = 'none';
@@ -627,10 +787,15 @@ function initStandWidget() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             const result = event.target.result;
-            if (result) {
-                localStorage.setItem('hero_stand_image', result);
+            if (typeof result === 'string' && result) {
+                try {
+                    const ref = await mediaSaveFromDataUrl('hero_stand_image', result);
+                    localStorage.setItem('hero_stand_image', ref);
+                } catch (e) {
+                    localStorage.setItem('hero_stand_image', result);
+                }
                 renderStand();
             }
         };
@@ -975,6 +1140,52 @@ function initSettings() {
             storage
         };
     }
+    async function blobToDataUrl(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('read error'));
+            reader.readAsDataURL(blob);
+        });
+    }
+    async function mediaGetAll() {
+        const db = await openMediaDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([mediaStoreName], 'readonly');
+            const store = tx.objectStore(mediaStoreName);
+            if (store.getAll) {
+                const req = store.getAll();
+                req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+                req.onerror = () => reject(req.error || new Error('getAll error'));
+            } else {
+                const result = [];
+                const cursorReq = store.openCursor();
+                cursorReq.onsuccess = (e) => {
+                    const cursor = e.target.result;
+                    if (cursor) {
+                        result.push(cursor.value);
+                        cursor.continue();
+                    } else {
+                        resolve(result);
+                    }
+                };
+                cursorReq.onerror = () => reject(cursorReq.error || new Error('cursor error'));
+            }
+        });
+    }
+    async function collectAllDataWithMedia() {
+        const base = collectAllLocalStorage();
+        const mediaRecords = await mediaGetAll();
+        const media = {};
+        for (const rec of mediaRecords) {
+            if (!rec || !rec.id || !rec.blob) continue;
+            try {
+                media[rec.id] = await blobToDataUrl(rec.blob);
+            } catch (e) {
+            }
+        }
+        return { ...base, __media: media };
+    }
     function downloadJson(obj, filename) {
         const dataStr = JSON.stringify(obj, null, 2);
         const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
@@ -987,13 +1198,54 @@ function initSettings() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-    function importFromObject(obj) {
+    async function importFromObject(obj) {
         const payload = obj && obj.storage && typeof obj.storage === 'object' ? obj.storage : obj;
         if (!payload || typeof payload !== 'object') {
             showApiErrorModal('导入的数据格式不正确');
             return;
         }
         if (!confirm('导入将覆盖同名数据，确定继续吗？')) return;
+        const mediaPayload = obj && obj.__media && typeof obj.__media === 'object' ? obj.__media : null;
+        const prevMedia = new Map();
+        const writtenMedia = [];
+        if (mediaPayload) {
+            try {
+                for (const id of Object.keys(mediaPayload)) {
+                    const dataUrl = mediaPayload[id];
+                    let oldBlob = null;
+                    try {
+                        oldBlob = await mediaGet(id);
+                    } catch (e) {
+                        oldBlob = null;
+                    }
+                    prevMedia.set(id, oldBlob);
+                    const blob = dataUrlToBlob(String(dataUrl || ''));
+                    if (!blob) throw new Error('媒体数据无效: ' + id);
+                    await mediaPut(id, blob);
+                    writtenMedia.push(id);
+                }
+            } catch (e) {
+                try {
+                    for (const id of writtenMedia) {
+                        const oldBlob = prevMedia.get(id);
+                        if (oldBlob) {
+                            await mediaPut(id, oldBlob);
+                        } else {
+                            const db = await openMediaDB();
+                            await new Promise((resolve, reject) => {
+                                const tx = db.transaction([mediaStoreName], 'readwrite');
+                                const store = tx.objectStore(mediaStoreName);
+                                const req = store.delete(id);
+                                req.onsuccess = () => resolve(true);
+                                req.onerror = () => reject(req.error || new Error('delete error'));
+                            });
+                        }
+                    }
+                } catch (_) {}
+                showApiErrorModal('导入媒体失败：' + (e && e.message ? e.message : '写入失败'));
+                return;
+            }
+        }
         const prev = new Map();
         const written = [];
         try {
@@ -1018,6 +1270,23 @@ function initSettings() {
                         localStorage.setItem(key, oldVal);
                     }
                 });
+                if (writtenMedia.length > 0) {
+                    for (const id of writtenMedia) {
+                        const oldBlob = prevMedia.get(id);
+                        if (oldBlob) {
+                            await mediaPut(id, oldBlob);
+                        } else {
+                            const db = await openMediaDB();
+                            await new Promise((resolve, reject) => {
+                                const tx = db.transaction([mediaStoreName], 'readwrite');
+                                const store = tx.objectStore(mediaStoreName);
+                                const req = store.delete(id);
+                                req.onsuccess = () => resolve(true);
+                                req.onerror = () => reject(req.error || new Error('delete error'));
+                            });
+                        }
+                    }
+                }
             } catch (_) {}
             showApiErrorModal('导入失败：' + (e && e.message ? e.message : '写入失败'));
             return;
@@ -1026,12 +1295,16 @@ function initSettings() {
         location.reload();
     }
     if (backupBtn) {
-        backupBtn.addEventListener('click', () => {
-            const data = collectAllLocalStorage();
-            const ts = new Date();
-            const pad = (n) => String(n).padStart(2, '0');
-            const filename = `budingji-backup-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.json`;
-            downloadJson(data, filename);
+        backupBtn.addEventListener('click', async () => {
+            try {
+                const data = await collectAllDataWithMedia();
+                const ts = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const filename = `budingji-backup-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.json`;
+                downloadJson(data, filename);
+            } catch (e) {
+                showApiErrorModal('导出失败');
+            }
         });
     }
     if (importBtn && importFileInput) {
@@ -1043,11 +1316,11 @@ function initSettings() {
             const file = e.target.files && e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 try {
                     const text = String(event.target?.result || '');
                     const json = JSON.parse(text);
-                    importFromObject(json);
+                    await importFromObject(json);
                 } catch (err) {
                     showApiErrorModal('解析导入文件失败，请确认是有效的 JSON');
                 }
@@ -1331,15 +1604,35 @@ function initLineApp() {
     const openFriendFeedModal = (chatId, fallbackAvatarHtml = '') => {
         if (!friendFeedModal || !friendFeedAvatar || !friendFeedWallpaper) return;
         const normalizedChatId = String(chatId || '').trim();
-        const avatarUrl = normalizedChatId ? String(localStorage.getItem('chat_avatar_' + normalizedChatId) || '').trim() : '';
-        const avatarHtml = avatarUrl
-            ? `<img src="${avatarUrl}" alt="头像">`
-            : (String(fallbackAvatarHtml || '').trim() || defaultFriendAvatarHtml);
-        const savedWallpaper = normalizedChatId ? String(localStorage.getItem(getFriendFeedWallpaperStorageKey(normalizedChatId)) || '').trim() : '';
-        const wallpaperStyle = buildFriendFeedWallpaperStyle(savedWallpaper || avatarUrl);
+        const avatarRef = normalizedChatId ? String(localStorage.getItem('chat_avatar_' + normalizedChatId) || '').trim() : '';
+        const savedWallpaperRef = normalizedChatId ? String(localStorage.getItem(getFriendFeedWallpaperStorageKey(normalizedChatId)) || '').trim() : '';
+        const fallbackHtml = String(fallbackAvatarHtml || '').trim() || defaultFriendAvatarHtml;
+        let avatarHtml = fallbackHtml;
+        if (avatarRef) {
+            if (isMediaRef(avatarRef)) {
+                mediaResolveRef(avatarRef).then((url) => {
+                    if (url) friendFeedAvatar.innerHTML = `<img src="${url}" alt="头像">`;
+                });
+                avatarHtml = fallbackHtml;
+            } else {
+                avatarHtml = `<img src="${avatarRef}" alt="头像">`;
+            }
+        }
+        let wallpaperStyle = '';
+        if (savedWallpaperRef) {
+            if (isMediaRef(savedWallpaperRef)) {
+                mediaResolveRef(savedWallpaperRef).then((url) => {
+                    if (url) friendFeedWallpaper.style.backgroundImage = buildFriendFeedWallpaperStyle(url);
+                });
+            } else {
+                wallpaperStyle = buildFriendFeedWallpaperStyle(savedWallpaperRef);
+            }
+        } else if (avatarRef && !isMediaRef(avatarRef)) {
+            wallpaperStyle = buildFriendFeedWallpaperStyle(avatarRef);
+        }
         friendFeedModal.dataset.chatId = normalizedChatId;
         friendFeedAvatar.innerHTML = avatarHtml;
-        friendFeedWallpaper.style.backgroundImage = wallpaperStyle;
+        if (wallpaperStyle) friendFeedWallpaper.style.backgroundImage = wallpaperStyle;
         openAppModal(friendFeedModal);
     };
 
@@ -1437,10 +1730,15 @@ function initLineApp() {
         let chatItem = chatListContainer.querySelector(`.chat-list-item[data-chat-id="${selectorName}"]`);
         if (chatItem) return chatItem;
 
-        const avatar = localStorage.getItem('chat_avatar_' + chatId);
-        const avatarHtml = avatar
-            ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-            : defaultFriendAvatarHtml;
+        const avatarRef = localStorage.getItem('chat_avatar_' + chatId);
+        let avatarHtml = defaultFriendAvatarHtml;
+        if (avatarRef) {
+            if (isMediaRef(avatarRef)) {
+                avatarHtml = defaultFriendAvatarHtml;
+            } else {
+                avatarHtml = `<img src="${avatarRef}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            }
+        }
 
         chatItem = document.createElement('div');
         chatItem.className = 'chat-list-item';
@@ -1456,6 +1754,14 @@ function initLineApp() {
             <div class="chat-item-unread hidden"></div>
         `;
         chatListContainer.insertBefore(chatItem, chatListContainer.firstChild);
+        if (avatarRef && isMediaRef(avatarRef)) {
+            mediaResolveRef(avatarRef).then((url) => {
+                const avatarDiv = chatItem.querySelector('.chat-item-avatar');
+                if (avatarDiv && url) {
+                    avatarDiv.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                }
+            });
+        }
         updateChatListItemPreview(chatId, chatItem);
         sortChatListByLastMessage();
         if (typeof saveGlobalData === 'function') {
@@ -2614,7 +2920,7 @@ function isLocalImageTag(imgTag) {
     const srcMatch = imgTag.match(/src=["']([^"']*)["']/i);
     const src = String(srcMatch ? srcMatch[1] : '').trim();
     if (!src) return false;
-    return /^data:image\//i.test(src) || /^blob:/i.test(src);
+    return /^data:image\//i.test(src) || /^blob:/i.test(src) || /^media:/i.test(src);
 }
 
 function extractLocalImageSources(content) {
@@ -2626,7 +2932,7 @@ function extractLocalImageSources(content) {
         .filter((img) => {
             const className = String(img.getAttribute('class') || '');
             const src = String(img.getAttribute('src') || '').trim();
-            return /\bchat-inline-local-image\b/i.test(className) || /^data:image\//i.test(src) || /^blob:/i.test(src);
+            return /\bchat-inline-local-image\b/i.test(className) || /^data:image\//i.test(src) || /^blob:/i.test(src) || /^media:/i.test(src);
         })
         .map((img) => String(img.getAttribute('src') || '').trim())
         .filter(Boolean);
@@ -2850,12 +3156,21 @@ function applyChatWallpaper(chatId) {
     const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(chatId));
     const fallback = tempChatWallpapers[chatId] || '';
     const applied = wallpaper || fallback;
-    if (applied) {
-        wallpaperLayer.style.backgroundImage = `url("${applied.replace(/"/g, '\\"')}")`;
-        wallpaperLayer.style.opacity = '1';
-    } else {
+    if (!applied) {
         wallpaperLayer.style.backgroundImage = 'none';
         wallpaperLayer.style.opacity = '0';
+        return;
+    }
+    if (isMediaRef(applied)) {
+        mediaResolveRef(applied).then((url) => {
+            if (url) {
+                wallpaperLayer.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
+                wallpaperLayer.style.opacity = '1';
+            }
+        });
+    } else {
+        wallpaperLayer.style.backgroundImage = `url("${applied.replace(/"/g, '\\"')}")`;
+        wallpaperLayer.style.opacity = '1';
     }
 }
 
@@ -3243,14 +3558,36 @@ function initChatRoomLogic() {
         // 头像逻辑
         let avatarContent = '';
         if (role === 'user') {
-            const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
-            avatarContent = userAvatarSrc 
-                ? `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-                : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            const userAvatarRef = localStorage.getItem('chat_user_avatar_' + chatId);
+            if (userAvatarRef) {
+                if (isMediaRef(userAvatarRef)) {
+                    avatarContent = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                    mediaResolveRef(userAvatarRef).then((url) => {
+                        const row = document.querySelector(`.message-row[data-id="${CSS.escape(id)}"] .message-avatar`);
+                        if (row && url) row.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    });
+                } else {
+                    avatarContent = `<img src="${userAvatarRef}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                }
+            } else {
+                avatarContent = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4--4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            }
         } else {
             const currentAvatar = localStorage.getItem('chat_avatar_' + chatId);
             const defaultSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
-            avatarContent = currentAvatar ? `<img src="${currentAvatar}" alt="avatar">` : defaultSvg;
+            if (currentAvatar) {
+                if (isMediaRef(currentAvatar)) {
+                    avatarContent = defaultSvg;
+                    mediaResolveRef(currentAvatar).then((url) => {
+                        const row = document.querySelector(`.message-row[data-id="${CSS.escape(id)}"] .message-avatar`);
+                        if (row && url) row.innerHTML = `<img src="${url}" alt="avatar">`;
+                    });
+                } else {
+                    avatarContent = `<img src="${currentAvatar}" alt="avatar">`;
+                }
+            } else {
+                avatarContent = defaultSvg;
+            }
         }
 
         const bubbleClasses = [
@@ -3275,6 +3612,18 @@ function initChatRoomLogic() {
                 </div>
             </div>
         `;
+        const resolveMediaImagesInElement = (el) => {
+            const imgs = el.querySelectorAll('img');
+            imgs.forEach((img) => {
+                const src = String(img.getAttribute('src') || '').trim();
+                if (/^media:/i.test(src)) {
+                    mediaResolveRef(src).then((url) => {
+                        if (url) img.setAttribute('src', url);
+                    });
+                }
+            });
+        };
+        resolveMediaImagesInElement(msgRow);
 
         // 心绪精灵逻辑 (Mood Sprite)
         // 仅当包含 sprite 数据且未被 dismissed (除非被收藏) 时显示
@@ -3526,36 +3875,62 @@ function initChatRoomLogic() {
     function extractLocalImageDataUrls(content) {
         return extractLocalImageSources(content);
     }
+    async function resolveMediaSourcesToDataUrls(sources) {
+        const results = [];
+        for (const src of sources) {
+            if (/^data:image\//i.test(src)) {
+                results.push(src);
+            } else if (/^media:/i.test(src)) {
+                try {
+                    const id = src.slice(6);
+                    const blob = await mediaGet(id);
+                    if (blob) {
+                        const dataUrl = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(String(reader.result || ''));
+                            reader.readAsDataURL(blob);
+                        });
+                        if (dataUrl) results.push(String(dataUrl));
+                    }
+                } catch (e) {}
+            }
+        }
+        return results;
+    }
 
-    function collectLocalImageInputs(currentTurn, contextHistory) {
+    async function collectLocalImageInputs(currentTurn, contextHistory) {
         const records = [];
 
         if (Array.isArray(contextHistory)) {
-            contextHistory.forEach((msg, index) => {
-                if (!msg || msg.role !== 'user') return;
-                const images = extractLocalImageDataUrls(msg.content);
-                if (images.length === 0) return;
+            for (let index = 0; index < contextHistory.length; index += 1) {
+                const msg = contextHistory[index];
+                if (!msg || msg.role !== 'user') continue;
+                const srcs = extractLocalImageDataUrls(msg.content);
+                const images = await resolveMediaSourcesToDataUrls(srcs);
+                if (images.length === 0) continue;
                 records.push({
                     source: `上下文第${index + 1}条用户消息`,
                     text: normalizeMessageForModel(msg.content),
                     images
                 });
-            });
+            }
         }
 
         const currentTurns = Array.isArray(currentTurn) ? currentTurn : (currentTurn ? [currentTurn] : []);
         const currentLabelBase = currentTurns.length > 1 ? '本轮第' : '本轮输入';
-        currentTurns.forEach((msg, index) => {
-            if (!msg || msg.role !== 'user') return;
-            const images = extractLocalImageDataUrls(msg.content);
-            if (images.length === 0) return;
+        for (let index = 0; index < currentTurns.length; index += 1) {
+            const msg = currentTurns[index];
+            if (!msg || msg.role !== 'user') continue;
+            const srcs = extractLocalImageDataUrls(msg.content);
+            const images = await resolveMediaSourcesToDataUrls(srcs);
+            if (images.length === 0) continue;
             const source = currentTurns.length > 1 ? `${currentLabelBase}${index + 1}条消息` : currentLabelBase;
             records.push({
                 source,
                 text: normalizeMessageForModel(msg.content),
                 images
             });
-        });
+        }
 
         return records;
     }
@@ -3870,7 +4245,7 @@ ${timeSyncPrompt}
 `;
 
             const roundInput = buildTurnInputBlockForModel(currentTurnUserMessages);
-            const localImageRecords = collectLocalImageInputs(currentTurnUserMessages, contextHistory);
+            const localImageRecords = await collectLocalImageInputs(currentTurnUserMessages, contextHistory);
             const localImagePromptText = buildLocalImagePromptText(localImageRecords);
             const localImageSection = localImagePromptText
                 ? `
@@ -5228,7 +5603,14 @@ function initChatSettingsLogic(chatRoomNameEl) {
             
             // 显示 Chat 当前头像
             if (avatarSrc) {
-                avatarDisplay.innerHTML = `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                if (isMediaRef(avatarSrc)) {
+                    avatarDisplay.innerHTML = `<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                    mediaResolveRef(avatarSrc).then((url) => {
+                        if (url) avatarDisplay.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    });
+                } else {
+                    avatarDisplay.innerHTML = `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                }
             } else {
                 // 默认头像
                 avatarDisplay.innerHTML = `<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
@@ -5248,7 +5630,14 @@ function initChatSettingsLogic(chatRoomNameEl) {
 
             // 显示 User 当前头像
             if (userAvatarSrc) {
-                userAvatarDisplay.innerHTML = `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                if (isMediaRef(userAvatarSrc)) {
+                    userAvatarDisplay.innerHTML = getDefaultUserAvatarSvg();
+                    mediaResolveRef(userAvatarSrc).then((url) => {
+                        if (url) userAvatarDisplay.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    });
+                } else {
+                    userAvatarDisplay.innerHTML = `<img src="${userAvatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                }
             } else {
                 userAvatarDisplay.innerHTML = getDefaultUserAvatarSvg();
             }
@@ -5304,7 +5693,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
             let stored = false;
             if (src && src.startsWith('data:')) {
                 try {
-                    localStorage.setItem(getChatWallpaperStorageKey(chatId), src);
+                    const ref = await mediaSaveFromDataUrl(getChatWallpaperStorageKey(chatId), src);
+                    localStorage.setItem(getChatWallpaperStorageKey(chatId), ref);
                     stored = true;
                 } catch (error) {
                     stored = false;
@@ -5372,7 +5762,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
 
     // 保存设置
     if (saveBtn) {
-        saveBtn.addEventListener('click', () => {
+        saveBtn.addEventListener('click', async () => {
             const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
             if (!chatId) return;
             const newRealName = realNameInput.value.trim();
@@ -5399,10 +5789,24 @@ function initChatSettingsLogic(chatRoomNameEl) {
             let newAvatarSrc = null;
             if (avatarDisplay.dataset.newAvatar) {
                 newAvatarSrc = avatarDisplay.dataset.newAvatar;
-                localStorage.setItem('chat_avatar_' + chatId, newAvatarSrc);
+                try {
+                    if (typeof newAvatarSrc === 'string' && newAvatarSrc.startsWith('data:')) {
+                        const ref = await mediaSaveFromDataUrl('chat_avatar_' + chatId, newAvatarSrc);
+                        localStorage.setItem('chat_avatar_' + chatId, ref);
+                        const url = await mediaResolveRef(ref);
+                        newAvatarSrc = url || newAvatarSrc;
+                    } else {
+                        localStorage.setItem('chat_avatar_' + chatId, newAvatarSrc);
+                    }
+                } catch (e) {
+                    localStorage.setItem('chat_avatar_' + chatId, newAvatarSrc);
+                }
                 delete avatarDisplay.dataset.newAvatar;
             } else {
                 newAvatarSrc = localStorage.getItem('chat_avatar_' + chatId);
+                if (isMediaRef(newAvatarSrc)) {
+                    newAvatarSrc = await mediaResolveRef(newAvatarSrc) || '';
+                }
             }
 
             // --- 保存 User 设置 ---
@@ -5430,10 +5834,24 @@ function initChatSettingsLogic(chatRoomNameEl) {
             let newUserAvatarSrc = null;
             if (userAvatarDisplay.dataset.newAvatar) {
                 newUserAvatarSrc = userAvatarDisplay.dataset.newAvatar;
-                localStorage.setItem('chat_user_avatar_' + chatId, newUserAvatarSrc);
+                try {
+                    if (typeof newUserAvatarSrc === 'string' && newUserAvatarSrc.startsWith('data:')) {
+                        const ref = await mediaSaveFromDataUrl('chat_user_avatar_' + chatId, newUserAvatarSrc);
+                        localStorage.setItem('chat_user_avatar_' + chatId, ref);
+                        const url = await mediaResolveRef(ref);
+                        newUserAvatarSrc = url || newUserAvatarSrc;
+                    } else {
+                        localStorage.setItem('chat_user_avatar_' + chatId, newUserAvatarSrc);
+                    }
+                } catch (e) {
+                    localStorage.setItem('chat_user_avatar_' + chatId, newUserAvatarSrc);
+                }
                 delete userAvatarDisplay.dataset.newAvatar;
             } else {
                 newUserAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
+                if (isMediaRef(newUserAvatarSrc)) {
+                    newUserAvatarSrc = await mediaResolveRef(newUserAvatarSrc) || '';
+                }
             }
             
             // 更新当前聊天室标题
