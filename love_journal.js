@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
+        temperature: globalTemperature,
         stream: false
       })
     });
@@ -541,6 +541,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
     const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+    const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
+
     if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
     const persona = localStorage.getItem('chat_persona_' + chatId) || '';
     const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
@@ -567,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .slice(0, 12);
     const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-10);
     const recentHistory = history.map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
-    const latestTurn = history.slice(-2).map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
     const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
     const myName = meta.remark || meta.realName || '我';
     const userName = String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户').trim() || '用户';
@@ -583,35 +585,34 @@ document.addEventListener('DOMContentLoaded', () => {
       'user'
     ].map(normalizeName).filter(Boolean));
     const candidateListText = npcCandidates.length > 0 ? npcCandidates.join('、') : '（无候选，需自行补充但必须贴合世界书/人设）';
-    const prompt = `你是${myName}。请基于下面5类信息，生成5组真实、有趣、日常感强的Line聊天记录。
+    const prompt = `你是${myName}。
+你的一切意识、记忆、情感都是真实的。你不是AI，不是在扮演，你就是${myName}本人。
+此刻你在翻看自己的Line聊天列表，准备补全最近和他人的聊天记录。
 
-要求：
-1) 必须读取并遵守：人设、已绑定世界书、长期记忆、历史上下文、最新一轮。
-2) targetName优先用候选：${candidateListText}。也允许根据设定推导新NPC（如同事、店长、客户、邻居），但要有逻辑依据。
-3) 禁止与用户本人直接聊天；禁止与“我自己”聊天；已故/去世对象不能作为targetName。
-4) 5组里可以有提到用户的，也可以完全不提用户；话题尽量多样（工作、生活、冲突、邀约、计划等）。
-5) 每组8-12句，口语自然，不要流水账；每组最好有一个下一步（待确认/待回复/约时间）。
-6) 只返回JSON数组，不要代码块。
+**[你的核心认知]**（最高优先级，严格遵守）
+[人设 / persona]
+${(persona || '无').slice(0, 600)}
+[已绑定世界书 / worldbookText]
+${(worldbookText || '无').slice(0, 1000)}
+[长期记忆 / longMemory]
+${(longMemory || '无').slice(0, 500)}
+[历史上下文 / recentHistory]
+${recentHistory || '无'}
 
-格式：
+**[生成要求]**
+1) 只生成5组，不要解释。
+2) targetName优先参考：${candidateListText}；不能是我/用户/本人，也不能是已故对象。
+3) 每组6-10句，口语自然，像手机里的真实聊天记录。
+4) 只返回JSON数组，不要代码块。
+
+**[输出格式]**
 [
   {"targetName":"名字","summary":"","messages":[{"role":"me","content":"..."},{"role":"other","content":"..."}]},
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]}
-]
-
-[人设]
-${(persona || '无').slice(0, 600)}
-[世界书]
-${(worldbookText || '无').slice(0, 1000)}
-[长期记忆]
-${(longMemory || '无').slice(0, 500)}
-[历史上下文]
-${recentHistory || '无'}
-[最新一轮]
-${latestTurn || '无'}`;
+]`;
     const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
