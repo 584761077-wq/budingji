@@ -4036,6 +4036,44 @@ ${localImageSection}
         }
     }
 
+    let originalStickerIcon = '';
+    const stickerSendIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>`;
+    function setStickerSendMode(active) {
+        if (!stickerBtn) return;
+        if (!originalStickerIcon) originalStickerIcon = stickerBtn.innerHTML;
+        if (active) {
+            stickerBtn.classList.add('send-mode');
+            stickerBtn.innerHTML = stickerSendIcon;
+            stickerBtn.title = '发送';
+        } else {
+            stickerBtn.classList.remove('send-mode');
+            stickerBtn.innerHTML = originalStickerIcon || stickerBtn.innerHTML;
+            stickerBtn.title = '';
+        }
+    }
+    function sendInputToScreen() {
+        if (!inputField) return;
+        const text = inputField.value.trim();
+        if (!text) return;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+        const newMsg = saveMessage(chatId, 'user', text, extra);
+        appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
+        inputField.value = '';
+        clearPendingQuote();
+        setStickerSendMode(false);
+    }
+    if (inputField) {
+        inputField.addEventListener('focus', () => setStickerSendMode(true));
+        inputField.addEventListener('blur', () => {
+            if (!inputField.value.trim()) setStickerSendMode(false);
+        });
+        inputField.addEventListener('input', () => {
+            const hasText = !!inputField.value.trim();
+            setStickerSendMode(hasText);
+        });
+    }
+
     function estimateVoiceDurationSeconds(text) {
         const normalized = String(text || '').replace(/\s+/g, '');
         if (!normalized) return 1;
@@ -4642,6 +4680,10 @@ ${localImageSection}
     if (stickerBtn && stickerMenu) {
         stickerBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (stickerBtn.classList.contains('send-mode')) {
+                sendInputToScreen();
+                return;
+            }
             const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             stickerMenu.dataset.chatId = chatId;
             renderStickerMenu(chatId);
