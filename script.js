@@ -994,14 +994,34 @@ function initSettings() {
             return;
         }
         if (!confirm('导入将覆盖同名数据，确定继续吗？')) return;
-        Object.keys(payload).forEach((key) => {
-            const val = payload[key];
+        const prev = new Map();
+        const written = [];
+        try {
+            Object.keys(payload).forEach((key) => {
+                const newVal = payload[key];
+                let prevVal = null;
+                try {
+                    prevVal = localStorage.getItem(key);
+                } catch (e) {}
+                prev.set(key, prevVal);
+                const valueToSet = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+                localStorage.setItem(key, valueToSet);
+                written.push(key);
+            });
+        } catch (e) {
             try {
-                localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-            } catch (e) {
-                // skip write errors
-            }
-        });
+                written.forEach((key) => {
+                    const oldVal = prev.get(key);
+                    if (oldVal === null || typeof oldVal === 'undefined') {
+                        localStorage.removeItem(key);
+                    } else {
+                        localStorage.setItem(key, oldVal);
+                    }
+                });
+            } catch (_) {}
+            showApiErrorModal('导入失败：' + (e && e.message ? e.message : '写入失败'));
+            return;
+        }
         alert('导入完成，页面将刷新以应用新数据');
         location.reload();
     }
