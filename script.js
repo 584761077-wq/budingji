@@ -666,6 +666,7 @@ function initSettings() {
     const backupBtn = document.getElementById('backup-data-btn');
     const importBtn = document.getElementById('import-data-btn');
     const importFileInput = document.getElementById('import-data-file');
+    const checkUpdateBtn = document.getElementById('check-update-btn');
 
     // --- API 预设功能开始 ---
     const apiPresetSelect = document.getElementById('api-preset-select');
@@ -1032,6 +1033,60 @@ function initSettings() {
                 }
             };
             reader.readAsText(file, 'utf-8');
+        });
+    }
+    if (checkUpdateBtn) {
+        checkUpdateBtn.addEventListener('click', async () => {
+            if (!('serviceWorker' in navigator)) {
+                alert('当前环境不支持更新');
+                return;
+            }
+            try {
+                const reg = await navigator.serviceWorker.getRegistration();
+                if (!reg) {
+                    alert('未检测到服务工作线程');
+                    return;
+                }
+                let updated = false;
+                await new Promise((resolve) => {
+                    let settled = false;
+                    const done = () => {
+                        if (!settled) {
+                            settled = true;
+                            resolve();
+                        }
+                    };
+                    const onInstalling = (sw) => {
+                        if (!sw) {
+                            done();
+                            return;
+                        }
+                        sw.onstatechange = () => {
+                            if (sw.state === 'installed') {
+                                updated = true;
+                                done();
+                            }
+                        };
+                    };
+                    if (reg.installing) {
+                        onInstalling(reg.installing);
+                        reg.update().catch(() => done());
+                    } else {
+                        reg.addEventListener('updatefound', () => onInstalling(reg.installing));
+                        reg.update().catch(() => done());
+                        setTimeout(done, 6000);
+                    }
+                });
+                if (updated) {
+                    if (confirm('检测到新版本，是否立即更新？')) {
+                        window.location.reload();
+                    }
+                } else {
+                    alert('当前已是最新版本');
+                }
+            } catch (e) {
+                alert('更新检查失败');
+            }
         });
     }
 }
