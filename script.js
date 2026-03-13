@@ -4646,9 +4646,6 @@ ${localImageSection}
         localStorage.setItem('chat_history_' + chatId, JSON.stringify(safeHistory));
         clampSummaryCursor(chatId, safeHistory.length);
         if (safeHistory.length < prevLength) {
-            setMemoryDiaries(chatId, []);
-            syncMemoryLongTerm(chatId);
-            localStorage.removeItem('chat_summary_' + chatId);
             localStorage.setItem(getSummaryCursorKey(chatId), String(safeHistory.length));
         }
     }

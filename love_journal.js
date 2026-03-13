@@ -125,6 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
     const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+    const globalTemperature = Number.isFinite(globalTemperatureRaw)
+      ? Math.max(0, Math.min(2, globalTemperatureRaw))
+      : 0.7;
     if (!apiUrl || !apiKey) {
       throw new Error('请先在设置中配置 API URL 和 Key');
     }
@@ -542,45 +546,72 @@ document.addEventListener('DOMContentLoaded', () => {
     const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
     const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
     const allWorldbooks = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
-    const worldbookText = allWorldbooks
-      .filter(wb => worldbookIds.includes(wb.id))
-      .map(wb => wb.content)
-      .join('\n');
+    const boundWorldbooks = allWorldbooks.filter(wb => worldbookIds.includes(wb.id));
+    const deathTokens = /(去世|已故|逝世|死亡|不在世|病故|过世|离世|驾鹤西去)/i;
+    const worldbookText = boundWorldbooks.map(wb => `【${wb.name}｜${wb.category || '未分类'}】\n${wb.content || ''}`).join('\n');
+    const deceasedNames = new Set(
+      boundWorldbooks
+        .filter(wb => deathTokens.test(`${wb.name || ''}\n${wb.content || ''}`))
+        .map(wb => String(wb.name || '').trim())
+        .filter(Boolean)
+    );
+    const npcCandidates = boundWorldbooks
+      .filter(wb => {
+        const cat = String(wb.category || '').trim();
+        if (!/角色|人物|同学|同事|家人|朋友/i.test(cat)) return false;
+        if (deathTokens.test(`${wb.name || ''}\n${wb.content || ''}`)) return false;
+        return true;
+      })
+      .map(wb => String(wb.name || '').trim())
+      .filter(Boolean)
+      .slice(0, 12);
     const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-10);
     const recentHistory = history.map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
+    const latestTurn = history.slice(-2).map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
     const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
     const myName = meta.remark || meta.realName || '我';
-    const prompt = `
-你现在扮演${myName}。
-请根据以下信息，生成 **3组** 你和其他人的Line聊天记录（可以是朋友、家人、同事、甚至是推销员或快递员）。
+    const userName = String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户').trim() || '用户';
+    const normalizeName = (name) => String(name || '').toLowerCase().replace(/[\s\-_·•,，.。!！?？'"“”‘’()（）[\]【】]/g, '').trim();
+    const forbiddenTargetNames = new Set([
+      myName,
+      userName,
+      '我',
+      '本人',
+      '自己',
+      '用户',
+      'you',
+      'user'
+    ].map(normalizeName).filter(Boolean));
+    const candidateListText = npcCandidates.length > 0 ? npcCandidates.join('、') : '（无候选，需自行补充但必须贴合世界书/人设）';
+    const prompt = `你是${myName}。请基于下面5类信息，生成5组真实、有趣、日常感强的Line聊天记录。
 
-**上下文信息：**
-1. **世界观/背景**：${(worldbookText || '').slice(0, 500)}...
-2. **你的长期记忆**：${(longMemory || '').slice(0, 500)}...
-3. **最近发生的对话**（与用户的最新回复）：${recentHistory}
+要求：
+1) 必须读取并遵守：人设、已绑定世界书、长期记忆、历史上下文、最新一轮。
+2) targetName优先用候选：${candidateListText}。也允许根据设定推导新NPC（如同事、店长、客户、邻居），但要有逻辑依据。
+3) 禁止与用户本人直接聊天；禁止与“我自己”聊天；已故/去世对象不能作为targetName。
+4) 5组里可以有提到用户的，也可以完全不提用户；话题尽量多样（工作、生活、冲突、邀约、计划等）。
+5) 每组8-12句，口语自然，不要流水账；每组最好有一个下一步（待确认/待回复/约时间）。
+6) 只返回JSON数组，不要代码块。
 
-**生成要求：**
-1. 生成 **3个不同的对话对象**。
-2. **话题多样性**：
-   - 有的对话可以**直接提到用户**（比如“我最近认识个人…”）。
-   - 有的对话可以**完全无关**（比如约饭、工作吐槽、快递到了、借钱等日常琐事）。
-   - 必须符合你的人设和背景。
-3. 每个对话 **6-12 句**，保持自然流畅。
-
-**格式要求：只返回一个JSON数组**，不要包裹在Markdown代码块中。JSON数组包含3个对象，每个对象结构如下：
+格式：
 [
-  {
-    "targetName": "对方名字 (String)",
-    "summary": "无需填写，留空字符串",
-    "messages": [
-      {"role": "me", "content": "我发的消息"},
-      {"role": "other", "content": "对方发的消息"}
-    ]
-  },
-  ...
+  {"targetName":"名字","summary":"","messages":[{"role":"me","content":"..."},{"role":"other","content":"..."}]},
+  {"targetName":"名字","summary":"","messages":[...]},
+  {"targetName":"名字","summary":"","messages":[...]},
+  {"targetName":"名字","summary":"","messages":[...]},
+  {"targetName":"名字","summary":"","messages":[...]}
 ]
-- me是你，other是对方。
-`;
+
+[人设]
+${(persona || '无').slice(0, 600)}
+[世界书]
+${(worldbookText || '无').slice(0, 1000)}
+[长期记忆]
+${(longMemory || '无').slice(0, 500)}
+[历史上下文]
+${recentHistory || '无'}
+[最新一轮]
+${latestTurn || '无'}`;
     const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -590,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7
+        temperature: globalTemperature
       })
     });
     if (!response.ok) {
@@ -607,29 +638,38 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       throw new Error('生成格式错误，请重试');
     }
-    if (!Array.isArray(results)) {
-      results = [results];
-    }
+    if (!Array.isArray(results)) results = [results];
+    // 刷新所有对话：不保留旧内容，直接覆盖
+    const newChats = [];
+    const usedTargets = new Set();
     results.forEach(result => {
-      if (!result || !result.messages) return;
-      let summary = result.summary;
+      if (!result || !Array.isArray(result.messages)) return;
+      const targetName = String(result.targetName || '').trim();
+      if (!targetName) return;
+      const normalizedTarget = normalizeName(targetName);
+      if (!normalizedTarget) return;
+      if (forbiddenTargetNames.has(normalizedTarget)) return;
+      if (deceasedNames.has(targetName) || deathTokens.test(targetName)) return;
+      if (usedTargets.has(normalizedTarget)) return;
+      if (result.messages.length < 6) return;
+      let summary = String(result.summary || '').trim();
       if (!summary && result.messages.length > 0) {
         const lastMsg = result.messages[result.messages.length - 1];
-        summary = lastMsg.content;
+        summary = String(lastMsg?.content || '').trim();
       }
-      if (summary && summary.length > 20) {
-        summary = summary.slice(0, 18) + '...';
-      }
-      const newChat = {
+      if (summary && summary.length > 20) summary = summary.slice(0, 18) + '...';
+      usedTargets.add(normalizedTarget);
+      newChats.push({
         id: crypto.randomUUID(),
         timestamp: Date.now(),
-        targetName: result.targetName || '未知好友',
+        targetName,
         summary: summary || '新消息',
-        messages: result.messages || []
-      };
-      const savedChats = getLineChats(chatId);
-      savedChats.push(newChat);
-      localStorage.setItem('love_journal_line_chats_' + chatId, JSON.stringify(savedChats));
+        messages: result.messages
+      });
     });
+    if (newChats.length === 0) {
+      throw new Error('生成结果不符合规则：没有可用对话，请重试');
+    }
+    localStorage.setItem('love_journal_line_chats_' + chatId, JSON.stringify(newChats.slice(0, 5)));
   }
 });
