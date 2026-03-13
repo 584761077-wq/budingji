@@ -613,6 +613,17 @@ ${recentHistory || '无'}
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]}
 ]`;
+    const personaUserText = `[人设 / persona]\n${(persona || '无').slice(0, 600)}`;
+    const worldbookUserText = `[已绑定世界书 / worldbookText]\n${(worldbookText || '无').slice(0, 1000)}`;
+    const longMemoryText = `[长期记忆 / longMemory]\n${(longMemory || '无').slice(0, 500)}`;
+    const recentHistoryText = `[历史上下文 / recentHistory]\n${recentHistory || '无'}`;
+    const messages = [
+      { role: 'user', content: personaUserText },
+      { role: 'user', content: worldbookUserText },
+      { role: 'user', content: longMemoryText },
+      { role: 'user', content: recentHistoryText },
+      { role: 'user', content: prompt }
+    ];
     const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -621,7 +632,7 @@ ${recentHistory || '无'}
       },
       body: JSON.stringify({
         model: modelName,
-        messages: [{ role: 'user', content: prompt }],
+        messages: messages,
         temperature: globalTemperature
       })
     });
