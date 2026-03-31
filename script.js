@@ -4611,13 +4611,12 @@ ${timeSyncPrompt}
 ${localImagePromptText}
 `
                 : '';
-            const roundMessageText = `[本轮消息开始]\n${roundInput || '无'}\n[本轮消息结束]`;
-                        const currentUserText = `
+           const roundMessageText = `[本轮消息开始]\n${roundInput || '无'}\n[本轮消息结束]`;
+  const currentUserText = `
 ${roundMessageText}
-${localImageSection}
 `.trim();
 
-            const historyUserText = `[历史上下文]\n${contextText || '无'}`;
+            const historyUserText = `[历史上下文，仅作回复参考]\n${contextText || '无'}`;
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = `[角色人设]\n${charPersona || '无'}`;
             const worldbookUserText = `[世界书]\n${wbContent || '无'}`;
