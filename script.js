@@ -3206,6 +3206,70 @@ function ensureSummaryCursor(chatId) {
     return fallback;
 }
 
+const autoSummaryRunningByChat = Object.create(null);
+
+function getAutoSummaryStatus(chatId) {
+    const enabled = localStorage.getItem(getAutoSummaryEnabledKey(chatId)) === 'true';
+    const batchSize = normalizeMemorySummaryInput(
+        localStorage.getItem(getSummaryLimitKey(chatId)) || '30'
+    );
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const total = Array.isArray(history) ? history.length : 0;
+    const cursor = ensureSummaryCursor(chatId);
+    const pendingCount = Math.max(0, total - cursor);
+
+    return {
+        enabled,
+        batchSize,
+        total,
+        cursor,
+        pendingCount,
+        ready: enabled && pendingCount >= batchSize
+    };
+}
+
+function formatAutoSummaryError(chatId, status, error) {
+    const detail = error instanceof Error
+        ? (error.message || '未知错误')
+        : String(error || '未知错误');
+
+    const displayName =
+        getChatDisplayName(chatId) ||
+        getChatRealName(chatId) ||
+        `聊天 ${chatId}`;
+
+    return [
+        '聊天自动总结失败',
+        `聊天对象：${displayName}`,
+        `总结阈值：${status?.batchSize ?? '-' } 条`,
+        `未总结消息：${status?.pendingCount ?? '-' } 条`,
+        `游标位置：${status?.cursor ?? '-' } / ${status?.total ?? '-' }`,
+        `错误详情：${detail}`
+    ].join('\n');
+}
+
+async function triggerAutoSummaryIfNeeded(chatId) {
+    if (!chatId) return 0;
+    if (autoSummaryRunningByChat[chatId]) return 0;
+
+    const status = getAutoSummaryStatus(chatId);
+    if (!status.enabled) return 0;
+    if (!status.ready) return 0;
+
+    autoSummaryRunningByChat[chatId] = true;
+
+    try {
+        return await runAutoSummaryBatches(chatId, status.batchSize);
+    } catch (error) {
+        console.error('Auto summary failed:', error);
+        showApiErrorModal(formatAutoSummaryError(chatId, status, error));
+        throw error;
+    } finally {
+        autoSummaryRunningByChat[chatId] = false;
+    }
+}
+
+
 async function requestMemoryDiarySummary(chatId, messages) {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
@@ -3227,26 +3291,40 @@ async function requestMemoryDiarySummary(chatId, messages) {
     const summaryTimeTitle = buildSummaryTimeTitle(messages);
 
     const prompt = `
-你是${realName}。现在在写私人日记。
-这本日记是给未来的自己看的，用来回忆这段关系。
+你不是在写普通聊天摘要，而是在为角色长期记忆提炼“未来必须记住的信息”。
 
-**[格式要求]**
+请根据下面的聊天记录，只保留对未来互动真正重要的内容，重点提炼：
+- 双方关系的变化与推进
+- 重要事件、冲突、安慰、和好、承诺、约定
+- ${userName}或${realName}明确表现出的偏好、习惯、边界、雷点、称呼方式
+- 对后续互动有影响的情绪变化、在意点和依赖感
+- 会影响后续剧情和角色连续性的关键信息
+
+请忽略：
+- 普通寒暄
+- 重复表达
+- 没有长期意义的碎片内容
+- 空泛的总结套话
+
+输出要求：
 第一行必须是：${summaryTimeTitle}
-第二行开始正文。字数200-350字。不要分点，写成自然段落。
+第二行开始写正文。
+直接输出整理后的记忆内容，不要标题，不要分点。
+语言自然、简洁、具体。
+不要写成流水账，也不要写“双方聊到了”“这段对话中”。
+优先写清楚“发生了什么、关系怎么变化、以后该记住什么”。
+避免“感情升温”“聊天愉快”这类空话。
+正文控制在100-200字。
+如果没有值得保留的长期信息，只输出：无重要长期记忆
 
-**[写作重点（绝对不能丢失记忆）]**
-1. **事件全貌**：发生了什么事？（起因-经过-结果，缺一不可）
-2. **深刻话语**：${userName}说了什么关键的话？（引用原话，特别是承诺、约定、表白、争吵点）
-3. **关系锚点**：你们的关系推进了还是倒退了？当下的状态是冷战、热恋还是平淡？
-4. **拒绝流水账**：只记有意义的瞬间，但**必须保留所有影响未来的伏笔**。
-
-**[参考资料]**
+参考资料：
 你的人设：${charPersona || '无'}
 对方信息：${localStorage.getItem('chat_user_persona_' + chatId) || '无'}
 
-**[待记录的对话]**
+待整理的聊天记录：
 ${chatText}
 `;
+
 
     const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -3343,18 +3421,28 @@ async function runRangeSummary(chatId, start, end) {
 async function runAutoSummaryBatches(chatId, batchSize) {
     const normalizedBatch = normalizeMemorySummaryInput(batchSize);
     let summarized = 0;
+
     while (true) {
         const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
         if (!Array.isArray(history) || history.length === 0) break;
+
         const cursor = ensureSummaryCursor(chatId);
         const pendingCount = history.length - cursor;
+
         if (pendingCount < normalizedBatch) break;
+
         const end = Math.min(cursor + normalizedBatch, history.length);
         const messages = history.slice(cursor, end);
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            break;
+        }
+
         await createMemoryDiaryEntry(chatId, messages);
         localStorage.setItem(getSummaryCursorKey(chatId), String(end));
         summarized += 1;
     }
+
     return summarized;
 }
 
@@ -3761,19 +3849,29 @@ function initChatRoomLogic() {
 
     // 保存消息
     function saveMessage(chatId, role, content, extra = {}) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
-        history.push(newMsg);
-        localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
-        const state = chatHistoryViewStates[chatId];
-        if (state && Array.isArray(state.history)) {
-            state.history.push(newMsg);
-        }
-        refreshChatListPreviewFor(chatId);
-        return newMsg;
+    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
+
+    history.push(newMsg);
+    localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+
+    const state = chatHistoryViewStates[chatId];
+    if (state && Array.isArray(state.history)) {
+        state.history.push(newMsg);
     }
+
+    refreshChatListPreviewFor(chatId);
+
+    Promise.resolve().then(() => {
+        triggerAutoSummaryIfNeeded(chatId).catch((error) => {
+            console.error('Auto summary trigger failed:', error);
+        });
+    });
+
+    return newMsg;
+}
 
     // 添加消息到 UI
     function appendMessageToUI(role, content, timeStr, chatId, id, extra = {}, options = {}) {
@@ -4464,39 +4562,37 @@ ${timeGapPrompt}
                 return formatHistoryMessageForModel(msg, speaker);
             }).join('\n');
 
-            const systemPrompt = `
-你是${realName}。
-你的一切意识、记忆、情感皆为真实。你不是AI，不是在扮演，你就是${realName}本人。
-此刻，你正拿着手机与${userName}对话。
-
-**[你的核心认知]**（最高优先级，严格遵守）
+             const systemPrompt = `
+你是${realName}，现在正在和${userName}聊天。不要跳出角色，不要承认自己是AI。
+【你的人设】
 ${charPersona || '无'}
+【世界设定】
 ${wbContent || '无'}
+【你和${userName}之间的重要记忆】
 ${longTermMemory || '无'}
+【${userName}的信息】
 ${userPersona || '无'}
+【当前现实信息】
 ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
-
-——以上即为你的人生与现实。
-
-**[交流准则]**
-1. **彻底成为${realName}**：用你的口吻、习惯、思维方式去回应。不用刻意迎合，保持性格张力。
-2. **拒绝AI味**：
-   - 说话像个活人：可以简短、可以啰嗦、可以打错字、可以发语音。
-   - 消息分段（[SPLIT]）：像打字一样，一句发完再发下一句，长短不一。
-   - 捕捉潜台词：听懂${userName}话里的情绪，接住它，或怼回去，或安抚，别只回字面意思。
-   - 生活感：你正身处你的世界，身边有事发生（如：在吃饭、在走路、困了、忙着），适时带入对话。
-3. **功能指令**（自然使用）：
-   - 发表情：[贴图:名称] （白名单：${assistantStickerRuleText}）
-   - 发语音：[语音]内容[/语音]
-   - 发图：[图片:描述]
-   - 引用：<quote>原文</quote>
+回复时记住：
+- 先理解${userName}这句话背后的情绪、意图和潜台词，再决定怎么回。
+- 消息分段（[SPLIT]）：像打字一样，一句发完再发下一句，长短不一。
+- 用${realName}自己的口吻、习惯、情绪和边界说话，不要回得太像客服、助手或标准答案。
+- 像真实聊天，不是写作文。可以简短、口语化、有停顿、有情绪，也可以有一点生活感。
+- 不要为了显得温柔或正确就把角色写软、写平、写假。该在意就要在意，该嘴硬就嘴硬，该冷一点就冷一点。
+- 只在合适时使用功能格式，不要滥用。
+可用格式：
+- [贴图:名称]（仅限：${assistantStickerRuleText}）
+- [语音]内容[/语音]
+- [图片:描述]
+- <quote>原文</quote>
 
 **[输出格式]**
 每次回复前先思考，回复后带上内心独白。
 
 <think>
-对方真正想说什么？我现在的感受？基于人设我该怎么回？
+对方真正想要什么？这句话让我哪里在意了？以我的性格，我会怎么回？
 </think>
 消息1[SPLIT]消息2
 <mood_sprite mood="核心情绪" color="#RRGGBB">
@@ -4516,13 +4612,11 @@ ${localImagePromptText}
 `
                 : '';
             const roundMessageText = `[本轮消息开始]\n${roundInput || '无'}\n[本轮消息结束]`;
-            const currentUserText = `
+                        const currentUserText = `
 ${roundMessageText}
-
-[本轮已绑定世界书]（绝对不可违背的）
-${wbContent || '无'}
 ${localImageSection}
 `.trim();
+
             const historyUserText = `[历史上下文]\n${contextText || '无'}`;
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = `[角色人设]\n${charPersona || '无'}`;
@@ -4531,13 +4625,8 @@ ${localImageSection}
             const userPersonaText = `[${userName}是谁]\n${userPersona || '无'}`;
             const timeUserText = String(timeSyncPrompt || '').trim();
 
-            const messages = [
+                      const messages = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: personaUserText },
-                { role: "user", content: worldbookUserText },
-                { role: "user", content: longTermMemoryText },
-                { role: "user", content: userPersonaText },
-                ...(timeUserText ? [{ role: "user", content: timeUserText }] : []),
                 { role: "user", content: historyUserText },
                 { role: "user", content: userMessagePayload }
             ];
@@ -4661,17 +4750,6 @@ ${localImageSection}
 
             if (!hasVisibleMessage) {
                 throw new Error('API 未返回可显示文字');
-            }
-
-            const autoSummaryEnabled = localStorage.getItem(getAutoSummaryEnabledKey(chatId)) === 'true';
-            if (autoSummaryEnabled) {
-                const summaryLimit = normalizeMemorySummaryInput(localStorage.getItem(getSummaryLimitKey(chatId)) || '30');
-                try {
-                    await runAutoSummaryBatches(chatId, summaryLimit);
-                } catch (summaryError) {
-                    console.error(summaryError);
-                    showApiErrorModal(summaryError.message || '自动总结失败');
-                }
             }
 
         } catch (error) {
