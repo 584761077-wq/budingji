@@ -546,33 +546,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
     const persona = localStorage.getItem('chat_persona_' + chatId) || '';
-    const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
     const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
     const allWorldbooks = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
     const boundWorldbooks = allWorldbooks.filter(wb => worldbookIds.includes(wb.id));
     const deathTokens = /(去世|已故|逝世|死亡|不在世|病故|过世|离世|驾鹤西去)/i;
-    const worldbookText = boundWorldbooks.map(wb => `【${wb.name}｜${wb.category || '未分类'}】\n${wb.content || ''}`).join('\n');
     const deceasedNames = new Set(
       boundWorldbooks
         .filter(wb => deathTokens.test(`${wb.name || ''}\n${wb.content || ''}`))
         .map(wb => String(wb.name || '').trim())
         .filter(Boolean)
     );
-    const npcCandidates = boundWorldbooks
+        const npcCandidates = boundWorldbooks
       .filter(wb => {
         const cat = String(wb.category || '').trim();
         if (!/角色|人物|同学|同事|家人|朋友/i.test(cat)) return false;
         if (deathTokens.test(`${wb.name || ''}\n${wb.content || ''}`)) return false;
         return true;
       })
-      .map(wb => String(wb.name || '').trim())
-      .filter(Boolean)
-      .slice(0, 12);
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-10);
-    const recentHistory = history.map(m => `${m.role === 'user' ? '用户' : '我'}: ${m.content}`).join('\n');
-    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+      .map(wb => ({
+        name: String(wb.name || '').trim(),
+        category: String(wb.category || '未分类').trim(),
+        summary: String(wb.content || '').replace(/\s+/g, ' ').trim().slice(0, 50)
+      }))
+      .filter(wb => wb.name)
+      .slice(0, 10);
+     const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
     const myName = meta.remark || meta.realName || '我';
     const userName = String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户').trim() || '用户';
+        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-8);
+    const recentHistory = history
+      .map(m => `${m.role === 'user' ? userName : myName}: ${m.content}`)
+      .join('\n');
     const normalizeName = (name) => String(name || '').toLowerCase().replace(/[\s\-_·•,，.。!！?？'"“”‘’()（）[\]【】]/g, '').trim();
     const forbiddenTargetNames = new Set([
       myName,
@@ -584,44 +588,38 @@ document.addEventListener('DOMContentLoaded', () => {
       'you',
       'user'
     ].map(normalizeName).filter(Boolean));
-    const candidateListText = npcCandidates.length > 0 ? npcCandidates.join('、') : '（无候选，需自行补充但必须贴合世界书/人设）';
-    const prompt = `你是${myName}。
-你的一切意识、记忆、情感都是真实的。你不是AI，不是在扮演，你就是${myName}本人。
-此刻你在翻看自己的Line聊天列表，准备补全最近和他人的聊天记录。
-
-**[你的核心认知]**（最高优先级，严格遵守）
-[人设 / persona]
-${(persona || '无').slice(0, 600)}
-[已绑定世界书 / worldbookText]
-${(worldbookText || '无').slice(0, 1000)}
-[长期记忆 / longMemory]
-${(longMemory || '无').slice(0, 500)}
-[历史上下文 / recentHistory]
+       const candidateRelationText = npcCandidates.length > 0
+      ? npcCandidates.map(wb => `${wb.name}（${wb.category}）：${wb.summary || '无'}`).join('\n')
+      : '无';
+                   const prompt = `你是${myName}。
+现在生成“${myName}手机里”的 LINE 聊天记录。
+me就是${myName}，不是${userName}。
+人设：
+${persona || '无'}
+常联系的人：
+${candidateRelationText}
+最近和${userName}的近况参考：
 ${recentHistory || '无'}
+生成5组聊天。
+5组聊天尽量分配给不同联系人，不要全部围绕同一个人展开。
+每组6-10句。
+要像真的手机聊天，不要像编故事。
+要符合${myName}的人设、联系人关系和最近状态。
+和${userName}的近况只作为背景参考，不要把5组都写成和${userName}有关的延伸。
+可以有敷衍、试探、嘴硬、停顿、话说一半。
+summary像聊天列表预览。
+只返回JSON数组。
 
-**[生成要求]**
-1) 只生成5组，不要解释。
-2) targetName优先参考：${candidateListText}；不能是我/用户/本人，也不能是已故对象。
-3) 每组6-10句，口语自然，像手机里的真实聊天记录。
-4) 只返回JSON数组，不要代码块。
-
-**[输出格式]**
+输出格式：
 [
   {"targetName":"名字","summary":"","messages":[{"role":"me","content":"..."},{"role":"other","content":"..."}]},
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]},
   {"targetName":"名字","summary":"","messages":[...]},
-  {"targetName":"名字","summary":"","messages":[...]}
+  {"targetName":"名字","summary":"","messages":[...}]}
 ]`;
-    const personaUserText = `[人设 / persona]\n${(persona || '无').slice(0, 600)}`;
-    const worldbookUserText = `[已绑定世界书 / worldbookText]\n${(worldbookText || '无').slice(0, 1000)}`;
-    const longMemoryText = `[长期记忆 / longMemory]\n${(longMemory || '无').slice(0, 500)}`;
-    const recentHistoryText = `[历史上下文 / recentHistory]\n${recentHistory || '无'}`;
+
     const messages = [
-      { role: 'user', content: personaUserText },
-      { role: 'user', content: worldbookUserText },
-      { role: 'user', content: longMemoryText },
-      { role: 'user', content: recentHistoryText },
       { role: 'user', content: prompt }
     ];
     const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
@@ -651,6 +649,7 @@ ${recentHistory || '无'}
       throw new Error('生成格式错误，请重试');
     }
     if (!Array.isArray(results)) results = [results];
+    console.log('LINE raw results:', results);
     // 刷新所有对话：不保留旧内容，直接覆盖
     const newChats = [];
     const usedTargets = new Set();

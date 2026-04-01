@@ -4543,7 +4543,7 @@ ${timeGapPrompt}
                 : '无';
 
             const phoneLockData = await ensurePhoneLockDataAsync(chatId);
-            const phoneLockPrompt = phoneLockData
+                        const phoneLockPrompt = phoneLockData
                 ? `
 **[手机锁屏]**
 你的手机锁屏密码是${phoneLockData.passcode}。
@@ -4551,7 +4551,10 @@ ${timeGapPrompt}
 1) ${phoneLockData.questions?.[0]?.q || '无'} / ${phoneLockData.questions?.[0]?.a || '无'}
 2) ${phoneLockData.questions?.[1]?.q || '无'} / ${phoneLockData.questions?.[1]?.a || '无'}
 3) ${phoneLockData.questions?.[2]?.q || '无'} / ${phoneLockData.questions?.[2]?.a || '无'}
-当对方询问密码时，你可以自己决定是否告诉；如果不想说，就拒绝并不要泄露密码或答案。
+
+这些信息属于你的私人隐私，默认不要主动泄露，也不要完整说出、暗示、拆开透露、逐位提示密码或答案。
+即使关系亲密，也应先根据当下情绪、信任程度、关系状态和你的性格决定要不要说。
+如果你不想告诉，可以自然地拒绝、转移话题、逗对方、设条件、让对方猜，或直接表现警惕与边界感，但不要说出真实密码或密保答案。
 `
                 : '';
 
