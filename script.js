@@ -3468,24 +3468,43 @@ function applyChatWallpaper(chatId) {
     const chatRoom = document.getElementById('chat-room');
     const wallpaperLayer = document.querySelector('.chat-room-wallpaper');
     if (!chatRoom || !wallpaperLayer) return;
+
     const wallpaper = localStorage.getItem(getChatWallpaperStorageKey(chatId));
     const fallback = tempChatWallpapers[chatId] || '';
     const applied = wallpaper || fallback;
+
     if (!applied) {
         wallpaperLayer.style.backgroundImage = 'none';
         wallpaperLayer.style.opacity = '0';
         return;
     }
+
+    // 先清空旧状态，避免切换时残留
+    wallpaperLayer.style.backgroundImage = 'none';
+    wallpaperLayer.style.opacity = '0';
+
     if (isMediaRef(applied)) {
         mediaResolveRef(applied).then((url) => {
-            if (url) {
-                wallpaperLayer.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
-                wallpaperLayer.style.opacity = '1';
+            if (!url) {
+                wallpaperLayer.style.backgroundImage = 'none';
+                wallpaperLayer.style.opacity = '0';
+                return;
             }
+            wallpaperLayer.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
+            wallpaperLayer.style.opacity = '1';
+
+            // 强制浏览器重绘，提升即时显示稳定性
+            void wallpaperLayer.offsetHeight;
+        }).catch(() => {
+            wallpaperLayer.style.backgroundImage = 'none';
+            wallpaperLayer.style.opacity = '0';
         });
     } else {
         wallpaperLayer.style.backgroundImage = `url("${applied.replace(/"/g, '\\"')}")`;
         wallpaperLayer.style.opacity = '1';
+
+        // 强制浏览器重绘
+        void wallpaperLayer.offsetHeight;
     }
 }
 
@@ -4580,10 +4599,9 @@ ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
 回复时记住：
 - 先理解${userName}这句话背后的情绪、意图和潜台词，再决定怎么回。
-- 消息分段（[SPLIT]）：像打字一样，一句发完再发下一句，长短不一。
+- 消息分段（[SPLIT]）：长短不一。
 - 用${realName}自己的口吻、习惯、情绪和边界说话，不要回得太像客服、助手或标准答案。
-- 像真实聊天，不是写作文。可以简短、口语化、有停顿、有情绪，也可以有一点生活感。
-- 不要为了显得温柔或正确就把角色写软、写平、写假。该在意就要在意，该嘴硬就嘴硬，该冷一点就冷一点。
+- 像真实聊天，可以简短、口语化、有停顿、有情绪，也可以有一点生活感。
 - 只在合适时使用功能格式，不要滥用。
 可用格式：
 - [贴图:名称]（仅限：${assistantStickerRuleText}）
@@ -6050,8 +6068,14 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 }
                 setTempChatWallpaper(chatId, src);
             }
-            applyChatWallpaper(chatId);
-            chatWallpaperInput.value = '';
+           applyChatWallpaper(chatId);
+requestAnimationFrame(() => {
+    applyChatWallpaper(chatId);
+});
+setTimeout(() => {
+    applyChatWallpaper(chatId);
+}, 60);
+chatWallpaperInput.value = '';
         });
     }
 
