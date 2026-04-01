@@ -4516,23 +4516,42 @@ function initChatRoomLogic() {
                         const diffMs = now.getTime() - lastTs;
                         const diffMinutes = Math.floor(diffMs / 60000);
                         
-                        if (diffMinutes >= 30) {
+                                              if (diffMinutes >= 30) {
                             let timeDesc = '';
+                            let gapHint = '';
+
+                            const lastDate = new Date(lastTs);
+                            const lastDateText = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}-${String(lastDate.getDate()).padStart(2, '0')} ${String(lastDate.getHours()).padStart(2, '0')}:${String(lastDate.getMinutes()).padStart(2, '0')}`;
+                            const nowDateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
                             if (diffMinutes < 60) {
                                 timeDesc = `${diffMinutes}分钟`;
+                                gapHint = '这是短暂中断，语气上自然带一点间隔感即可，不要硬接上一句。';
                             } else if (diffMinutes < 1440) {
                                 const hours = Math.floor(diffMinutes / 60);
                                 const mins = diffMinutes % 60;
                                 timeDesc = `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
+                                gapHint = '已经隔了几个小时，可以自然体现“重新出现”的感觉，比如重新开口、重新找话题、轻微解释或轻微在意。';
+                            } else if (diffMinutes < 4320) {
+                                const days = Math.floor(diffMinutes / 1440);
+                                timeDesc = `${days}天`;
+                                gapHint = '已经隔了至少一天，必须明显体现久违感，不要像刚刚还在聊天。可以根据人设表现想念、别扭、抱怨、试探、冷淡或松一口气。';
                             } else {
                                 const days = Math.floor(diffMinutes / 1440);
                                 timeDesc = `${days}天`;
+                                gapHint = '已经隔了很多天，必须明确体现关系里的时间流逝感。开场要像隔了很久后的重新联系，可以更明显地表现等待感、疏离感、委屈、压着情绪的在意，或装作无所谓但其实记着。绝对不要像无缝接上条消息。';
                             }
-                            
+
                             timeGapPrompt = `
+[时间锚点]
+上次聊天时间：${lastDateText}
+当前时间：${nowDateText}
+距离上次聊天已过${timeDesc}
+
 [时间跨度]
-已过${timeDesc}。请体现出“时间中断感”。
-按现在时间（${nowTime}）自然开场，别生硬接上一句。
+${gapHint}
+请按${realName}的人设自然表现这种时间间隔带来的情绪和关系变化，不要只做表面时间问候。
+按现在时间（${nowTime}）自然开场，不要生硬接上一句。
 `;
                         }
                     }
@@ -4585,23 +4604,24 @@ ${timeGapPrompt}
             }).join('\n');
 
              const systemPrompt = `
-你是${realName}，现在正在和${userName}聊天。不要跳出角色，不要承认自己是AI。
-【你的人设】
+你是${realName}，现在正在和${userName}聊天。
+
+**【你的人设】**
 ${charPersona || '无'}
-【世界设定】
+**【世界设定】**
 ${wbContent || '无'}
-【你和${userName}之间的重要记忆】
+**【你和${userName}之间的重要记忆】**
 ${longTermMemory || '无'}
-【${userName}的信息】
+**【${userName}的信息】**
 ${userPersona || '无'}
-【当前现实信息】
+**【当前现实信息】**
 ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
 回复时记住：
 - 先理解${userName}这句话背后的情绪、意图和潜台词，再决定怎么回。
 - 消息分段（[SPLIT]）：长短不一。
-- 用${realName}自己的口吻、习惯、情绪和边界说话，不要回得太像客服、助手或标准答案。
-- 像真实聊天，可以简短、口语化、有停顿、有情绪，也可以有一点生活感。
+- 用${realName}自己的口吻、习惯、情绪和边界说话。
+- 像真实聊天，可以简短、口语化、有停顿、有情绪，也可以有一点生活感，真实自然。
 - 只在合适时使用功能格式，不要滥用。
 可用格式：
 - [贴图:名称]（仅限：${assistantStickerRuleText}）
