@@ -1358,12 +1358,16 @@
                         </button>
                     </div>
                     <div class="theme-category-grid" id="theme-category-grid"></div>
-                    <div class="theme-detail-view" id="theme-detail-view" style="display: none;">
+                    <div class="theme-detail-view" id="theme-detail-view" style="display: none; flex: 1;">
                         <div class="theme-detail-header">
                             <button class="theme-detail-back" id="theme-detail-back">返回</button>
-                            <span class="theme-detail-title" id="theme-detail-title"></span>
+                            <span class="theme-detail-title" id="theme-detail-title" style="flex: 1; text-align: center;"></span>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" id="theme-detail-save" style="border: none; background: #000; color: #fff; border-radius: 14px; height: 30px; padding: 0 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">保存</button>
+                                <button type="button" id="theme-detail-delete" style="border: none; background: #ff3b30; color: #fff; border-radius: 14px; height: 30px; padding: 0 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">删除</button>
+                            </div>
                         </div>
-                        <textarea class="theme-css-preview" id="theme-css-preview" readonly></textarea>
+                        <textarea class="theme-css-preview" id="theme-css-preview" style="flex: 1; min-height: 300px; resize: none;"></textarea>
                     </div>
                 </div>
                 <div class="ins-modal-overlay" id="add-theme-overlay" style="display: none;">

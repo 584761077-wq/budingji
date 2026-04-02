@@ -506,14 +506,61 @@ function closeAppModal(modal) {
     }, 300);
 }
 
-function showApiErrorModal(message) {
+window.askAIApiError = function(encodedDetail) {
+    const detail = decodeURIComponent(encodedDetail);
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.value = "API 报错了，请帮我分析一下原因：\n" + detail;
+        chatInput.focus();
+        if (typeof adjustTextareaHeight === 'function') {
+            adjustTextareaHeight(chatInput);
+        }
+    }
+    hideApiErrorModal();
+};
+
+function showApiErrorModal(error) {
     const overlay = document.getElementById('api-error-modal');
     const messageEl = document.getElementById('api-error-message');
     if (!overlay || !messageEl) {
-        alert(message || 'API 报错');
+        alert(error?.message || error || 'API 报错');
         return;
     }
-    messageEl.textContent = String(message || 'API 报错');
+
+    let simpleMsg = '';
+    let detailMsg = '';
+    
+    const errMsg = error?.message || String(error);
+    const statusMatch = errMsg.match(/status:\s*(\d{3})/i) || errMsg.match(/（(\d{3})）/) || errMsg.match(/(\d{3})/);
+    let status = error?.status || (statusMatch ? statusMatch[1] : null);
+    
+    if (!status && errMsg.includes('429')) status = 429;
+    if (!status && errMsg.includes('500')) status = 500;
+    if (!status && errMsg.includes('401')) status = 401;
+    if (!status && errMsg.includes('404')) status = 404;
+    
+    if (status == 429) {
+        simpleMsg = '请求太频繁啦，请稍后再试哦 (429)';
+    } else if (status == 500) {
+        simpleMsg = '服务器出小差了，请稍后重试 (500)';
+    } else if (status == 401) {
+        simpleMsg = 'API Key 无效或未授权，请检查设置 (401)';
+    } else if (status == 404) {
+        simpleMsg = '找不到请求的资源，可能是模型名称填写错误 (404)';
+    } else if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('Failed to load resource')) {
+        simpleMsg = '网络连接失败，请检查网络或 API 地址是否正确';
+    } else {
+        simpleMsg = '发生了一个错误，请查看详情';
+    }
+    
+    detailMsg = errMsg;
+    
+    messageEl.innerHTML = `
+        <div style="font-size: 1.05rem; font-weight: 600; color: #ff3b30; margin-bottom: 8px;">${simpleMsg}</div>
+        <div style="font-size: 0.85rem; color: #666; background: #f5f5f7; padding: 10px; border-radius: 8px; margin-bottom: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${detailMsg}</div>
+        <div style="font-size: 0.85rem; color: #007aff; cursor: pointer; text-align: center; text-decoration: underline;" onclick="askAIApiError(\`${encodeURIComponent(detailMsg)}\`)">不太懂？点击询问 AI</div>
+    `;
+    
     overlay.style.display = 'flex';
 }
 
@@ -2662,6 +2709,8 @@ function initThemeApp() {
     const detailBackBtn = document.getElementById('theme-detail-back');
     const detailTitle = document.getElementById('theme-detail-title');
     const cssPreview = document.getElementById('theme-css-preview');
+    const detailSaveBtn = document.getElementById('theme-detail-save');
+    const detailDeleteBtn = document.getElementById('theme-detail-delete');
     const targetOverlay = document.getElementById('theme-target-overlay');
     const cancelTargetBtn = document.getElementById('cancel-theme-target');
     const saveTargetBtn = document.getElementById('save-theme-target');
@@ -2733,14 +2782,18 @@ function initThemeApp() {
         activeTargetThemeId = null;
     };
 
+    let activeThemeIdForEdit = null;
+
     const showThemeList = () => {
         if (detailView) detailView.style.display = 'none';
         if (categoryGrid) categoryGrid.style.display = 'grid';
+        activeThemeIdForEdit = null;
     };
 
     const showThemeDetail = (themeId) => {
         const theme = getThemes().find((item) => item.id === themeId);
         if (!theme) return;
+        activeThemeIdForEdit = themeId;
         if (detailTitle) detailTitle.textContent = theme.name;
         if (cssPreview) cssPreview.value = String(theme.css || '').trim();
         if (categoryGrid) categoryGrid.style.display = 'none';
@@ -2851,6 +2904,41 @@ function initThemeApp() {
     }
 
     if (detailBackBtn) detailBackBtn.addEventListener('click', showThemeList);
+
+    if (detailSaveBtn) {
+        detailSaveBtn.addEventListener('click', () => {
+            if (!activeThemeIdForEdit) return;
+            const themes = getThemes();
+            const index = themes.findIndex(t => t.id === activeThemeIdForEdit);
+            if (index > -1) {
+                themes[index].css = cssPreview ? cssPreview.value : '';
+                setThemes(themes);
+                renderThemes();
+                notifyThemeChanged();
+                showThemeList();
+            }
+        });
+    }
+
+    if (detailDeleteBtn) {
+        detailDeleteBtn.addEventListener('click', () => {
+            if (!activeThemeIdForEdit) return;
+            if (confirm('确定要删除这个主题吗？')) {
+                let themes = getThemes();
+                themes = themes.filter(t => t.id !== activeThemeIdForEdit);
+                setThemes(themes);
+                
+                const targetMap = getTargetMap();
+                delete targetMap[activeThemeIdForEdit];
+                setTargetMap(targetMap);
+                
+                renderThemes();
+                notifyThemeChanged();
+                showThemeList();
+            }
+        });
+    }
+
     if (cancelTargetBtn) cancelTargetBtn.addEventListener('click', closeTargetModal);
 
     if (targetOverlay) {
