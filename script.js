@@ -3524,7 +3524,17 @@ function initChatRoomLogic() {
     const replyPreview = document.getElementById('chat-reply-preview');
     const replyPreviewText = document.getElementById('chat-reply-preview-text');
     const replyPreviewClose = document.getElementById('chat-reply-preview-close');
-    
+    const chatRoomFooter = document.querySelector('.chat-room-footer');
+
+    if (inputField && chatRoomFooter) {
+        inputField.addEventListener('focus', () => {
+            chatRoomFooter.classList.add('keyboard-open');
+        });
+        inputField.addEventListener('blur', () => {
+            chatRoomFooter.classList.remove('keyboard-open');
+        });
+    }
+
     // 聊天状态管理
     const chatStates = {}; // key: chatId, value: { isSending: boolean }
     const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';

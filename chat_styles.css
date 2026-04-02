@@ -212,6 +212,10 @@
     z-index: 10;
 }
 
+.chat-room-footer.keyboard-open {
+    padding-bottom: 10px !important;
+}
+
 /* Chat Action Menu */
 .chat-action-menu {
     position: absolute;
