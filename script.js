@@ -32,6 +32,58 @@ function parseChatMeta(raw) {
     }
 }
 
+const budingjiNotificationIconUrl = 'https://img.heliar.top/file/1772810690199_IMG_6314.jpeg';
+async function budingjiEnsureNotificationPermission() {
+    if (!('Notification' in window)) {
+        throw new Error('当前浏览器不支持系统通知');
+    }
+    if (Notification.permission === 'granted') {
+        return 'granted';
+    }
+    if (Notification.permission === 'denied') {
+        throw new Error('系统通知权限已被拒绝，请在浏览器设置里重新开启');
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+        throw new Error('未获得系统通知权限');
+    }
+    return permission;
+}
+
+function budingjiShouldTriggerBackgroundPush() {
+    const pushEnabled = localStorage.getItem('background_push_enabled') === 'true';
+    const pageVisible = document.visibilityState === 'visible';
+    const pageFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+    return pushEnabled && (!pageVisible || !pageFocused);
+}
+
+async function budingjiShowSystemNotification({ title, body, tag, data = {} }) {
+    await budingjiEnsureNotificationPermission();
+    const options = {
+        body: body || '你收到了一条新消息',
+        icon: budingjiNotificationIconUrl,
+        badge: budingjiNotificationIconUrl,
+        tag: tag || 'budingji-notification',
+        renotify: true,
+        data: {
+            url: './index.html',
+            ...data
+        }
+    };
+    if ('serviceWorker' in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            if (registration && typeof registration.showNotification === 'function') {
+                await registration.showNotification(title, options);
+                return true;
+            }
+        } catch (error) {
+        }
+    }
+    new Notification(title, options);
+    return true;
+}
+
 const mediaDBName = 'budingji-media';
 const mediaStoreName = 'images';
 const mediaUrlCache = new Map();
@@ -879,10 +931,29 @@ function initSettings() {
     // Background keep-alive and push
     const keepAliveToggle = document.getElementById('keep-alive-toggle');
     const backgroundPushToggle = document.getElementById('background-push-toggle');
+    const backgroundPushTestBtn = document.getElementById('background-push-test-btn');
+    const backgroundPushTestHint = document.getElementById('background-push-test-hint');
 
     // System Settings: Keep-Alive variables
     let wakeLock = null;
     let silentAudio = null;
+
+    function isBackgroundPushEnabled() {
+        return !!backgroundPushToggle?.checked;
+    }
+
+    function updateBackgroundPushTestState() {
+        if (backgroundPushTestHint) {
+            backgroundPushTestHint.textContent = isBackgroundPushEnabled()
+                ? '点一下会发一条系统通知，用来确认权限与弹窗是否正常。'
+                : '先打开上面的后台推送开关，再测试系统通知。';
+        }
+        if (backgroundPushTestBtn) {
+            backgroundPushTestBtn.disabled = !isBackgroundPushEnabled();
+            backgroundPushTestBtn.style.opacity = backgroundPushTestBtn.disabled ? '0.45' : '1';
+            backgroundPushTestBtn.style.cursor = backgroundPushTestBtn.disabled ? 'not-allowed' : 'pointer';
+        }
+    }
 
     async function applySystemSettings(isUserInteraction = false) {
         const keepAliveEnabled = localStorage.getItem('keep_alive_enabled') === 'true';
@@ -1089,6 +1160,7 @@ function initSettings() {
         streamToggle.checked = localStorage.getItem('stream_enabled') === 'true';
         keepAliveToggle.checked = localStorage.getItem('keep_alive_enabled') === 'true';
         backgroundPushToggle.checked = localStorage.getItem('background_push_enabled') === 'true';
+        updateBackgroundPushTestState();
         
         const savedTemp = localStorage.getItem('temperature') || '0.7';
         tempSlider.value = savedTemp;
@@ -1099,6 +1171,42 @@ function initSettings() {
     tempSlider.addEventListener('input', () => {
         tempValue.textContent = tempSlider.value;
     });
+
+    if (backgroundPushToggle) {
+        backgroundPushToggle.addEventListener('change', () => {
+            updateBackgroundPushTestState();
+        });
+    }
+
+    if (backgroundPushTestBtn) {
+        backgroundPushTestBtn.addEventListener('click', async () => {
+            if (!isBackgroundPushEnabled()) {
+                updateBackgroundPushTestState();
+                alert('请先打开后台推送，再进行测试');
+                return;
+            }
+            const originalText = backgroundPushTestBtn.textContent;
+            backgroundPushTestBtn.textContent = '发送中...';
+            backgroundPushTestBtn.disabled = true;
+            try {
+                await budingjiShowSystemNotification({
+                    title: '后台推送测试',
+                    body: '如果你看到了这条通知，说明后台推送弹窗已经正常工作。',
+                    tag: 'budingji-background-push-test',
+                    data: {
+                        source: 'background-push-test',
+                        url: './index.html'
+                    }
+                });
+                alert('测试推送已发送，请查看系统通知。');
+            } catch (error) {
+                alert(error?.message || '测试推送失败');
+            } finally {
+                backgroundPushTestBtn.textContent = originalText;
+                updateBackgroundPushTestState();
+            }
+        });
+    }
 
     const toggleModelList = (forceOpen) => {
         if (!modelList || modelList.children.length === 0) return;
@@ -4018,6 +4126,25 @@ function initChatRoomLogic() {
         }, 2800);
     }
 
+    async function showIncomingMessageSystemNotification(chatId, content) {
+        if (!budingjiShouldTriggerBackgroundPush()) return;
+        const title = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        const preview = toPlainMessageText(content) || '你收到了一条新消息';
+        try {
+            await budingjiShowSystemNotification({
+                title,
+                body: preview,
+                tag: `budingji-chat-${chatId}`,
+                data: {
+                    chatId,
+                    url: `./index.html#chat=${encodeURIComponent(chatId)}`
+                }
+            });
+        } catch (error) {
+            console.log('System notification failed:', error);
+        }
+    }
+
     function increaseUnread(chatId) {
         const nextUnread = setUnreadCount(chatId, getUnreadCount(chatId) + 1);
         const row = document.querySelector(`#line-chat-list .chat-list-item[data-chat-id="${CSS.escape(chatId)}"]`);
@@ -4913,6 +5040,7 @@ ${roundMessageText}
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
             let hasVisibleMessage = false;
+            let backgroundNotificationPreview = '';
             
             for (let i = 0; i < replyMessages.length; i++) {
                 const rawPart = stripMoodSpriteFragments(replyMessages[i]);
@@ -4926,6 +5054,9 @@ ${roundMessageText}
                         : convertAssistantStickerTokens(rawPart, assistantBoundStickers);
                 if (msgContent) {
                     hasVisibleMessage = true;
+                    if (!backgroundNotificationPreview) {
+                        backgroundNotificationPreview = parsedVoice ? '发送了一条语音消息' : msgContent;
+                    }
                     if (i > 0) {
                         await new Promise(resolve => setTimeout(resolve, 800));
                     }
@@ -4945,6 +5076,10 @@ ${roundMessageText}
                     }
                     appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
                 }
+            }
+
+            if (backgroundNotificationPreview) {
+                await showIncomingMessageSystemNotification(chatId, backgroundNotificationPreview);
             }
 
             if (!hasVisibleMessage) {

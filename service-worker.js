@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budingji-v2';
+const CACHE_NAME = 'budingji-v3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -102,4 +102,27 @@ self.addEventListener('message', (event) => {
             }
         })();
     }
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const targetUrl = new URL(event.notification?.data?.url || './index.html', self.location.origin).href;
+    event.waitUntil((async () => {
+        const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of windowClients) {
+            if ('focus' in client) {
+                try {
+                    if ('navigate' in client && client.url !== targetUrl) {
+                        await client.navigate(targetUrl);
+                    }
+                } catch (error) {
+                }
+                await client.focus();
+                return;
+            }
+        }
+        if (clients.openWindow) {
+            await clients.openWindow(targetUrl);
+        }
+    })());
 });
