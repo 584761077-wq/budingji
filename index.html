@@ -284,6 +284,30 @@
                 </div>
                 
                 <div class="app-content">
+                    <div class="settings-card system-settings-card">
+                        <h3 class="card-title">系统运行设置</h3>
+                        <div class="form-group toggle-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <label for="keep-alive-toggle" style="margin-bottom: 4px; color: #1d1d1f; font-size: 0.95rem;">后台保活</label>
+                                <div style="font-size: 0.75rem; color: #86868b;">防止网页在后台被系统休眠，保持服务运行</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="keep-alive-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="form-group toggle-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                            <div>
+                                <label for="background-push-toggle" style="margin-bottom: 4px; color: #1d1d1f; font-size: 0.95rem;">后台推送</label>
+                                <div style="font-size: 0.75rem; color: #86868b;">允许应用在后台时发送系统通知</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="background-push-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="settings-card api-settings-card">
                         <h3 class="card-title">API 配置</h3>
                         <!-- API 预设管理 -->

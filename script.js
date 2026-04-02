@@ -828,6 +828,65 @@ function initSettings() {
     const streamToggle = document.getElementById('stream-toggle');
     const tempSlider = document.getElementById('temperature-slider');
     const tempValue = document.getElementById('temp-value');
+    
+    // Background keep-alive and push
+    const keepAliveToggle = document.getElementById('keep-alive-toggle');
+    const backgroundPushToggle = document.getElementById('background-push-toggle');
+
+    // System Settings: Keep-Alive variables
+    let wakeLock = null;
+    let silentAudio = null;
+
+    async function applySystemSettings(isUserInteraction = false) {
+        const keepAliveEnabled = localStorage.getItem('keep_alive_enabled') === 'true';
+
+        if (keepAliveEnabled) {
+            // 1. Screen Wake Lock
+            if ('wakeLock' in navigator && !wakeLock && document.visibilityState === 'visible') {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock active');
+                } catch (err) {
+                    console.log('Wake Lock error:', err);
+                }
+            }
+
+            // 2. Silent Audio Loop Hack for JS background execution
+            if (!silentAudio) {
+                silentAudio = document.createElement('audio');
+                silentAudio.loop = true;
+                // Minimal silent WAV file in base64
+                silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            }
+            if (isUserInteraction || silentAudio.paused) {
+                silentAudio.play().catch(e => console.log('Audio autoplay prevented', e));
+            }
+        } else {
+            // Disable Keep-Alive
+            if (wakeLock) {
+                wakeLock.release().then(() => { wakeLock = null; });
+            }
+            if (silentAudio) {
+                silentAudio.pause();
+            }
+        }
+
+        // Push Notifications Permission Request
+        const pushEnabled = localStorage.getItem('background_push_enabled') === 'true';
+        if (pushEnabled && isUserInteraction && 'Notification' in window) {
+            if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+        }
+    }
+
+    // Re-acquire wake lock on visibility change
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            applySystemSettings(false);
+        }
+    });
+
     // 数据管理
     const backupBtn = document.getElementById('backup-data-btn');
     const importBtn = document.getElementById('import-data-btn');
@@ -981,6 +1040,8 @@ function initSettings() {
         apiKeyInput.value = localStorage.getItem('api_key') || '';
         modelNameInput.value = localStorage.getItem('model_name') || '';
         streamToggle.checked = localStorage.getItem('stream_enabled') === 'true';
+        keepAliveToggle.checked = localStorage.getItem('keep_alive_enabled') === 'true';
+        backgroundPushToggle.checked = localStorage.getItem('background_push_enabled') === 'true';
         
         const savedTemp = localStorage.getItem('temperature') || '0.7';
         tempSlider.value = savedTemp;
@@ -1046,9 +1107,13 @@ function initSettings() {
         localStorage.setItem('api_key', apiKeyInput.value);
         localStorage.setItem('model_name', modelNameInput.value);
         localStorage.setItem('stream_enabled', streamToggle.checked);
+        localStorage.setItem('keep_alive_enabled', keepAliveToggle.checked);
+        localStorage.setItem('background_push_enabled', backgroundPushToggle.checked);
         localStorage.setItem('temperature', tempSlider.value);
         modelListContainer.style.display = 'none';
         if (modelSelectTrigger) modelSelectTrigger.classList.remove('open');
+        
+        applySystemSettings(true); // 应用系统设置并传递 true 表示存在用户交互
         
         // 保存成功提示动画
         const originalText = saveBtn.textContent;
