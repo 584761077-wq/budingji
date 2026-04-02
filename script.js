@@ -4727,14 +4727,27 @@ function initChatRoomLogic() {
         return `${speaker}: ${turnText || '无'}`;
     }
 
-    function buildTurnInputBlockForModel(messages) {
-        if (!Array.isArray(messages) || messages.length === 0) return '';
-        const parts = messages.map((msg) => {
-            if (!msg || msg.role !== 'user') return '';
-            return formatTurnInputForModel(msg);
-        }).map((text) => String(text || '').trim()).filter(Boolean);
-        return parts.join('\n');
-    }
+  function buildTurnInputBlockForModel(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) return '';
+
+    const parts = messages.map((msg) => {
+        if (!msg || msg.role !== 'user') return '';
+
+        const blocks = [];
+        const quote = msg.quote || (msg.extra && msg.extra.quote) || null;
+
+        if (quote && quote.text) {
+            blocks.push('[用户当前正在引用一条消息]');
+            blocks.push(`引用内容：${String(quote.text).trim()}`);
+        }
+
+        blocks.push(formatTurnInputForModel(msg));
+
+        return blocks.filter(Boolean).join('\n');
+    }).map((text) => String(text || '').trim()).filter(Boolean);
+
+    return parts.join('\n\n');
+}
 
     function parseAssistantVoiceMessage(rawText) {
         const text = String(rawText || '').trim();
@@ -5250,18 +5263,66 @@ ${roundMessageText}
             }
 
             let visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-            let quoteData = null;
-            const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
-            const quoteMatch = visibleReply.match(quoteTagRegex);
-            if (quoteMatch) {
-                const rawQuoteText = String(quoteMatch[1] || '').replace(/\s+/g, ' ').trim();
-                const lastUserMsg = currentTurn && currentTurn.role === 'user'
-                    ? currentTurn
-                    : [...fullHistory].reverse().find(msg => msg.role === 'user');
-                if (rawQuoteText && lastUserMsg && lastUserMsg.id) {
-                    quoteData = { id: lastUserMsg.id, text: rawQuoteText };
-                }
-            }
+        let quoteData = null;
+const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
+const quoteMatch = visibleReply.match(quoteTagRegex);
+
+function normalizeQuoteMatchText(value) {
+    return String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/[【】[\]()（）"'“”‘’<>]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function findBestQuotedMessageInCurrentTurn(rawQuoteText, turnMessages, fallbackMsg) {
+    if (!rawQuoteText) return fallbackMsg || null;
+
+    const normalizedQuote = normalizeQuoteMatchText(rawQuoteText);
+    if (!normalizedQuote) return fallbackMsg || null;
+
+    const candidates = Array.isArray(turnMessages) ? [...turnMessages].reverse() : [];
+
+    // 只在“当前这一轮”里匹配
+    let found = candidates.find(msg => {
+        const plain = normalizeQuoteMatchText(toPlainMessageText(msg.content || ''));
+        return plain && plain === normalizedQuote;
+    });
+    if (found) return found;
+
+    found = candidates.find(msg => {
+        const plain = normalizeQuoteMatchText(toPlainMessageText(msg.content || ''));
+        return plain && (plain.includes(normalizedQuote) || normalizedQuote.includes(plain));
+    });
+    if (found) return found;
+
+    return fallbackMsg || null;
+}
+
+if (quoteMatch) {
+    const rawQuoteText = String(quoteMatch[1] || '').replace(/\s+/g, ' ').trim();
+
+    const currentTurnMessages = Array.isArray(currentTurnUserMessages)
+        ? currentTurnUserMessages
+        : (currentTurn ? [currentTurn] : []);
+
+    const fallbackMsg = currentTurn && currentTurn.role === 'user'
+        ? currentTurn
+        : currentTurnMessages[currentTurnMessages.length - 1] || null;
+
+    const matchedMsg = findBestQuotedMessageInCurrentTurn(
+        rawQuoteText,
+        currentTurnMessages,
+        fallbackMsg
+    );
+
+    if (rawQuoteText && matchedMsg && matchedMsg.id) {
+        quoteData = {
+            id: matchedMsg.id,
+            text: rawQuoteText
+        };
+    }
+}
             visibleReply = visibleReply.replace(/<quote>[\s\S]*?<\/quote>/gi, '').trim();
             
             const spriteExtraction = extractMoodSpriteFromReply(visibleReply);
