@@ -10,7 +10,43 @@ document.addEventListener('DOMContentLoaded', () => {
     initThemeApp();
     initAppearanceSettings();
     initTopProfileWidget();
+
+    setInterval(checkBackgroundActivity, 60000);
 });
+
+async function checkBackgroundActivity() {
+    const chatList = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
+    const now = Date.now();
+    for (const chatId of chatList) {
+        if (!chatId) continue;
+        const isEnabled = localStorage.getItem(getBackgroundActivityEnabledKey(chatId)) === 'true';
+        if (!isEnabled) continue;
+        
+        const intervalStr = localStorage.getItem(getBackgroundActivityIntervalKey(chatId)) || '10';
+        const intervalMin = parseInt(intervalStr, 10) || 10;
+        const intervalMs = intervalMin * 60 * 1000;
+        
+        const lastTriggerStr = localStorage.getItem(getBackgroundActivityLastTriggerKey(chatId));
+        const lastTrigger = parseInt(lastTriggerStr, 10) || 0;
+        
+        // 如果是从未触发过，则设置当前时间为第一次并跳过本次
+        if (lastTrigger === 0) {
+            localStorage.setItem(getBackgroundActivityLastTriggerKey(chatId), String(now));
+            continue;
+        }
+
+        if (now - lastTrigger >= intervalMs) {
+            localStorage.setItem(getBackgroundActivityLastTriggerKey(chatId), String(now));
+            console.log(`[Background Activity] Triggering for chat: ${chatId}`);
+            try {
+                // 向系统传递这是主动发起的请求，不用追加新的用户输入
+                await triggerAIResponse(chatId, { isBackground: true });
+            } catch (e) {
+                console.error('[Background Activity] Failed:', e);
+            }
+        }
+    }
+}
 
 function createChatId() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -3381,6 +3417,18 @@ function getSummaryCursorKey(chatId) {
     return `chat_summary_cursor_${chatId}`;
 }
 
+function getBackgroundActivityEnabledKey(chatId) {
+    return `chat_bg_activity_enabled_${chatId}`;
+}
+
+function getBackgroundActivityIntervalKey(chatId) {
+    return `chat_bg_activity_interval_${chatId}`;
+}
+
+function getBackgroundActivityLastTriggerKey(chatId) {
+    return `chat_bg_activity_last_trigger_${chatId}`;
+}
+
 function getMemoryDiaries(chatId) {
     return JSON.parse(localStorage.getItem(getMemoryDiaryKey(chatId)) || '[]');
 }
@@ -4791,11 +4839,13 @@ function initChatRoomLogic() {
     }
 
     // 触发 AI 回复
-    async function triggerAIResponse(chatId) {
+    async function triggerAIResponse(chatId, options = {}) {
         // UI Loading 状态 (使用全局管理)
         chatStates[chatId] = chatStates[chatId] || {};
         chatStates[chatId].isSending = true;
         updateSendButtonState(chatId);
+        
+        const isBackground = options.isBackground === true;
 
         try {
             // 1. 获取设置
@@ -4994,11 +5044,16 @@ ${roundMessageText}
             const userPersonaText = `[${userName}是谁]\n${userPersona || '无'}`;
             const timeUserText = String(timeSyncPrompt || '').trim();
 
-                      const messages = [
+            const messages = [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: historyUserText },
-                { role: "user", content: userMessagePayload }
             ];
+
+            if (isBackground) {
+                messages.push({ role: "user", content: "时间到了，该你主动发消息给我了。" });
+            } else {
+                messages.push({ role: "user", content: userMessagePayload });
+            }
 
             // 3. 调用 API
             const streamEnabled = localStorage.getItem('stream_enabled') === 'true';
@@ -6656,6 +6711,65 @@ chatWallpaperInput.value = '';
     initWorldBookBindingLogic(chatRoomNameEl);
     initMemorySettingsLogic(chatRoomNameEl);
     initTimeSettingsLogic(chatRoomNameEl);
+    initBackgroundSettingsLogic(chatRoomNameEl);
+}
+
+function initBackgroundSettingsLogic(chatRoomNameEl) {
+    const bgSettingsBtn = document.getElementById('background-settings-btn');
+    const modal = document.getElementById('background-settings-modal');
+    const closeBtn = document.getElementById('close-background-settings');
+    const saveBtn = document.getElementById('save-background-settings');
+    const toggle = document.getElementById('background-activity-toggle');
+    const optionsDiv = document.getElementById('background-activity-options');
+    const intervalInput = document.getElementById('background-activity-interval');
+
+    if (!bgSettingsBtn || !modal || !toggle || !intervalInput) return;
+
+    const syncFromStorage = () => {
+        const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+        const isEnabled = localStorage.getItem(getBackgroundActivityEnabledKey(chatId)) === 'true';
+        toggle.checked = isEnabled;
+        optionsDiv.style.display = isEnabled ? 'block' : 'none';
+        
+        const interval = localStorage.getItem(getBackgroundActivityIntervalKey(chatId));
+        intervalInput.value = interval ? interval : '10';
+    };
+
+    bgSettingsBtn.addEventListener('click', () => {
+        syncFromStorage();
+        openAppModal(modal);
+    });
+
+    toggle.addEventListener('change', () => {
+        optionsDiv.style.display = toggle.checked ? 'block' : 'none';
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            closeAppModal(modal);
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            localStorage.setItem(getBackgroundActivityEnabledKey(chatId), toggle.checked ? 'true' : 'false');
+            
+            const intervalVal = parseInt(intervalInput.value, 10);
+            if (!isNaN(intervalVal) && intervalVal > 0) {
+                localStorage.setItem(getBackgroundActivityIntervalKey(chatId), String(intervalVal));
+            } else {
+                localStorage.setItem(getBackgroundActivityIntervalKey(chatId), '10');
+            }
+            
+            // 重置最后触发时间，以便立刻重新计算
+            if (toggle.checked) {
+                localStorage.setItem(getBackgroundActivityLastTriggerKey(chatId), String(Date.now()));
+            }
+            
+            closeAppModal(modal);
+        });
+    }
 }
 
 function initTimeSettingsLogic(chatRoomNameEl) {

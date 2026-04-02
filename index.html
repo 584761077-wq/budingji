@@ -959,12 +959,12 @@
                                             <span class="item-title">占位一</span>
                                         </div>
                                     </div>
-                                    <div class="settings-list-item">
+                                    <div class="settings-list-item" id="background-settings-btn">
                                         <div class="item-content">
                                             <div class="item-icon-container">
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 12h8"></path></svg>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                                             </div>
-                                            <span class="item-title">占位二</span>
+                                            <span class="item-title">后台功能</span>
                                         </div>
                                     </div>
                                     <div class="settings-list-item">
@@ -1215,6 +1215,35 @@
                                 <input type="checkbox" id="time-sync-toggle">
                                 <span class="slider round"></span>
                             </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 后台功能设置页面 -->
+            <div class="app-modal" id="background-settings-modal" style="display: none;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-background-settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">后台功能</h2>
+                    <button class="header-btn save-btn" id="save-background-settings">保存</button>
+                </div>
+                <div class="app-content">
+                    <div class="settings-card memory-settings-card">
+                        <div class="memory-limit-row toggle-group">
+                            <label for="background-activity-toggle">角色后台活动</label>
+                            <label class="switch">
+                                <input type="checkbox" id="background-activity-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div id="background-activity-options" style="display: none; margin-top: 15px;">
+                            <div class="memory-limit-row" style="margin-bottom: 0;">
+                                <label for="background-activity-interval" style="font-size: 0.85rem; color: #666;">后台活动间隔 (分钟)</label>
+                                <input type="number" id="background-activity-interval" class="candy-input memory-limit-input" placeholder="10" min="1" style="width: 80px;">
+                            </div>
+                            <div style="font-size: 0.75rem; color: #888; margin-top: 8px;">角色将在间隔时间后主动发消息给您。</div>
                         </div>
                     </div>
                 </div>
