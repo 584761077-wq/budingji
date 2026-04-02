@@ -133,9 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
       throw new Error('请先在设置中配置 API URL 和 Key');
     }
     const meta = JSON.parse(localStorage.getItem('chat_meta_' + currentChatId) || '{}');
-    const persona = localStorage.getItem('chat_persona_' + currentChatId) || '';
-    const longMemory = localStorage.getItem('chat_long_memory_' + currentChatId) || '';
-    const summary = localStorage.getItem('chat_summary_' + currentChatId) || '';
+    const persona = largeStore.get('chat_persona_' + currentChatId, '');
+    const longMemory = largeStore.get('chat_long_memory_' + currentChatId, '');
+    const summary = largeStore.get('chat_summary_' + currentChatId, '');
     const displayName = meta.remark || meta.realName || 'TA';
     const prompt = `
 你是${displayName}本人。请为自己设定一个4位数字锁屏密码，并生成3个关于你自己的密保问题与答案。
@@ -545,9 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
 
     if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
-    const persona = localStorage.getItem('chat_persona_' + chatId) || '';
+    const persona = largeStore.get('chat_persona_' + chatId, '');
     const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
-    const allWorldbooks = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const allWorldbooks = largeStore.get('worldbook_items', []);
     const boundWorldbooks = allWorldbooks.filter(wb => worldbookIds.includes(wb.id));
     const deathTokens = /(去世|已故|逝世|死亡|不在世|病故|过世|离世|驾鹤西去)/i;
     const deceasedNames = new Set(
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
      const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
     const myName = meta.remark || meta.realName || '我';
     const userName = String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户').trim() || '用户';
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]').slice(-8);
+        const history = largeStore.get('chat_history_' + chatId, []).slice(-8);
     const recentHistory = history
       .map(m => `${m.role === 'user' ? userName : myName}: ${m.content}`)
       .join('\n');

@@ -1,5 +1,92 @@
-document.addEventListener('DOMContentLoaded', () => {
+// ==========================================
+// 统一大文件/大文本存储 (IndexedDB) + 内存缓存
+// ==========================================
+const largeStore = (() => {
+    const dbName = 'budingji_large_store';
+    const storeName = 'large_data';
+    const version = 1;
+    let dbPromise = null;
+
+    // 内存缓存，保证业务代码依然可以同步读写大文件
+    const cache = new Map();
+
+    function getDB() {
+        if (!dbPromise) {
+            dbPromise = new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, version);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(storeName)) {
+                        db.createObjectStore(storeName);
+                    }
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+        return dbPromise;
+    }
+
+    async function initCache() {
+        const db = await getDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            const req = store.getAllKeys();
+            req.onsuccess = () => {
+                const keys = req.result;
+                if (keys.length === 0) {
+                    resolve();
+                    return;
+                }
+                let loaded = 0;
+                keys.forEach(k => {
+                    const getReq = store.get(k);
+                    getReq.onsuccess = () => {
+                        cache.set(k, getReq.result);
+                        loaded++;
+                        if (loaded === keys.length) resolve();
+                    };
+                    getReq.onerror = () => {
+                        loaded++;
+                        if (loaded === keys.length) resolve();
+                    };
+                });
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    function put(key, value) {
+        cache.set(key, value); // 立即写入缓存，保证同步可读
+        getDB().then(db => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).put(value, key);
+        }).catch(e => console.error('largeStore put error', e));
+    }
+
+    function get(key, defaultVal = null) {
+        if (cache.has(key)) return cache.get(key);
+        return defaultVal;
+    }
+
+    function remove(key) {
+        cache.delete(key);
+        getDB().then(db => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).delete(key);
+        }).catch(e => console.error('largeStore remove error', e));
+    }
+    
+    return { initCache, put, get, remove };
+})();
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await largeStore.initCache();
+    await runLargeStoreMigration();
+    
     initHeroChatWidget();
+
     initStandWidget();
     initApiErrorModal();
     initSettings();
@@ -13,6 +100,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setInterval(checkBackgroundActivity, 60000);
 });
+
+async function runLargeStoreMigration() {
+    const keysToMigrate = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k === 'worldbook_items' || 
+            k.startsWith('chat_history_') || 
+            k.startsWith('chat_persona_') || 
+            k.startsWith('chat_user_persona_') || 
+            k.startsWith('chat_long_memory_') || 
+            k.startsWith('chat_summary_')) {
+            keysToMigrate.push(k);
+        }
+    }
+    for (const key of keysToMigrate) {
+        try {
+            const raw = localStorage.getItem(key);
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch(e) {
+                parsed = raw; // Could be a raw string
+            }
+            await largeStore.put(key, parsed);
+            if (key.startsWith('chat_history_')) {
+                const chatId = key.replace('chat_history_', '');
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const lastMsg = parsed[parsed.length - 1];
+                    localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: lastMsg, ts: lastMsg.ts }));
+                }
+            }
+            localStorage.removeItem(key);
+            console.log(`[LargeStore] Migrated ${key} to IndexedDB`);
+        } catch(e) {
+            console.error(`[LargeStore] Failed to migrate ${key}:`, e);
+        }
+    }
+}
 
 async function checkBackgroundActivity() {
     const chatList = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
@@ -320,9 +445,9 @@ async function requestPhoneLockDataFromApi(chatId) {
         throw new Error('请先在设置中配置 API URL 和 Key');
     }
     const displayName = getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA';
-    const persona = localStorage.getItem('chat_persona_' + chatId) || '';
-    const longMemory = localStorage.getItem('chat_long_memory_' + chatId) || '';
-    const summary = localStorage.getItem('chat_summary_' + chatId) || '';
+    const persona = largeStore.get('chat_persona_' + chatId, '');
+    const longMemory = largeStore.get('chat_long_memory_' + chatId, '');
+    const summary = largeStore.get('chat_summary_' + chatId, '');
     const prompt = `
 你是${displayName}本人。请为自己设定一个4位数字锁屏密码，并生成3个关于你自己的密保问题与答案。
 要求：
@@ -1859,8 +1984,7 @@ function initLineApp() {
     const getFriendSignature = (chatId) => {
         const signature = localStorage.getItem('chat_signature_' + chatId)
             || localStorage.getItem('chat_persona_' + chatId)
-            || localStorage.getItem('chat_user_persona_' + chatId)
-            || '';
+            || largeStore.get('chat_user_persona_' + chatId, '');
         const normalized = String(signature || '').replace(/\s+/g, ' ').trim();
         return normalized || '这个人很神秘，还没有签名';
     };
@@ -1963,18 +2087,19 @@ function initLineApp() {
         removeNameFromStorageList('global_friends_list', normalized);
         removeNameFromStorageList('global_chat_list', normalized);
         localStorage.removeItem('chat_meta_' + normalized);
-        localStorage.removeItem('chat_history_' + normalized);
+        largeStore.remove('chat_history_' + normalized);
+        localStorage.removeItem('chat_last_message_' + normalized);
         localStorage.removeItem('chat_remark_' + normalized);
-        localStorage.removeItem('chat_persona_' + normalized);
+        largeStore.remove('chat_persona_' + normalized);
         localStorage.removeItem('chat_avatar_' + normalized);
         localStorage.removeItem('chat_signature_' + normalized);
         localStorage.removeItem('chat_user_realname_' + normalized);
         localStorage.removeItem('chat_user_remark_' + normalized);
-        localStorage.removeItem('chat_user_persona_' + normalized);
+        largeStore.remove('chat_user_persona_' + normalized);
         localStorage.removeItem('chat_user_avatar_' + normalized);
         localStorage.removeItem('chat_worldbooks_' + normalized);
         localStorage.removeItem('chat_context_limit_' + normalized);
-        localStorage.removeItem('chat_long_memory_' + normalized);
+        largeStore.remove('chat_long_memory_' + normalized);
         localStorage.removeItem(getMemoryDiaryKey(normalized));
         localStorage.removeItem(getSummaryLimitKey(normalized));
         localStorage.removeItem(getAutoSummaryEnabledKey(normalized));
@@ -3290,7 +3415,7 @@ function initCharacterImportLogic() {
             persona += '\n\n[Scenario]\n' + charData.scenario;
         }
 
-        localStorage.setItem('chat_persona_' + chatId, persona);
+        largeStore.put('chat_persona_' + chatId, persona);
         
         // 2. 保存头像
         if (avatarSrc) {
@@ -3305,16 +3430,19 @@ function initCharacterImportLogic() {
         // 4. 处理开场白 (First Message)
         if (charData.first_mes) {
             // 检查是否已有历史记录，没有才添加
-            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const history = largeStore.get('chat_history_' + chatId, []);
             if (history.length === 0) {
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                history.push({
+                const msgObj = {
                     role: 'assistant',
                     content: charData.first_mes,
-                    time: timeStr
-                });
-                localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+                    time: timeStr,
+                    ts: now.getTime()
+                };
+                history.push(msgObj);
+                largeStore.put('chat_history_' + chatId, history);
+                localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: msgObj, ts: msgObj.ts }));
             }
         }
 
@@ -3325,7 +3453,7 @@ function initCharacterImportLogic() {
     }
 
     function importWorldBook(chatId, realName, bookData) {
-        const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const allItems = largeStore.get('worldbook_items', []);
         const categories = JSON.parse(localStorage.getItem('worldbook_categories') || '[]');
         const safeCategories = Array.isArray(categories) ? categories : [];
         
@@ -3358,7 +3486,7 @@ function initCharacterImportLogic() {
             newIds.push(newItem.id);
         });
 
-        localStorage.setItem('worldbook_items', JSON.stringify(allItems));
+        largeStore.put('worldbook_items', allItems);
 
         // 自动绑定到该角色
         const existingBindings = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
@@ -3525,12 +3653,12 @@ function buildMemoryLongTermText(chatId, maxItems = 20) {
 }
 
 function syncMemoryLongTerm(chatId) {
-    localStorage.setItem('chat_long_memory_' + chatId, buildMemoryLongTermText(chatId));
+    largeStore.put('chat_long_memory_' + chatId, buildMemoryLongTermText(chatId));
 }
 
 function ensureSummaryCursor(chatId) {
     const cursorKey = getSummaryCursorKey(chatId);
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const history = largeStore.get('chat_history_' + chatId, []);
     const historyLength = Array.isArray(history) ? history.length : 0;
     const parsed = parseInt(localStorage.getItem(cursorKey) || '', 10);
     if (Number.isFinite(parsed)) {
@@ -3553,7 +3681,7 @@ function getAutoSummaryStatus(chatId) {
     const batchSize = normalizeMemorySummaryInput(
         localStorage.getItem(getSummaryLimitKey(chatId)) || '30'
     );
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const history = largeStore.get('chat_history_' + chatId, []);
     const total = Array.isArray(history) ? history.length : 0;
     const cursor = ensureSummaryCursor(chatId);
     const pendingCount = Math.max(0, total - cursor);
@@ -3622,7 +3750,7 @@ async function requestMemoryDiarySummary(chatId, messages) {
     }
 
     const userName = localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户';
-    const charPersona = localStorage.getItem('chat_persona_' + chatId) || '';
+    const charPersona = largeStore.get('chat_persona_' + chatId, '');
     const realName = getChatRealName(chatId) || chatId;
     const chatText = messages.map((msg) => {
         const speaker = msg.role === 'assistant' ? realName : userName;
@@ -3703,12 +3831,12 @@ async function createMemoryDiaryEntry(chatId, messages) {
     });
     setMemoryDiaries(chatId, diaries);
     syncMemoryLongTerm(chatId);
-    localStorage.setItem('chat_summary_' + chatId, content);
+    largeStore.put('chat_summary_' + chatId, content);
     return content;
 }
 
 async function runManualSummary(chatId, batchSize) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const history = largeStore.get('chat_history_' + chatId, []);
     if (!Array.isArray(history) || history.length === 0) {
         throw new Error('当前没有可总结的聊天记录');
     }
@@ -3726,7 +3854,7 @@ async function runManualSummary(chatId, batchSize) {
 }
 
 async function runRangeSummary(chatId, start, end) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const history = largeStore.get('chat_history_' + chatId, []);
     if (!Array.isArray(history) || history.length === 0) {
         throw new Error('当前没有可总结的聊天记录');
     }
@@ -3763,7 +3891,7 @@ async function runAutoSummaryBatches(chatId, batchSize) {
     let summarized = 0;
 
     while (true) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const history = largeStore.get('chat_history_' + chatId, []);
         if (!Array.isArray(history) || history.length === 0) break;
 
         const cursor = ensureSummaryCursor(chatId);
@@ -4024,7 +4152,7 @@ function initChatRoomLogic() {
     }
 
     function normalizeChatHistory(chatId) {
-        let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        let history = largeStore.get('chat_history_' + chatId, []);
         let hasChanges = false;
         history = history.map((msg) => {
             const normalized = { ...msg };
@@ -4040,7 +4168,11 @@ function initChatRoomLogic() {
             return normalized;
         });
         if (hasChanges) {
-            localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+            largeStore.put('chat_history_' + chatId, history);
+            if (history.length > 0) {
+                const lastMsg = history[history.length - 1];
+                localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: lastMsg, ts: lastMsg.ts }));
+            }
         }
         return history;
     }
@@ -4246,13 +4378,14 @@ function initChatRoomLogic() {
 
     // 保存消息
     function saveMessage(chatId, role, content, extra = {}) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+    const history = largeStore.get('chat_history_' + chatId, []);
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
 
     history.push(newMsg);
-    localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+    largeStore.put('chat_history_' + chatId, history);
+    localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: newMsg, ts: newMsg.ts }));
 
     const state = chatHistoryViewStates[chatId];
     if (state && Array.isArray(state.history)) {
@@ -4857,11 +4990,11 @@ function initChatRoomLogic() {
                 throw new Error('请先在设置中配置 API URL 和 Key');
             }
 
-            const charPersona = localStorage.getItem('chat_persona_' + chatId) || '';
+            const charPersona = largeStore.get('chat_persona_' + chatId, '');
             const userName = localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User';
-            const userPersona = localStorage.getItem('chat_user_persona_' + chatId) || '';
+            const userPersona = largeStore.get('chat_user_persona_' + chatId, '');
             const longTermMemory = buildMemoryLongTermText(chatId);
-            localStorage.setItem('chat_long_memory_' + chatId, longTermMemory);
+            largeStore.put('chat_long_memory_' + chatId, longTermMemory);
             const timeSyncEnabled = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
             const realName = getChatRealName(chatId) || getChatDisplayName(chatId) || chatId;
             const now = new Date();
@@ -4870,7 +5003,7 @@ function initChatRoomLogic() {
             const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
 
             const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
-            const fullHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const fullHistory = largeStore.get('chat_history_' + chatId, []);
             let lastAssistantIndex = -1;
             for (let i = fullHistory.length - 1; i >= 0; i -= 1) {
                 if (fullHistory[i] && fullHistory[i].role === 'assistant') {
@@ -4935,7 +5068,7 @@ ${timeGapPrompt}
                 : '';
 
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
-            const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+            const allWbItems = largeStore.get('worldbook_items', []);
             const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
             const wbContent = boundWorldbooks.map(item => {
                 const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
@@ -5412,10 +5545,19 @@ ${roundMessageText}
     }
 
     function persistChatHistory(chatId, history) {
-        const prevHistory = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const prevHistory = largeStore.get('chat_history_' + chatId, []);
         const prevLength = Array.isArray(prevHistory) ? prevHistory.length : 0;
         const safeHistory = Array.isArray(history) ? history : [];
-        localStorage.setItem('chat_history_' + chatId, JSON.stringify(safeHistory));
+        largeStore.put('chat_history_' + chatId, safeHistory);
+        
+        // 更新最后一条消息的元数据
+        if (safeHistory.length > 0) {
+            const lastMsg = safeHistory[safeHistory.length - 1];
+            localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: lastMsg, ts: lastMsg.ts }));
+        } else {
+            localStorage.removeItem('chat_last_message_' + chatId);
+        }
+
         clampSummaryCursor(chatId, safeHistory.length);
         if (safeHistory.length < prevLength) {
             localStorage.setItem(getSummaryCursorKey(chatId), String(safeHistory.length));
@@ -5496,7 +5638,7 @@ ${roundMessageText}
         const shouldDelete = confirm(`确定彻底删除选中的 ${selectedMsgIds.size} 条消息吗？\n删除后会同时从聊天记录和发送给 AI 的上下文中移除，且不可恢复。`);
         if (!shouldDelete) return;
 
-        let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        let history = largeStore.get('chat_history_' + chatId, []);
         history = history.filter((m) => !selectedMsgIds.has(m.id));
         persistChatHistory(chatId, history);
         loadChatHistory(chatId);
@@ -5597,7 +5739,7 @@ ${roundMessageText}
 
             // Update Data
             const chatId = currentContextMsg.chatId;
-            let history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            let history = largeStore.get('chat_history_' + chatId, []);
             const msgIndex = history.findIndex(m => m.id === currentContextMsg.id);
             
             if (msgIndex !== -1) {
@@ -5688,7 +5830,7 @@ ${roundMessageText}
                 menu.style.display = 'none'; // 关闭菜单
                 
                 const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
-                const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+                const history = largeStore.get('chat_history_' + chatId, []);
                 
                 // 检查是否有消息
                 if (history.length === 0) return;
@@ -6068,7 +6210,7 @@ ${roundMessageText}
     let currentSpriteContext = null; // { chatId, msgId, spriteEl, isFavorited }
 
     function getSpriteSnapshot(chatId, msgId, fallbackSprite) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const history = largeStore.get('chat_history_' + chatId, []);
         const msg = history.find(m => m.id === msgId);
         if (msg && msg.sprite) {
             return { ...msg.sprite };
@@ -6191,7 +6333,7 @@ ${roundMessageText}
 
     // Helper to safely update message extra data
     function updateMessageExtra(chatId, msgId, callback) {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const history = largeStore.get('chat_history_' + chatId, []);
         const index = history.findIndex(m => m.id === msgId);
         if (index !== -1) {
             const msg = history[index];
@@ -6215,7 +6357,10 @@ ${roundMessageText}
             // but currently we only care about sprite.
             
             history[index] = msg;
-            localStorage.setItem('chat_history_' + chatId, JSON.stringify(history));
+            largeStore.put('chat_history_' + chatId, history);
+            if (index === history.length - 1) {
+                localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: msg, ts: msg.ts }));
+            }
         }
     }
 
@@ -6365,7 +6510,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
             if (!chatId) return;
             const meta = getChatMeta(chatId);
             const remarkName = getChatRemark(chatId);
-            const persona = localStorage.getItem('chat_persona_' + chatId) || '';
+            const persona = largeStore.get('chat_persona_' + chatId, '');
             const avatarSrc = localStorage.getItem('chat_avatar_' + chatId);
 
             realNameInput.value = meta.realName || '';
@@ -6391,7 +6536,7 @@ function initChatSettingsLogic(chatRoomNameEl) {
             // Key 格式: chat_user_{field}_{realName}
             const userRealName = localStorage.getItem('chat_user_realname_' + chatId) || '';
             const userRemark = localStorage.getItem('chat_user_remark_' + chatId) || '';
-            const userPersona = localStorage.getItem('chat_user_persona_' + chatId) || '';
+            const userPersona = largeStore.get('chat_user_persona_' + chatId, '');
             const userAvatarSrc = localStorage.getItem('chat_user_avatar_' + chatId);
 
             userRealNameInput.value = userRealName;
@@ -6557,9 +6702,9 @@ chatWallpaperInput.value = '';
 
             // 保存人设
             if (newPersona) {
-                localStorage.setItem('chat_persona_' + chatId, newPersona);
+                largeStore.put('chat_persona_' + chatId, newPersona);
             } else {
-                localStorage.removeItem('chat_persona_' + chatId);
+                largeStore.remove('chat_persona_' + chatId);
             }
 
             // 保存 Chat 头像
@@ -6602,9 +6747,9 @@ chatWallpaperInput.value = '';
                 localStorage.removeItem('chat_user_remark_' + chatId);
             }
             if (newUserPersona) {
-                localStorage.setItem('chat_user_persona_' + chatId, newUserPersona);
+                largeStore.put('chat_user_persona_' + chatId, newUserPersona);
             } else {
-                localStorage.removeItem('chat_user_persona_' + chatId);
+                largeStore.remove('chat_user_persona_' + chatId);
             }
 
             // 保存 User 头像
@@ -6657,7 +6802,8 @@ chatWallpaperInput.value = '';
             const shouldClear = confirm('确定清空当前聊天的全部消息吗？\n清空后会同时从聊天记录和发送给 AI 的上下文中彻底移除，且不可恢复。');
             if (!shouldClear) return;
 
-            localStorage.removeItem('chat_history_' + chatId);
+            largeStore.remove('chat_history_' + chatId);
+            localStorage.removeItem('chat_last_message_' + chatId);
             localStorage.removeItem(getSummaryCursorKey(chatId));
             const chatContent = document.querySelector('.chat-room-content');
             if (chatContent) {
@@ -6864,9 +7010,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     };
 
     const buildTokenStats = (chatId) => {
-        const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+        const history = largeStore.get('chat_history_' + chatId, []);
         const safeHistory = Array.isArray(history) ? history : [];
-        const personaText = localStorage.getItem('chat_persona_' + chatId) || '';
+        const personaText = largeStore.get('chat_persona_' + chatId, '');
         const longTermMemory = getMemoryDiaries(chatId).map((item) => String(item?.content || '').trim()).filter(Boolean).join('\n');
         const limit = Math.max(1, parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100', 10) || 100);
         const contextHistory = safeHistory.slice(Math.max(0, safeHistory.length - limit), safeHistory.length);
@@ -6876,7 +7022,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
         }).join('\n');
 
         const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
-        const allWbItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const allWbItems = largeStore.get('worldbook_items', []);
         const safeWbIds = Array.isArray(wbIds) ? wbIds : [];
         const safeWbItems = Array.isArray(allWbItems) ? allWbItems : [];
         const boundWorldbooks = safeWbIds.map((id) => safeWbItems.find((item) => String(item.id) === String(id))).filter(Boolean);
@@ -6954,7 +7100,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     const renderDiaryList = (chatId) => {
         if (!diaryListEl) return;
         if (diaryMessageCountEl) {
-            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const history = largeStore.get('chat_history_' + chatId, []);
             const count = Array.isArray(history) ? history.length : 0;
             diaryMessageCountEl.textContent = `消息 ${count} 条`;
         }
@@ -7086,7 +7232,7 @@ function initMemorySettingsLogic(chatRoomNameEl) {
     if (runSummaryBtn) {
         runSummaryBtn.addEventListener('click', () => {
             const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
-            const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
+            const history = largeStore.get('chat_history_' + chatId, []);
             const cursor = ensureSummaryCursor(chatId);
             const total = history.length;
 
@@ -7233,7 +7379,7 @@ function initWorldBookBindingLogic(chatRoomNameEl) {
     }
 
     function renderBindingList(chatId) {
-        const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const allItems = largeStore.get('worldbook_items', []);
         const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]')
             .map(id => String(id));
         selectedIdSet = new Set(selectedIds);
@@ -7378,7 +7524,7 @@ function renderSelectedWorldBooks(chatId) {
     const display = document.getElementById('selected-worldbooks-display');
     const placeholder = document.querySelector('.selector-placeholder');
     const selectedIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
-    const allItems = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const allItems = largeStore.get('worldbook_items', []);
     
     if (display) display.innerHTML = '';
     
@@ -7434,23 +7580,15 @@ function buildChatListPreviewFromMessage(msg) {
 }
 
 function getLatestChatMessageMeta(chatId) {
-    const history = JSON.parse(localStorage.getItem('chat_history_' + chatId) || '[]');
-    if (!Array.isArray(history) || history.length === 0) {
-        return { message: null, ts: 0 };
+    // 优先从独立的 meta 里拿，不再加载完整历史记录（大对象）
+    const metaRaw = localStorage.getItem('chat_last_message_' + chatId);
+    if (metaRaw) {
+        try {
+            const meta = JSON.parse(metaRaw);
+            return meta;
+        } catch (e) {}
     }
-    let latest = null;
-    history.forEach((msg, index) => {
-        const rawTs = Number(msg && msg.ts);
-        const sortKey = Number.isFinite(rawTs) ? rawTs : index;
-        if (!latest || sortKey >= latest.sortKey) {
-            latest = {
-                message: msg,
-                ts: Number.isFinite(rawTs) ? rawTs : 0,
-                sortKey
-            };
-        }
-    });
-    return latest ? { message: latest.message, ts: latest.ts || 0 } : { message: null, ts: 0 };
+    return { message: null, ts: 0 };
 }
 
 function updateChatListItemPreview(chatId, chatItem) {
@@ -7837,9 +7975,9 @@ function toggleWorldbookSelection(id) {
 function removeWorldbookItemsByIds(ids) {
     const idSet = new Set((Array.isArray(ids) ? ids : []).map(String));
     if (idSet.size === 0) return;
-    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const items = largeStore.get('worldbook_items', []);
     const remaining = items.filter(item => !idSet.has(String(item.id)));
-    localStorage.setItem('worldbook_items', JSON.stringify(remaining));
+    largeStore.put('worldbook_items', remaining);
 
     const keys = [];
     for (let i = 0; i < localStorage.length; i += 1) {
@@ -8088,7 +8226,7 @@ function initCategoryManagerLogic() {
         categories = categories.filter(c => c !== category);
         localStorage.setItem('worldbook_categories', JSON.stringify(categories));
         
-        const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const items = largeStore.get('worldbook_items', []);
         const idsToDelete = items.filter(item => item.category === category).map(item => item.id);
         if (idsToDelete.length > 0) {
             removeWorldbookItemsByIds(idsToDelete);
@@ -8190,14 +8328,14 @@ function initWorldBookImportLogic() {
             return;
         }
 
-        const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+        const items = largeStore.get('worldbook_items', []);
         items.push({
             id: crypto.randomUUID(),
             name: worldbookName,
             category: categoryName,
             content: pendingImport.content
         });
-        localStorage.setItem('worldbook_items', JSON.stringify(items));
+        largeStore.put('worldbook_items', items);
 
         loadCategories();
         setActiveWorldbookCategory(categoryName);
@@ -8275,7 +8413,7 @@ function setActiveWorldbookCategory(categoryName) {
 // 渲染世界书列表
 function renderWorldBookList(filterCategory = '未分类') {
     const listContainer = document.querySelector('.worldbook-list');
-    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const items = largeStore.get('worldbook_items', []);
     
     listContainer.innerHTML = '';
     
@@ -8373,7 +8511,7 @@ function initAddWorldBookItemLogic() {
                 return;
             }
 
-            const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+            const items = largeStore.get('worldbook_items', []);
             
             if (modal.dataset.mode === 'edit' && modal.dataset.itemId) {
                 // Update existing item
@@ -8401,7 +8539,7 @@ function initAddWorldBookItemLogic() {
                 items.push(newItem);
             }
 
-            localStorage.setItem('worldbook_items', JSON.stringify(items));
+            largeStore.put('worldbook_items', items);
 
             // 刷新列表 (如果当前在对应分类下)
             const activeTag = document.querySelector('.category-tag.active');
@@ -8430,7 +8568,7 @@ function openWorldBookItem(id) {
     const keywordsInput = document.getElementById('wb-item-keywords');
     const contentInput = document.getElementById('wb-item-content');
 
-    const items = JSON.parse(localStorage.getItem('worldbook_items') || '[]');
+    const items = largeStore.get('worldbook_items', []);
     const item = items.find(i => i.id === id);
 
     if (item) {
