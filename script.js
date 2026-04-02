@@ -558,19 +558,6 @@ function closeAppModal(modal) {
     }, 300);
 }
 
-window.askAIApiError = function(encodedDetail) {
-    const detail = decodeURIComponent(encodedDetail);
-    const chatInput = document.getElementById('chat-input');
-    if (chatInput) {
-        chatInput.value = "API 报错了，请帮我分析一下原因：\n" + detail;
-        chatInput.focus();
-        if (typeof adjustTextareaHeight === 'function') {
-            adjustTextareaHeight(chatInput);
-        }
-    }
-    hideApiErrorModal();
-};
-
 function showApiErrorModal(error) {
     const overlay = document.getElementById('api-error-modal');
     const messageEl = document.getElementById('api-error-message');
@@ -584,15 +571,18 @@ function showApiErrorModal(error) {
     
     const errMsg = error?.message || String(error);
     const statusMatch = errMsg.match(/status:\s*(\d{3})/i) || errMsg.match(/（(\d{3})）/) || errMsg.match(/(\d{3})/);
-    let status = error?.status || (statusMatch ? statusMatch[1] : null);
+    let status = (error && error.response && error.response.status) || error?.status || (statusMatch ? statusMatch[1] : null);
     
     if (!status && errMsg.includes('429')) status = 429;
+    if (!status && errMsg.includes('400')) status = 400;
     if (!status && errMsg.includes('500')) status = 500;
     if (!status && errMsg.includes('401')) status = 401;
     if (!status && errMsg.includes('404')) status = 404;
     
     if (status == 429) {
         simpleMsg = '请求太频繁啦，请稍后再试哦 (429)';
+    } else if (status == 400) {
+        simpleMsg = '请求参数错误或格式不正确 (400)';
     } else if (status == 500) {
         simpleMsg = '服务器出小差了，请稍后重试 (500)';
     } else if (status == 401) {
@@ -602,16 +592,57 @@ function showApiErrorModal(error) {
     } else if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('Failed to load resource')) {
         simpleMsg = '网络连接失败，请检查网络或 API 地址是否正确';
     } else {
-        simpleMsg = '发生了一个错误，请查看详情';
+        simpleMsg = errMsg && errMsg.length <= 160 ? errMsg : '发生了一个错误，请查看详情';
     }
     
-    detailMsg = errMsg;
+    try {
+        const parts = [];
+        if (error instanceof Error && typeof error.stack === 'string' && error.stack.includes('\n')) {
+            parts.push(error.stack);
+        }
+        if (typeof error === 'string' && error.includes('\n') && (error.includes('at ') || error.includes('Error:'))) {
+            parts.push(error);
+        }
+        if (error && typeof error === 'object') {
+            if (typeof error.detail === 'string' && error.detail.trim()) parts.push(error.detail);
+            if (typeof error.cause === 'string' && error.cause.trim()) parts.push(error.cause);
+            const respData = error.response && error.response.data;
+            if (respData) {
+                parts.push(typeof respData === 'string' ? respData : JSON.stringify(respData, null, 2));
+            }
+        }
+        detailMsg = parts.join('\n').trim();
+        if (detailMsg.length > 8000) {
+            detailMsg = detailMsg.slice(0, 8000) + '\n...(已截断)';
+        }
+    } catch (_) {
+        detailMsg = '';
+    }
+    if (!detailMsg) {
+        const normalized = (errMsg || '').trim();
+        if (normalized && normalized !== String(simpleMsg || '').trim()) {
+            detailMsg = normalized.length > 8000 ? normalized.slice(0, 8000) + '\n...(已截断)' : normalized;
+        }
+    }
     
-    messageEl.innerHTML = `
-        <div style="font-size: 1.05rem; font-weight: 600; color: #ff3b30; margin-bottom: 8px;">${simpleMsg}</div>
-        <div style="font-size: 0.85rem; color: #666; background: #f5f5f7; padding: 10px; border-radius: 8px; margin-bottom: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${detailMsg}</div>
-        <div style="font-size: 0.85rem; color: #007aff; cursor: pointer; text-align: center; text-decoration: underline;" onclick="askAIApiError(\`${encodeURIComponent(detailMsg)}\`)">不太懂？点击询问 AI</div>
-    `;
+    const simpleEl = document.getElementById('api-error-simple');
+    const detailWrapEl = document.getElementById('api-error-detail-wrap');
+    const detailEl = document.getElementById('api-error-detail');
+    if (simpleEl && detailWrapEl && detailEl) {
+        simpleEl.textContent = simpleMsg;
+        if (detailMsg) {
+            detailEl.textContent = detailMsg;
+            detailWrapEl.style.display = 'block';
+        } else {
+            detailEl.textContent = '';
+            detailWrapEl.style.display = 'none';
+        }
+    } else {
+        messageEl.innerHTML = `
+            <div style="font-size: 1.05rem; font-weight: 600; color: #ff3b30; margin-bottom: 8px;">${simpleMsg}</div>
+            <div style="font-size: 0.85rem; color: #666; background: #f5f5f7; padding: 10px; border-radius: 8px; margin-bottom: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${detailMsg}</div>
+        `;
+    }
     
     overlay.style.display = 'flex';
 }

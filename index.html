@@ -1466,7 +1466,13 @@
                     </button>
                 </div>
                 <div class="ins-modal-body">
-                    <div id="api-error-message" class="api-error-message"></div>
+                    <div id="api-error-message" class="api-error-message">
+                        <div class="api-error-simple" id="api-error-simple"></div>
+                        <div class="api-error-detail-wrap" id="api-error-detail-wrap" style="display: none;">
+                            <div class="api-error-detail-title">详细报错</div>
+                            <div class="api-error-detail-content" id="api-error-detail"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="ins-modal-footer">
                     <button class="ins-btn-primary" id="confirm-api-error-modal">知道了</button>
