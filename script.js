@@ -3603,23 +3603,32 @@ function initChatRoomLogic() {
         return value > 1e12 ? value : value * 1000;
     }
 
-    function formatTimeDividerLabel(timeStr, ts) {
-        const safeTime = String(timeStr || '').trim();
-        const normalizedTs = normalizeTimestamp(ts);
+    function formatTimeDividerLabel(currentMeta, previousMeta) {
+        const safeTime = String(currentMeta.timeStr || '').trim();
+        const normalizedTs = normalizeTimestamp(currentMeta.ts);
         if (!normalizedTs) return safeTime || '刚刚';
         const date = new Date(normalizedTs);
-        const now = new Date();
-        const sameYear = date.getFullYear() === now.getFullYear();
-        const sameMonth = date.getMonth() === now.getMonth();
-        const sameDate = date.getDate() === now.getDate();
+        
         const hh = String(date.getHours()).padStart(2, '0');
         const mm = String(date.getMinutes()).padStart(2, '0');
-        if (sameYear && sameMonth && sameDate) {
-            return `${hh}:${mm}`;
-        }
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        return `${month}-${day} ${hh}:${mm}`;
+        
+        let isNewDay = true;
+        if (previousMeta && previousMeta.ts) {
+            const prevTs = normalizeTimestamp(previousMeta.ts);
+            if (prevTs) {
+                const prevDate = new Date(prevTs);
+                isNewDay = (prevDate.getFullYear() !== date.getFullYear() || 
+                            prevDate.getMonth() !== date.getMonth() || 
+                            prevDate.getDate() !== date.getDate());
+            }
+        }
+        
+        if (isNewDay) {
+            return `${month}月${day}日 ${hh}:${mm}`;
+        }
+        return `${hh}:${mm}`;
     }
 
     function findFirstRenderableNode() {
@@ -3651,7 +3660,7 @@ function initChatRoomLogic() {
     function renderTimeDivider(currentMeta, options = {}) {
         const divider = document.createElement('div');
         divider.className = 'chat-time-divider';
-        divider.textContent = formatTimeDividerLabel(currentMeta.timeStr, currentMeta.ts);
+        divider.textContent = formatTimeDividerLabel(currentMeta, options.previousMeta);
         if (options.prepend) {
             const anchor = options.anchor || findFirstRenderableNode();
             if (anchor) {
@@ -3913,7 +3922,7 @@ function initChatRoomLogic() {
             }
         }
         if (shouldInsertTimeDivider(previousMeta, currentMeta, !!options.forceTimeDivider)) {
-            renderTimeDivider(currentMeta, { prepend: shouldPrepend, anchor: options.anchor || null });
+            renderTimeDivider(currentMeta, { prepend: shouldPrepend, anchor: options.anchor || null, previousMeta: previousMeta });
         }
 
         const msgRow = document.createElement('div');
@@ -4507,6 +4516,7 @@ function initChatRoomLogic() {
                 : null;
 
             let timeGapPrompt = '';
+            let userMessageTimePrefix = '';
             if (timeSyncEnabled && fullHistory.length > currentTurnUserMessages.length) {
                 const lastMsgIndex = fullHistory.length - currentTurnUserMessages.length - 1;
                 if (lastMsgIndex >= 0) {
@@ -4518,41 +4528,27 @@ function initChatRoomLogic() {
                         
                                               if (diffMinutes >= 30) {
                             let timeDesc = '';
-                            let gapHint = '';
 
                             const lastDate = new Date(lastTs);
-                            const lastDateText = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}-${String(lastDate.getDate()).padStart(2, '0')} ${String(lastDate.getHours()).padStart(2, '0')}:${String(lastDate.getMinutes()).padStart(2, '0')}`;
                             const nowDateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
                             if (diffMinutes < 60) {
                                 timeDesc = `${diffMinutes}分钟`;
-                                gapHint = '这是短暂中断，语气上自然带一点间隔感即可，不要硬接上一句。';
                             } else if (diffMinutes < 1440) {
                                 const hours = Math.floor(diffMinutes / 60);
                                 const mins = diffMinutes % 60;
                                 timeDesc = `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
-                                gapHint = '已经隔了几个小时，可以自然体现“重新出现”的感觉，比如重新开口、重新找话题、轻微解释或轻微在意。';
-                            } else if (diffMinutes < 4320) {
-                                const days = Math.floor(diffMinutes / 1440);
-                                timeDesc = `${days}天`;
-                                gapHint = '已经隔了至少一天，必须明显体现久违感，不要像刚刚还在聊天。可以根据人设表现想念、别扭、抱怨、试探、冷淡或松一口气。';
                             } else {
                                 const days = Math.floor(diffMinutes / 1440);
                                 timeDesc = `${days}天`;
-                                gapHint = '已经隔了很多天，必须明确体现关系里的时间流逝感。开场要像隔了很久后的重新联系，可以更明显地表现等待感、疏离感、委屈、压着情绪的在意，或装作无所谓但其实记着。绝对不要像无缝接上条消息。';
                             }
 
                             timeGapPrompt = `
-[时间锚点]
-上次聊天时间：${lastDateText}
-当前时间：${nowDateText}
-距离上次聊天已过${timeDesc}
-
-[时间跨度]
-${gapHint}
-请按${realName}的人设自然表现这种时间间隔带来的情绪和关系变化，不要只做表面时间问候。
-按现在时间（${nowTime}）自然开场，不要生硬接上一句。
+[时间感知]
+注意：如果最新消息里有【系统时间戳】，说明你们已经有${timeDesc}没聊天了。
+不要生硬接上一句话题！必须根据你的【人设】，给出你在这个时间差下的真实第一反应。
 `;
+                            userMessageTimePrefix = `【系统时间戳：距离上次聊天已过${timeDesc}，现在是${nowDateText}】\n`;
                         }
                     }
                 }
@@ -4560,7 +4556,7 @@ ${gapHint}
 
             const timeSyncPrompt = timeSyncEnabled
                 ? `
-[当前时间]
+[当前现实时间]
 ${nowDate} ${nowTime} ${weekday}
 请活在这个时间点里（作息、状态、问候语）。
 ${timeGapPrompt}
@@ -4652,7 +4648,7 @@ ${timeSyncPrompt}
 ${localImagePromptText}
 `
                 : '';
-           const roundMessageText = `[本轮消息开始]\n${roundInput || '无'}\n[本轮消息结束]`;
+           const roundMessageText = `[本轮消息开始]\n${userMessageTimePrefix || ''}${roundInput || '无'}\n[本轮消息结束]`;
   const currentUserText = `
 ${roundMessageText}
 `.trim();
