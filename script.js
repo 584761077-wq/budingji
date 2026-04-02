@@ -6857,22 +6857,29 @@ chatWallpaperInput.value = '';
         });
     }
 
-    if (clearChatBtn) {
-        clearChatBtn.addEventListener('click', () => {
-            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
-            const shouldClear = confirm('确定清空当前聊天的全部消息吗？\n清空后会同时从聊天记录和发送给 AI 的上下文中彻底移除，且不可恢复。');
-            if (!shouldClear) return;
+  if (clearChatBtn) {
+    clearChatBtn.addEventListener('click', () => {
+        const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+        const shouldClear = confirm('确定清空当前聊天的全部消息吗？\n清空后会移除短期聊天记录与当前上下文，但会保留长期记忆和角色资料。');
+        if (!shouldClear) return;
 
-            largeStore.remove('chat_history_' + chatId);
-            localStorage.removeItem('chat_last_message_' + chatId);
-            localStorage.removeItem(getSummaryCursorKey(chatId));
-            const chatContent = document.querySelector('.chat-room-content');
-            if (chatContent) {
-                chatContent.innerHTML = '';
-            }
-            refreshChatListPreviewFor(chatId);
-        });
-    }
+        largeStore.remove('chat_history_' + chatId);
+        localStorage.removeItem('chat_last_message_' + chatId);
+        localStorage.removeItem(getSummaryCursorKey(chatId));
+        localStorage.removeItem(getUnreadCountKey(chatId));
+
+        if (typeof chatHistoryViewStates !== 'undefined' && chatHistoryViewStates[chatId]) {
+            delete chatHistoryViewStates[chatId];
+        }
+
+        const chatContent = document.querySelector('.chat-room-content');
+        if (chatContent) {
+            chatContent.innerHTML = '';
+        }
+
+        refreshChatListPreviewFor(chatId);
+    });
+}
 
     // 辅助函数：刷新当前聊天界面中 User 的头像
     function refreshChatUserAvatars(avatarSrc) {
