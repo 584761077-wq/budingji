@@ -5294,26 +5294,65 @@ ${localImagePromptText}
 ${roundMessageText}
 `.trim();
 
-            const historyUserText = `[历史上下文，仅作回复参考]\n${contextText || '无'}`;
+            // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
+            const historyUserText = contextText ? `[历史上下文，仅作回复参考]\n${contextText}` : '';
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
-            const personaUserText = `[角色人设]\n${charPersona || '无'}`;
-            const worldbookUserText = `[世界书]\n${wbContent || '无'}`;
-            const longTermMemoryText = `[长期记忆]\n${longTermMemory || '无'}`;
-            const userPersonaText = `[${userName}是谁]\n${userPersona || '无'}`;
+            const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
+            const worldbookUserText = wbContent ? `[世界书/背景]\n${wbContent}` : '';
+            const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
+            const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
 
             const savedMeSchedule = largeStore.get('love_journal_me_schedule_' + chatId, '');
-            const meScheduleText = savedMeSchedule ? `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排，但不要生硬地背诵。` : '';
+            const meScheduleText = savedMeSchedule ? `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排。` : '';
 
-            const messages = [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: historyUserText },
-            ];
+            // 2. 定义各个插入区域 (Zones) 模仿 SillyTavern 结构
+            let topSystemBlocks = [systemPrompt]; // 顶部系统设定池
+            let historyMessages = [];             // 历史消息池
+            let bottomMessages = [];              // 底部最新消息前的池
 
-            if (meScheduleText) {
-                messages.push({ role: "system", content: meScheduleText });
+            // 基础设定放入 System (越往上全局约束力越强)
+            if (personaUserText) topSystemBlocks.push(personaUserText);
+            if (userPersonaText) topSystemBlocks.push(userPersonaText);
+            if (timeUserText) topSystemBlocks.push(`[当前时间]\n${timeUserText}`);
+
+            // 记忆与历史放入 History 区块
+            // 采用 system role 传递记忆和历史，可以避免模型将它们误认为是 User 的当次对话指令
+            if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
+            if (historyUserText) historyMessages.push({ role: "system", content: historyUserText });
+
+            // 日程安排更靠近当前，放入 Bottom 区块
+            if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
+
+            // 3. 世界书的动态插入逻辑 (预留未来的配置项，方便后期做 UI 让用户自选)
+            const wbInsertPosition = 'system_bottom'; // 可选值: system_top, system_bottom, before_history, before_latest
+            
+            if (worldbookUserText) {
+                switch (wbInsertPosition) {
+                    case 'system_top':
+                        topSystemBlocks.splice(1, 0, worldbookUserText); 
+                        break;
+                    case 'system_bottom':
+                    default:
+                        topSystemBlocks.push(worldbookUserText);
+                        break;
+                    case 'before_history':
+                        historyMessages.unshift({ role: "system", content: worldbookUserText });
+                        break;
+                    case 'before_latest':
+                        bottomMessages.unshift({ role: "system", content: worldbookUserText });
+                        break;
+                }
             }
 
+            // 4. 最终合并打包
+            const messages = [
+                { role: "system", content: topSystemBlocks.join('\n\n') },
+                ...historyMessages,
+                ...bottomMessages
+            ];
+
+            // 5. 压入最新一条用户指令 (必须放最后，模型对最后一条消息的指令服从度最高)
             if (isBackground) {
                 messages.push({ role: "user", content: "时间到了，该你主动发消息给我了。" });
             } else {
