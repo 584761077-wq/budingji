@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -1827,6 +1827,7 @@ function initSettings() {
             alert('检查更新失败：' + (e?.message || e));
         }
     });
+}
 }
 
 // 4. LINE App 功能
