@@ -314,11 +314,46 @@
   display: flex;
   align-items: center;
   cursor: text;
+  outline: none;
+  margin-bottom: 6px;
 }
 
-.schedule-note:empty::before {
-  content: '添加批注...';
+.schedule-note:last-child {
+  margin-bottom: 0;
+}
+
+.schedule-note.user-note {
+  background: #fff0f5;
+  border-left: 3px solid #ffb6c1;
+  color: #d87093;
+}
+
+.schedule-note.reply-note {
+  background: #f2f2f7;
+  border-left: 3px solid #aeaeb2;
+  color: #636366;
+  cursor: default;
+}
+
+.schedule-note.empty-note {
+  background: transparent;
+  border-left: 2px dashed #e5e5ea;
+  min-height: 30px;
+}
+
+.schedule-note.user-note.empty-note {
+  border-left: 2px dashed #ffb6c1;
+}
+
+.schedule-note.empty-note:empty::before {
+  content: '点击添加批注...';
   color: #c7c7cc;
+  font-style: italic;
+}
+
+.schedule-note.user-note.empty-note:empty::before {
+  content: '点击添加用户批注...';
+  color: #ffb6c1;
 }
 
 /* 锁屏与手机 UI */

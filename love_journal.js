@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const scheduleContentMe = document.getElementById('schedule-content-me');
   const scheduleContentHer = document.getElementById('schedule-content-her');
   const generateMeScheduleBtn = document.getElementById('generate-me-schedule-btn');
+  const updateMeScheduleBtn = document.getElementById('update-me-schedule-btn');
   const importMeScheduleBtn = document.getElementById('import-me-schedule-btn');
   const meScheduleDisplay = document.getElementById('me-schedule-display');
   const meScheduleLoading = document.getElementById('me-schedule-loading');
@@ -443,24 +444,76 @@ document.addEventListener('DOMContentLoaded', () => {
       node.className = 'schedule-node';
       
       const noteContent = item.note || '';
+      const userNoteContent = item.userNote || '';
+      const replyNoteContent = item.replyNote || '';
 
-      node.innerHTML = `
+      let html = `
         <div class="schedule-dot"></div>
         <div class="schedule-content">
           <div class="schedule-time">${item.time || '全天'}</div>
           <div class="schedule-title">${item.title || '无标题'}</div>
           <div class="schedule-desc">${item.desc || ''}</div>
-          <div class="schedule-note" contenteditable="true" data-index="${index}">${noteContent}</div>
-        </div>
+          ${noteContent ? `<div class="schedule-note" contenteditable="true" data-index="${index}">${noteContent}</div>` : `<div class="schedule-note empty-note" contenteditable="true" data-index="${index}"></div>`}
       `;
 
-      // 监听批注编辑
-      const noteEl = node.querySelector('.schedule-note');
-      noteEl.addEventListener('blur', () => {
-        const newNote = noteEl.textContent.trim() === '添加批注...' ? '' : noteEl.textContent.trim();
-        scheduleData[index].note = newNote;
-        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
-      });
+      if (noteContent || userNoteContent) {
+        html += `
+          ${userNoteContent ? `<div class="schedule-note user-note" contenteditable="true" data-index="${index}">${userNoteContent}</div>` : `<div class="schedule-note user-note empty-note" contenteditable="true" data-index="${index}"></div>`}
+        `;
+      }
+
+      if (replyNoteContent) {
+        html += `
+          <div class="schedule-note reply-note" data-index="${index}">${replyNoteContent}</div>
+        `;
+      }
+
+      html += `</div>`;
+      node.innerHTML = html;
+
+      // 监听角色批注编辑
+      const noteEl = node.querySelector('.schedule-note:not(.user-note):not(.reply-note)');
+      if (noteEl) {
+        noteEl.addEventListener('blur', () => {
+          const newNote = noteEl.textContent.trim() === '点击添加批注...' ? '' : noteEl.textContent.trim();
+          scheduleData[index].note = newNote;
+          if (newNote) {
+              noteEl.classList.remove('empty-note');
+          } else {
+              noteEl.classList.add('empty-note');
+              noteEl.innerHTML = '';
+          }
+          largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
+        });
+        
+        noteEl.addEventListener('focus', () => {
+          if (noteEl.classList.contains('empty-note')) {
+              noteEl.innerHTML = '';
+          }
+        });
+      }
+
+      // 监听用户批注编辑
+      const userNoteEl = node.querySelector('.schedule-note.user-note');
+      if (userNoteEl) {
+        userNoteEl.addEventListener('blur', () => {
+          const newNote = userNoteEl.textContent.trim() === '点击添加用户批注...' ? '' : userNoteEl.textContent.trim();
+          scheduleData[index].userNote = newNote;
+          if (newNote) {
+              userNoteEl.classList.remove('empty-note');
+          } else {
+              userNoteEl.classList.add('empty-note');
+              userNoteEl.innerHTML = '';
+          }
+          largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
+        });
+        
+        userNoteEl.addEventListener('focus', () => {
+          if (userNoteEl.classList.contains('empty-note')) {
+              userNoteEl.innerHTML = '';
+          }
+        });
+      }
 
       timeline.appendChild(node);
     });
@@ -490,11 +543,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!currentChatId) return;
       
       generateMeScheduleBtn.disabled = true;
-      if (meScheduleLoading) meScheduleLoading.style.display = 'block';
+      if (meScheduleLoading) {
+        meScheduleLoading.textContent = '正在读取记忆与世界书生成中...';
+        meScheduleLoading.style.display = 'block';
+      }
       if (meScheduleDisplay) meScheduleDisplay.innerHTML = '';
 
       try {
-        const scheduleStr = await generateMeSchedule(currentChatId);
+        const scheduleStr = await generateMeSchedule(currentChatId, 'generate');
         largeStore.put('love_journal_me_schedule_temp_' + currentChatId, scheduleStr);
         renderMeSchedule(scheduleStr);
       } catch (e) {
@@ -502,6 +558,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (meScheduleDisplay) meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #ff9f0a; margin-top: 50px;">生成失败，请重试。</div>';
       } finally {
         generateMeScheduleBtn.disabled = false;
+        if (meScheduleLoading) meScheduleLoading.style.display = 'none';
+      }
+    });
+  }
+
+  if (updateMeScheduleBtn) {
+    updateMeScheduleBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      
+      const currentSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      if (!currentSchedule) {
+        alert('请先生成日程规划，然后再更新进度。');
+        return;
+      }
+      
+      updateMeScheduleBtn.disabled = true;
+      if (meScheduleLoading) {
+        meScheduleLoading.textContent = '正在结合当前时间与上下文更新进度...';
+        meScheduleLoading.style.display = 'block';
+      }
+
+      try {
+        const scheduleStr = await generateMeSchedule(currentChatId, 'update', currentSchedule);
+        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, scheduleStr);
+        renderMeSchedule(scheduleStr);
+      } catch (e) {
+        alert('更新失败: ' + (e?.message || e));
+      } finally {
+        updateMeScheduleBtn.disabled = false;
         if (meScheduleLoading) meScheduleLoading.style.display = 'none';
       }
     });
@@ -520,7 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function generateMeSchedule(chatId) {
+  async function generateMeSchedule(chatId, mode = 'generate', currentScheduleStr = '') {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
     const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
@@ -543,8 +628,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const recentHistory = history
       .map(m => `${m.role === 'user' ? userName : myName}: ${m.content}`)
       .join('\n');
+      
+    const currentTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
-    const prompt = `你是${myName}。请根据以下上下文，为你生成今天一天的日程安排。
+    let prompt = '';
+    
+    if (mode === 'generate') {
+        prompt = `你是${myName}。请根据你的人设和世界背景，为你生成今天一整天的详细日程规划（就像你早上刚醒来时写在备忘录上的待办清单）。
 人设：
 ${persona || '无'}
 
@@ -555,15 +645,35 @@ ${wbContext || '无'}
 ${recentHistory || '无'}
 
 要求：
-1. 详细列出今天不同时间段（如早上、上午、中午、下午、晚上）的活动安排。
-2. 日程要符合你的人设和世界背景。
-3. 结合最近的聊天记录，如果聊天中提到了今天的计划，请务必包含在内。
+1. 这是一个**纯粹客观的行程计划表**，详细列出今天从早到晚不同时间段的活动安排。
+2. 绝对**不要**生成你对这些事情的感想、情绪，也**不要**写成日记或对聊天记录的总结。
+3. 结合聊天记录中提到的待办事项（如果有），自然地穿插进符合你人设的日常工作、生活安排中。
 4. 必须只返回一个 JSON 数组，不需要任何多余的解释。每个元素代表一个日程节点，包含以下字段：
-   - "time": 时间段描述（如 "早上 08:00"）
-   - "title": 日程标题（简短精炼）
-   - "desc": 日程的详细描述（以第一人称“我”来写，带有陪伴感和小情绪）
-   - "note": 留空字符串 ""
+   - "time": 时间段描述（如 "08:00 - 09:30" 或 "上午"）
+   - "title": 具体的任务名称（如 "前往行草工作室"、"商业项目编曲"）
+   - "desc": 该任务的具体执行细节规划（如 "准备整理编曲的音轨，与谢哥核对项目需求"），必须是客观陈述计划，绝对不要带个人感情或疲惫感。
+   - "note": 必须为空字符串 ""。
+   - "userNote": 必须为空字符串 ""。
+   - "replyNote": 必须为空字符串 ""。
 `;
+    } else if (mode === 'update') {
+        prompt = `你是${myName}。以下是你今天的原有日程规划：
+${currentScheduleStr}
+
+最近和${userName}的聊天记录：
+${recentHistory || '无'}
+
+现在的时间是：${currentTime}。
+
+请你更新这个日程规划。
+要求：
+1. 保持原有的日程节点基本结构和时间顺序不变。
+2. 对于时间在 ${currentTime} **之前**或**当前正在进行**的日程节点，根据你的【人设】和【最近聊天记录】，补充角色在执行该日程时的真实感受或吐槽到 "note"（批注）字段中，以第一人称“我”的口吻来写，展现陪伴感和情绪。
+3. 如果原有节点中有用户的批注（"userNote" 字段不为空），请你在 "replyNote" 字段中，以第一人称“我”的口吻，对用户的批注进行回复。如果没有用户批注，"replyNote" 保持为空字符串 ""。
+4. 对于时间在 ${currentTime} **之后**（还没发生）的日程节点，"note" 字段必须保持为空字符串 ""。
+5. 必须只返回一个 JSON 数组，不需要任何多余的解释。字段要求同上："time", "title", "desc", "note", 并且包含原有的 "userNote"（如有）以及新生成的 "replyNote"。
+`;
+    }
 
     const messages = [{ role: 'user', content: prompt }];
     
@@ -602,7 +712,12 @@ ${recentHistory || '无'}
 
   if (saveScheduleBtn && scheduleModal) {
     saveScheduleBtn.addEventListener('click', () => {
-      // TODO: 实现保存逻辑
+      if (!currentChatId) return;
+      const tempSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      if (tempSchedule) {
+        largeStore.put('love_journal_me_schedule_' + currentChatId, tempSchedule);
+        alert('日常与批注保存成功！');
+      }
       scheduleModal.classList.remove('active');
     });
   }

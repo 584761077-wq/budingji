@@ -824,7 +824,20 @@ function showApiErrorModal(error) {
     else if (status === '内容为空') cnDesc = '模型成功返回了结果，但未能生成任何可显示的文字。';
     else {
         status = 'Error';
-        cnDesc = 'API 调用过程中遇到了一些问题，详见下方原始报错信息。';
+        cnDesc = 'API 调用失败或发生未知错误，详见下方原始报错信息。';
+        
+        // 尝试从 JSON 中提取更友好的信息
+        try {
+            const parsed = JSON.parse(errMsg);
+            if (parsed.error && parsed.error.code) {
+                status = parsed.error.code;
+            } else if (parsed.error && parsed.error.type) {
+                status = parsed.error.type;
+            }
+        } catch(e) {
+            const errMatch = errMsg.match(/"code":\s*"([^"]+)"/);
+            if (errMatch) status = errMatch[1];
+        }
     }
 
     simpleMsgHtml = `
