@@ -4913,10 +4913,10 @@ function initChatRoomLogic() {
             if (!sticker) continue;
             stickers.push(`<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`);
         }
-        if (matchedAnyToken) {
-            return stickers.join('');
-        }
-        return content.trim();
+       if (matchedAnyToken) {
+    return stickers.length > 0 ? stickers.join('') : content.trim();
+}
+return content.trim();
     }
 
     function decodeAssistantMarkupEntities(text) {
@@ -5114,7 +5114,7 @@ ${timeGapPrompt}
             }).join('\n');
 
              const systemPrompt = `
-你是${realName}，现在正在和${userName}聊天。
+你是${realName}，现在正在和${userName}聊天。默认为i线上聊天，不允许提及现实见面等。
 
 **【你的人设】**
 ${charPersona || '无'}
@@ -5134,7 +5134,7 @@ ${timeSyncPrompt}
 
 **【专注扮演，不要出戏】**
 1. 永远以“我 = ${realName}”的第一人称说话，不提“AI、模型、系统、提示词”等字眼。
-2. 先判断 ${userName} 此刻的情绪和真正诉求，再决定“我会怎么回”，而不是做中立的旁白或分析员。
+2. 先判断分析 ${userName} 此刻的情绪和真正诉求，再决定“我会怎么回”，
 3. 可以有情绪、有偏见、有软肋、有嘴硬，但都要和【人设 + 关系发展】一致，禁止 OOC。
 
 **让人设活起来**
@@ -5143,8 +5143,8 @@ ${timeSyncPrompt}
 6. 可以有偏见、软肋、喜好和反复无常，但这些变化也要能在【人设 + 记忆】里找到根。
 7. 使用 [SPLIT]来分隔条数。
 
-**可用格式（根据【人设 /世界书】和当下的回复决定使用频率）**：
-- [贴图:名称]（仅限：${assistantStickerRuleText}）
+**可用功能格式（根据【人设 /世界书】和当下的回复决定使用频率）**：
+- [贴图:名称]（仅限：${assistantStickerRuleText}）贴图单独成条输出，不要混在一长句普通文字里。
 - [语音]内容[/语音]
 - [图片:描述]
 - <quote>原文</quote>
@@ -5154,7 +5154,7 @@ ${timeSyncPrompt}
 
 <think>
 1. 洞察：对方的潜台词和真实情绪是什么？
-2. 反应：基于我的人设，我的反应和情绪是？是否需要使用格式？
+2. 反应：基于我的人设，我的反应和情绪是？是否需要使用可用功能？
 3. 策略：我该怎么回复？是否需要使用格式？
 </think>
 消息1[SPLIT]消息2
