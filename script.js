@@ -1,6 +1,8 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
+const APP_VERSION = '1.0.0';
+
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
     const storeName = 'large_data';
@@ -1620,7 +1622,7 @@ function initSettings() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-    async function importFromObject(obj) {
+        async function importFromObject(obj) {
         const payload = obj && obj.storage && typeof obj.storage === 'object' ? obj.storage : obj;
         if (!payload || typeof payload !== 'object') {
             showApiErrorModal('导入的数据格式不正确');
@@ -1777,91 +1779,54 @@ function initSettings() {
             reader.readAsText(file, 'utf-8');
         });
     }
-    if (checkUpdateBtn) {
-        checkUpdateBtn.addEventListener('click', async () => {
-            if (!('serviceWorker' in navigator)) {
-                alert('当前环境不支持更新');
+ if (checkUpdateBtn) {
+    checkUpdateBtn.addEventListener('click', async () => {
+        try {
+            const res = await fetch(`./version.json?ts=${Date.now()}`, {
+                cache: 'no-store'
+            });
+
+            if (!res.ok) {
+                throw new Error('无法获取远程版本信息');
+            }
+
+            const remote = await res.json();
+            const remoteVersion = String(remote.version || '').trim();
+            const remoteUpdatedAt = String(remote.updatedAt || '').trim();
+            const remoteNotes = String(remote.notes || '').trim();
+
+            if (!remoteVersion) {
+                throw new Error('远程版本信息无效');
+            }
+
+            if (remoteVersion === APP_VERSION) {
+                alert(`当前已是最新版本\n版本号：${APP_VERSION}`);
                 return;
             }
-            try {
+
+            const shouldUpdate = confirm(
+                `发现新版本\n\n当前版本：${APP_VERSION}\n远程版本：${remoteVersion}\n更新时间：${remoteUpdatedAt || '未知'}\n更新说明：${remoteNotes || '无'}\n\n是否立即更新并刷新？`
+            );
+
+            if (!shouldUpdate) return;
+
+            if ('serviceWorker' in navigator) {
                 const reg = await navigator.serviceWorker.getRegistration();
-                if (!reg) {
-                    alert('未检测到服务工作线程');
-                    return;
-                }
-                let updated = false;
-                await new Promise((resolve) => {
-                    let settled = false;
-                    const done = () => {
-                        if (!settled) {
-                            settled = true;
-                            resolve();
-                        }
-                    };
-                    const onInstalling = (sw) => {
-                        if (!sw) {
-                            done();
-                            return;
-                        }
-                        sw.onstatechange = () => {
-                            if (sw.state === 'installed') {
-                                updated = true;
-                                done();
-                            }
-                        };
-                    };
-                    if (reg.installing) {
-                        onInstalling(reg.installing);
-                        reg.update().catch(() => done());
-                    } else {
-                        reg.addEventListener('updatefound', () => onInstalling(reg.installing));
-                        reg.update().catch(() => done());
-                        setTimeout(done, 6000);
+                if (reg) {
+                    try {
+                        await reg.update();
+                    } catch (e) {
+                        console.warn('service worker update failed:', e);
                     }
-                });
-                if (updated) {
-                    if (confirm('检测到新版本，是否立即更新？')) {
-                        window.location.reload();
-                    }
-                } else {
-                    alert('当前已是最新版本');
                 }
-                const reg2 = await navigator.serviceWorker.getRegistration();
-                const controller = navigator.serviceWorker.controller || (reg2 && reg2.active);
-                if (!controller) {
-                    alert('需要刷新后再进行完整性自检');
-                    return;
-                }
-                const swRequest = (type) => new Promise((resolve) => {
-                    const ch = new MessageChannel();
-                    const timer = setTimeout(() => resolve(null), 7000);
-                    ch.port1.onmessage = (e) => {
-                        clearTimeout(timer);
-                        resolve(e.data);
-                    };
-                    controller.postMessage({ type }, [ch.port2]);
-                });
-                const checkRes = await swRequest('CHECK_CACHE');
-                if (!checkRes || !Array.isArray(checkRes.results)) {
-                    alert('完整性自检失败');
-                    return;
-                }
-                const missing = checkRes.results.filter(i => !i.cached).map(i => i.url);
-                if (missing.length > 0) {
-                    if (confirm(`发现缺失 ${missing.length} 个资源，是否修复并刷新？`)) {
-                        await swRequest('FILL_MISSING');
-                        window.location.reload();
-                    } else {
-                        alert('缺失资源：\n' + missing.join('\n'));
-                    }
-                } else {
-                    alert('缓存完整性正常');
-                }
-            } catch (e) {
-                alert('更新检查失败');
             }
-        });
-    }
+
+            alert('正在刷新到新版本...');
+            location.reload();
+        } catch (e) {
+            alert('检查更新失败：' + (e?.message || e));
+        }
+    });
 }
 
 // 4. LINE App 功能
