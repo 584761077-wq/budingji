@@ -1560,24 +1560,17 @@
         </div>
 
         <div class="ins-modal-overlay" id="api-error-modal" style="display: none;">
-            <div class="ins-modal">
-                <div class="ins-modal-header">
-                    <h3>API 报错</h3>
-                    <button class="ins-modal-close" id="close-api-error-modal">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-                <div class="ins-modal-body">
+            <div class="ins-modal api-error-popup">
+                <div class="ins-modal-body" style="text-align: center; padding: 0;">
                     <div id="api-error-message" class="api-error-message">
                         <div class="api-error-simple" id="api-error-simple"></div>
-                        <div class="api-error-detail-wrap" id="api-error-detail-wrap" style="display: none;">
-                            <div class="api-error-detail-title">详细报错</div>
-                            <div class="api-error-detail-content" id="api-error-detail"></div>
+                        <div class="api-error-detail-wrap" id="api-error-detail-wrap" style="display: none; margin-top: 8px; text-align: left;">
+                            <div class="api-error-detail-content" id="api-error-detail" style="font-size: 0.7rem; color: #86868b; background: #f5f5f7; padding: 6px; border-radius: 6px; max-height: 60px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></div>
                         </div>
                     </div>
                 </div>
-                <div class="ins-modal-footer">
-                    <button class="ins-btn-primary" id="confirm-api-error-modal">知道了</button>
+                <div class="ins-modal-footer" style="margin-top: 10px; border-top: none;">
+                    <button class="ins-btn-primary" id="confirm-api-error-modal" style="width: 100%; border-radius: 8px; padding: 6px; font-size: 0.9rem; height: 36px; font-weight: bold;">我知道了</button>
                 </div>
             </div>
         </div>

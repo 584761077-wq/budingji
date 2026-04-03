@@ -841,8 +841,10 @@ function showApiErrorModal(error) {
     }
 
     simpleMsgHtml = `
-        <div style="font-size: 2.2rem; font-weight: 800; line-height: 1.1; color: #ff3b30; margin-bottom: 6px;">${status}</div>
-        <div style="font-size: 1rem; color: #1d1d1f; font-weight: 500;">${cnDesc}</div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 2px;">
+            <div style="font-size: 1.25rem; font-weight: 800; color: #ff3b30;">${status}</div>
+            <div style="font-size: 0.85rem; color: #1d1d1f; font-weight: 600; line-height: 1.3; text-align: left;">${cnDesc}</div>
+        </div>
     `;
     
     try {
@@ -2277,7 +2279,10 @@ function initLineApp() {
                 ${avatarHtml}
             </div>
             <div class="chat-item-info">
-                <div class="chat-item-name">${displayName}</div>
+                <div class="chat-item-header">
+                    <div class="chat-item-name">${displayName}</div>
+                    <div class="chat-item-time"></div>
+                </div>
                 <div class="chat-item-msg">点击开始聊天</div>
             </div>
             <div class="chat-item-unread hidden"></div>
@@ -5354,7 +5359,7 @@ ${roundMessageText}
 
             // 5. 压入最新一条用户指令 (必须放最后，模型对最后一条消息的指令服从度最高)
             if (isBackground) {
-                messages.push({ role: "user", content: "时间到了，该你主动发消息给我了。" });
+                messages.push({ role: "user", content: "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。" });
             } else {
                 messages.push({ role: "user", content: userMessagePayload });
             }
@@ -7827,6 +7832,26 @@ function updateChatListItemPreview(chatId, chatItem) {
     if (msgEl) {
         msgEl.textContent = preview || '点击开始聊天';
     }
+    const timeEl = item.querySelector('.chat-item-time');
+    if (timeEl) {
+        if (meta.ts) {
+            const d = new Date(meta.ts);
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+            if (d.toDateString() === now.toDateString()) {
+                timeEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            } else if (d.toDateString() === yesterday.toDateString()) {
+                timeEl.textContent = '昨天';
+            } else if (d.getFullYear() === now.getFullYear()) {
+                timeEl.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+            } else {
+                timeEl.textContent = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+            }
+        } else {
+            timeEl.textContent = '';
+        }
+    }
     item.dataset.lastTs = String(meta.ts || 0);
 }
 
@@ -8010,7 +8035,10 @@ function initGlobalPersistence() {
                         ${avatarHtml}
                     </div>
                     <div class="chat-item-info">
-                        <div class="chat-item-name">${displayName}</div>
+                        <div class="chat-item-header">
+                            <div class="chat-item-name">${displayName}</div>
+                            <div class="chat-item-time"></div>
+                        </div>
                         <div class="chat-item-msg">点击开始聊天</div>
                     </div>
                     <div class="chat-item-unread ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount > 99 ? '99+' : unreadCount}</div>
@@ -8124,7 +8152,10 @@ function initAddFriendLogic() {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                 </div>
                 <div class="chat-item-info">
-                    <div class="chat-item-name">${displayName}</div>
+                    <div class="chat-item-header">
+                        <div class="chat-item-name">${displayName}</div>
+                        <div class="chat-item-time"></div>
+                    </div>
                     <div class="chat-item-msg">开始聊天吧</div>
                 </div>
                 <div class="chat-item-unread hidden"></div>
