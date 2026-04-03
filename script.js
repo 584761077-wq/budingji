@@ -5032,7 +5032,7 @@ function initChatRoomLogic() {
                 ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
                 : null;
 
-            let timeGapPrompt = '';
+           let timeGapPrompt = '';
             let userMessageTimePrefix = '';
             if (timeSyncEnabled && fullHistory.length > currentTurnUserMessages.length) {
                 const lastMsgIndex = fullHistory.length - currentTurnUserMessages.length - 1;
@@ -5042,30 +5042,27 @@ function initChatRoomLogic() {
                     if (Number.isFinite(lastTs)) {
                         const diffMs = now.getTime() - lastTs;
                         const diffMinutes = Math.floor(diffMs / 60000);
-                        
-                                              if (diffMinutes >= 30) {
+                        if (diffMinutes >= 360) {
                             let timeDesc = '';
-
-                            const lastDate = new Date(lastTs);
+                            let gapHint = '';
                             const nowDateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                            if (diffMinutes < 60) {
-                                timeDesc = `${diffMinutes}分钟`;
-                            } else if (diffMinutes < 1440) {
+                            if (diffMinutes < 1440) {
                                 const hours = Math.floor(diffMinutes / 60);
                                 const mins = diffMinutes % 60;
                                 timeDesc = `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
+                                gapHint = '这是隔了一阵后的重新开口，可以自然带一点间隔感，但不要主动解释自己刚刚去做了什么，也不要强行表演“刚回来”。';
                             } else {
                                 const days = Math.floor(diffMinutes / 1440);
                                 timeDesc = `${days}天`;
+                                gapHint = '已经隔了至少一天，可以明显体现久违感和时间流逝感。请根据人设自然表现想念、别扭、抱怨、试探、冷淡、委屈或松一口气，但不要生硬演戏。';
                             }
 
-                            timeGapPrompt = `
+ timeGapPrompt = `
 [时间感知]
-注意：如果最新消息里有【系统时间戳】，说明你们已经有${timeDesc}没聊天了。
-不要生硬接上一句话题！必须根据你的【人设】，给出你在这个时间差下的真实第一反应。
+你们已经有${timeDesc}没有聊天了。
+${gapHint}
 `;
-                            userMessageTimePrefix = `【系统时间戳：距离上次聊天已过${timeDesc}，现在是${nowDateText}】\n`;
+                            userMessageTimePrefix = `【时间间隔：距离上次聊天已过${timeDesc}；当前时间：${nowDateText}】\n`;
                         }
                     }
                 }
