@@ -360,6 +360,10 @@ async function mediaSaveFromDataUrl(lsKey, dataUrl) {
     if (!blob) throw new Error('invalid data url');
     const id = encodeURIComponent(lsKey);
     await mediaPut(id, blob);
+    if (mediaUrlCache.has(id)) {
+        URL.revokeObjectURL(mediaUrlCache.get(id));
+        mediaUrlCache.delete(id);
+    }
     return 'media:' + id;
 }
 async function mediaResolveRef(ref) {
@@ -6835,6 +6839,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
                     localStorage.setItem(getChatWallpaperStorageKey(chatId), ref);
                     stored = true;
                 } catch (error) {
+                    console.error('[Wallpaper] Save error:', error);
+                    alert('壁纸保存失败，可能是由于存储空间不足或数据库错误。');
                     stored = false;
                 }
             }
@@ -6847,14 +6853,8 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 }
                 setTempChatWallpaper(chatId, src);
             }
-           applyChatWallpaper(chatId);
-requestAnimationFrame(() => {
-    applyChatWallpaper(chatId);
-});
-setTimeout(() => {
-    applyChatWallpaper(chatId);
-}, 60);
-chatWallpaperInput.value = '';
+            applyChatWallpaper(chatId);
+            chatWallpaperInput.value = '';
         });
     }
 
