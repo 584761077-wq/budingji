@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.4';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -60,12 +60,8 @@ const largeStore = (() => {
     }
 
  async function put(key, value) {
-    // 只缓存小字符串，大正文不要常驻内存
-    if (typeof value === 'string' && value.length < 200000) {
-        cache.set(key, value);
-    } else {
-        cache.delete(key);
-    }
+    // 缓存所有数据，保证业务代码同步 get 正常工作
+    cache.set(key, value);
 
     const db = await getDB();
     return new Promise((resolve, reject) => {
@@ -82,6 +78,26 @@ function get(key, defaultVal = null) {
     return defaultVal;
 }
 
+async function getAll() {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const result = {};
+        const req = store.openCursor();
+        req.onsuccess = e => {
+            const cursor = e.target.result;
+            if (cursor) {
+                result[cursor.key] = cursor.value;
+                cursor.continue();
+            } else {
+                resolve(result);
+            }
+        };
+        req.onerror = () => reject(req.error);
+    });
+}
+
 function remove(key) {
     cache.delete(key);
     getDB().then(db => {
@@ -90,7 +106,7 @@ function remove(key) {
     }).catch(e => console.error('largeStore remove error', e));
 }
 
-return { initCache, put, get, remove };
+return { initCache, put, get, getAll, remove };
 })();
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1600,6 +1616,13 @@ function initSettings() {
     }
     async function collectAllDataWithMedia() {
         const base = collectAllLocalStorage();
+        
+        // 合并 largeStore 中的数据
+        const largeData = await largeStore.getAll();
+        for (const key of Object.keys(largeData)) {
+            base.storage[key] = largeData[key];
+        }
+
         const mediaRecords = await mediaGetAll();
         const media = {};
         for (const rec of mediaRecords) {
@@ -4392,7 +4415,9 @@ function initChatRoomLogic() {
 
     const state = chatHistoryViewStates[chatId];
     if (state && Array.isArray(state.history)) {
-        state.history.push(newMsg);
+        if (state.history !== history) {
+            state.history.push(newMsg);
+        }
     }
 
     refreshChatListPreviewFor(chatId);
@@ -5147,7 +5172,7 @@ ${timeSyncPrompt}
 7. 使用 [SPLIT]来分隔条数。
 
 **可用功能格式（根据【人设 /世界书】和当下的回复决定使用频率）**：
-- [贴图:名称]（仅限：${assistantStickerRuleText}）贴图单独成条输出，不要混在一长句普通文字里。
+- [贴图:名称]（仅限：${assistantStickerRuleText}）贴图名称单独成条输出，不要混在一长句普通文字里。
 - [语音]内容[/语音]
 - [图片:描述]
 - <quote>原文</quote>
