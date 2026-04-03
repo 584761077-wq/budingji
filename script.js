@@ -57,32 +57,41 @@ const largeStore = (() => {
         });
     }
 
-    function put(key, value) {
-        cache.set(key, value); // 立即写入缓存，保证同步可读
-        getDB().then(db => {
-            const tx = db.transaction(storeName, 'readwrite');
-            tx.objectStore(storeName).put(value, key);
-        }).catch(e => console.error('largeStore put error', e));
-    }
-
-    function get(key, defaultVal = null) {
-        if (cache.has(key)) return cache.get(key);
-        return defaultVal;
-    }
-
-    function remove(key) {
+ async function put(key, value) {
+    // 只缓存小字符串，大正文不要常驻内存
+    if (typeof value === 'string' && value.length < 200000) {
+        cache.set(key, value);
+    } else {
         cache.delete(key);
-        getDB().then(db => {
-            const tx = db.transaction(storeName, 'readwrite');
-            tx.objectStore(storeName).delete(key);
-        }).catch(e => console.error('largeStore remove error', e));
     }
-    
-    return { initCache, put, get, remove };
+
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error || new Error('largeStore put error'));
+        tx.onabort = () => reject(tx.error || new Error('largeStore put aborted'));
+    });
+}
+
+function get(key, defaultVal = null) {
+    if (cache.has(key)) return cache.get(key);
+    return defaultVal;
+}
+
+function remove(key) {
+    cache.delete(key);
+    getDB().then(db => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).delete(key);
+    }).catch(e => console.error('largeStore remove error', e));
+}
+
+return { initCache, put, get, remove };
 })();
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await largeStore.initCache();
     await runLargeStoreMigration();
     
     initHeroChatWidget();
@@ -1661,28 +1670,55 @@ function initSettings() {
         }
         const prev = new Map();
         const written = [];
-        try {
-            Object.keys(payload).forEach((key) => {
+               try {
+            for (const key of Object.keys(payload)) {
                 const newVal = payload[key];
                 let prevVal = null;
-                try {
-                    prevVal = localStorage.getItem(key);
-                } catch (e) {}
-                prev.set(key, prevVal);
-                const valueToSet = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-                localStorage.setItem(key, valueToSet);
+
+                // 这些大字段统一走 largeStore，不再写 localStorage
+                const shouldUseLargeStore =
+                    key === 'worldbook_items' ||
+                    key.startsWith('chat_history_') ||
+                    key.startsWith('chat_persona_') ||
+                    key.startsWith('chat_user_persona_') ||
+                    key.startsWith('chat_long_memory_') ||
+                    key.startsWith('chat_summary_');
+
+                if (shouldUseLargeStore) {
+                    prevVal = largeStore.get(key, null);
+                    prev.set(key, { storage: 'largeStore', value: prevVal });
+                    await largeStore.put(key, newVal);
+                } else {
+                    try {
+                        prevVal = localStorage.getItem(key);
+                    } catch (e) {}
+                    prev.set(key, { storage: 'localStorage', value: prevVal });
+                    const valueToSet = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+                    localStorage.setItem(key, valueToSet);
+                }
+
                 written.push(key);
-            });
+            }
         } catch (e) {
-            try {
-                written.forEach((key) => {
-                    const oldVal = prev.get(key);
-                    if (oldVal === null || typeof oldVal === 'undefined') {
-                        localStorage.removeItem(key);
+                       try {
+                for (const key of written) {
+                    const oldEntry = prev.get(key);
+                    if (!oldEntry) continue;
+
+                    if (oldEntry.storage === 'largeStore') {
+                        if (oldEntry.value === null || typeof oldEntry.value === 'undefined') {
+                            largeStore.remove(key);
+                        } else {
+                            await largeStore.put(key, oldEntry.value);
+                        }
                     } else {
-                        localStorage.setItem(key, oldVal);
+                        if (oldEntry.value === null || typeof oldEntry.value === 'undefined') {
+                            localStorage.removeItem(key);
+                        } else {
+                            localStorage.setItem(key, oldEntry.value);
+                        }
                     }
-                });
+                }
                 if (writtenMedia.length > 0) {
                     for (const id of writtenMedia) {
                         const oldBlob = prevMedia.get(id);
