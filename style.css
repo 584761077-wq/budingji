@@ -1829,6 +1829,7 @@ input:checked + .slider:before {
     color: #6e6e73;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
