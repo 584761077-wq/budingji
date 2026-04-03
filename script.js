@@ -122,7 +122,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     runMediaMigration();
     initLineApp();
     initStickerApp();
-    initThemeApp();
+    // 新增：初始化 ThemeEngine
+    ThemeEngine.init().then(() => {
+        initThemeApp();
+    });
     initAppearanceSettings();
     initTopProfileWidget();
 
@@ -3129,6 +3132,15 @@ function initThemeApp() {
     const confirmAddBtn = document.getElementById('confirm-add-theme');
     const nameInput = document.getElementById('theme-name-input');
     const cssInput = document.getElementById('theme-css-input');
+    
+    const varToggle = document.getElementById('theme-var-toggle');
+    const varContainer = document.getElementById('theme-var-container');
+    const varBg = document.getElementById('theme-var-bg');
+    const varRemoteBg = document.getElementById('theme-var-remote-bg');
+    const varRemoteColor = document.getElementById('theme-var-remote-color');
+    const varLocalBg = document.getElementById('theme-var-local-bg');
+    const varLocalColor = document.getElementById('theme-var-local-color');
+
     const categoryGrid = document.getElementById('theme-category-grid');
     const detailView = document.getElementById('theme-detail-view');
     const detailBackBtn = document.getElementById('theme-detail-back');
@@ -3143,8 +3155,6 @@ function initThemeApp() {
 
     if (!themeBtn || !modal) return;
 
-    const storageKey = 'theme_categories_v1';
-    const targetStorageKey = 'theme_category_targets_v1';
     let activeTargetThemeId = null;
     const escapeThemeHtml = (value) => String(value || '')
         .replace(/&/g, '&amp;')
@@ -3153,10 +3163,7 @@ function initThemeApp() {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-    const getThemes = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const setThemes = (themes) => localStorage.setItem(storageKey, JSON.stringify(themes));
-    const getTargetMap = () => JSON.parse(localStorage.getItem(targetStorageKey) || '{}');
-    const setTargetMap = (map) => localStorage.setItem(targetStorageKey, JSON.stringify(map));
+    const getThemes = () => ThemeEngine.getAllThemes();
 
     const notifyThemeChanged = () => {
         window.dispatchEvent(new CustomEvent('theme-binding-updated'));
@@ -3195,6 +3202,17 @@ function initThemeApp() {
     const openAddModal = () => {
         if (nameInput) nameInput.value = '';
         if (cssInput) cssInput.value = '';
+        
+        if (varToggle) {
+            varToggle.checked = false;
+            if (varContainer) varContainer.style.display = 'none';
+        }
+
+        if (varBg) varBg.value = '#f5f5f7';
+        if (varRemoteBg) varRemoteBg.value = '#1d1d1f';
+        if (varRemoteColor) varRemoteColor.value = '#ffffff';
+        if (varLocalBg) varLocalBg.value = '#e5e5ea';
+        if (varLocalColor) varLocalColor.value = '#1d1d1f';
         if (overlay) overlay.style.display = 'flex';
     };
 
@@ -3228,8 +3246,7 @@ function initThemeApp() {
     const openTargetModal = (themeId) => {
         if (!targetOverlay || !targetList) return;
         activeTargetThemeId = themeId;
-        const targetMap = getTargetMap();
-        const selectedTargets = new Set(targetMap[themeId] || []);
+        const selectedTargets = new Set(ThemeEngine.getChatIdsForTheme(themeId) || []);
         const allTargets = getChatTargets();
         targetList.innerHTML = allTargets.map((target) => `
             <label class="theme-target-item">
@@ -3249,14 +3266,14 @@ function initThemeApp() {
         }
         categoryGrid.innerHTML = themes.map((theme) => {
             const css = String(theme.css || '').trim();
-            const snippet = css ? css.slice(0, 140) : '暂无 CSS 内容';
+            const snippet = css ? css.slice(0, 140) : '自定义颜色变量';
             return `
                 <div class="theme-folder-card" data-id="${escapeThemeHtml(theme.id)}">
                     <div class="theme-folder-title">${escapeThemeHtml(theme.name)}</div>
                     <pre class="theme-folder-snippet">${escapeThemeHtml(snippet)}</pre>
                     <div class="theme-folder-footer">
-                        <button class="theme-folder-view-btn" type="button" data-view-id="${escapeThemeHtml(theme.id)}">查看</button>
-                        <button class="theme-folder-add-btn" type="button" data-bind-id="${escapeThemeHtml(theme.id)}">添加</button>
+                        <button class="theme-folder-view-btn" type="button" data-view-id="${escapeThemeHtml(theme.id)}">编辑CSS</button>
+                        <button class="theme-folder-add-btn" type="button" data-bind-id="${escapeThemeHtml(theme.id)}">绑定到...</button>
                     </div>
                 </div>
             `;
@@ -3277,33 +3294,49 @@ function initThemeApp() {
         });
     }
 
+    if (varToggle && varContainer) {
+        varToggle.addEventListener('change', (e) => {
+            varContainer.style.display = e.target.checked ? 'grid' : 'none';
+        });
+    }
+
     if (confirmAddBtn) {
-        confirmAddBtn.addEventListener('click', () => {
+        confirmAddBtn.addEventListener('click', async () => {
             const name = nameInput ? nameInput.value.trim() : '';
             const css = cssInput ? cssInput.value.trim() : '';
+            
+            // 提取变量
+            let vars = {};
+            if (varToggle && varToggle.checked) {
+                vars = {
+                    '--theme-chat-bg': varBg ? varBg.value : '#f5f5f7',
+                    '--theme-remote-bubble-bg': varRemoteBg ? varRemoteBg.value : '#1d1d1f',
+                    '--theme-remote-bubble-color': varRemoteColor ? varRemoteColor.value : '#ffffff',
+                    '--theme-local-bubble-bg': varLocalBg ? varLocalBg.value : '#e5e5ea',
+                    '--theme-local-bubble-color': varLocalColor ? varLocalColor.value : '#1d1d1f'
+                };
+            }
+
             if (!name) {
                 showApiErrorModal('请填写主题名称');
                 return;
             }
-            if (!css) {
-                showApiErrorModal('请粘贴自定义 CSS');
-                return;
+            
+            const themeToSave = {
+                id: crypto.randomUUID(),
+                name,
+                css,
+                variables: vars
+            };
+            
+            try {
+                await ThemeEngine.saveTheme(themeToSave);
+                renderThemes();
+                closeAddModal();
+                notifyThemeChanged();
+            } catch (e) {
+                showApiErrorModal('保存主题失败: ' + e.message);
             }
-            const themes = getThemes();
-            const existing = themes.find((item) => item.name === name);
-            if (existing) {
-                existing.css = css;
-            } else {
-                themes.unshift({
-                    id: crypto.randomUUID(),
-                    name,
-                    css
-                });
-            }
-            setThemes(themes);
-            renderThemes();
-            closeAddModal();
-            notifyThemeChanged();
         });
     }
 
@@ -3331,13 +3364,12 @@ function initThemeApp() {
     if (detailBackBtn) detailBackBtn.addEventListener('click', showThemeList);
 
     if (detailSaveBtn) {
-        detailSaveBtn.addEventListener('click', () => {
+        detailSaveBtn.addEventListener('click', async () => {
             if (!activeThemeIdForEdit) return;
-            const themes = getThemes();
-            const index = themes.findIndex(t => t.id === activeThemeIdForEdit);
-            if (index > -1) {
-                themes[index].css = cssPreview ? cssPreview.value : '';
-                setThemes(themes);
+            const theme = getThemes().find(t => t.id === activeThemeIdForEdit);
+            if (theme) {
+                theme.css = cssPreview ? cssPreview.value : '';
+                await ThemeEngine.saveTheme(theme);
                 renderThemes();
                 notifyThemeChanged();
                 showThemeList();
@@ -3346,17 +3378,10 @@ function initThemeApp() {
     }
 
     if (detailDeleteBtn) {
-        detailDeleteBtn.addEventListener('click', () => {
+        detailDeleteBtn.addEventListener('click', async () => {
             if (!activeThemeIdForEdit) return;
             if (confirm('确定要删除这个主题吗？')) {
-                let themes = getThemes();
-                themes = themes.filter(t => t.id !== activeThemeIdForEdit);
-                setThemes(themes);
-                
-                const targetMap = getTargetMap();
-                delete targetMap[activeThemeIdForEdit];
-                setTargetMap(targetMap);
-                
+                await ThemeEngine.deleteTheme(activeThemeIdForEdit);
                 renderThemes();
                 notifyThemeChanged();
                 showThemeList();
@@ -3373,14 +3398,16 @@ function initThemeApp() {
     }
 
     if (saveTargetBtn) {
-        saveTargetBtn.addEventListener('click', () => {
+        saveTargetBtn.addEventListener('click', async () => {
             if (!activeTargetThemeId || !targetList) return;
             const checkedTargets = Array.from(targetList.querySelectorAll('.theme-target-checkbox:checked')).map((input) => input.value);
-            const targetMap = getTargetMap();
-            targetMap[activeTargetThemeId] = checkedTargets;
-            setTargetMap(targetMap);
-            closeTargetModal();
-            notifyThemeChanged();
+            
+            try {
+                await ThemeEngine.bindThemeToChats(activeTargetThemeId, checkedTargets);
+                closeTargetModal();
+            } catch (e) {
+                showApiErrorModal('绑定失败: ' + e.message);
+            }
         });
     }
 }
@@ -4155,14 +4182,7 @@ function initChatRoomLogic() {
     }
 
     function applyChatTheme(chatId) {
-        const styleTag = ensureThemeStyleTag();
-        const themes = JSON.parse(localStorage.getItem(themeStorageKey) || '[]');
-        const targetMap = JSON.parse(localStorage.getItem(themeTargetStorageKey) || '{}');
-        const activeTheme = themes.find((theme) => {
-            const targetIds = targetMap[theme.id];
-            return Array.isArray(targetIds) && targetIds.includes(chatId);
-        });
-        styleTag.textContent = activeTheme ? String(activeTheme.css || '').trim() : '';
+        ThemeEngine.applyThemeToChatRoom(chatId);
     }
 
     window.addEventListener('theme-binding-updated', () => {

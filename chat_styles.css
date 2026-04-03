@@ -1,5 +1,18 @@
 
 /* --- Chat Room Styles --- */
+:root {
+    --theme-chat-bg: transparent;
+    --theme-local-bubble-bg: #e5e5ea;
+    --theme-local-bubble-color: #1d1d1f;
+    --theme-remote-bubble-bg: #ffffff;
+    --theme-remote-bubble-color: #1d1d1f;
+    --theme-text-color: inherit;
+    --theme-input-bg: #ffffff;
+    --theme-input-border: #e5e5ea;
+    --theme-header-bg: rgba(245, 245, 247, 0.85);
+    --theme-font-family: inherit;
+}
+
 .chat-room {
     position: absolute;
     top: 0;
@@ -8,9 +21,12 @@
     height: 100%;
     z-index: 300; /* Higher than modal overlay */
     background: #f5f5f7; /* Fallback */
+    background: var(--theme-chat-bg);
     display: flex;
     flex-direction: column;
     animation: slideInRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    font-family: var(--theme-font-family);
+    color: var(--theme-text-color);
 }
 
 .chat-room-wallpaper {
@@ -495,14 +511,16 @@
 }
 
 .message-row.left .message-bubble {
-    background: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #e5e5ea;
+    background: var(--theme-remote-bubble-bg, #ffffff);
+    color: var(--theme-remote-bubble-color, #1d1d1f);
+    border-radius: 18px 18px 18px 4px;
+    border: 1px solid var(--theme-input-border, #e5e5ea);
 }
 
 .message-row.right .message-bubble {
-    background: #e5e5ea;
-    color: #1d1d1f;
+    background: var(--theme-local-bubble-bg, #e5e5ea);
+    color: var(--theme-local-bubble-color, #1d1d1f);
+    border-radius: 18px 18px 4px 18px;
 }
 
 .message-bubble.sticker-bubble {

@@ -1498,6 +1498,37 @@
                                 <label>自定义 CSS</label>
                                 <textarea id="theme-css-input" class="theme-css-input" placeholder=".chat-room {&#10;  background: #fff5f8;&#10;}"></textarea>
                             </div>
+                            <div class="ins-input-group" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label>可视化颜色设置 (覆盖 CSS 变量)</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="theme-var-toggle">
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                <div id="theme-var-container" style="display: none; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;">
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: #666;">聊天背景色</label>
+                                        <input type="color" id="theme-var-bg" value="#f5f5f7" style="width: 100%; height: 30px; border: none; cursor: pointer;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: #666;">TA的气泡颜色</label>
+                                        <input type="color" id="theme-var-remote-bg" value="#1d1d1f" style="width: 100%; height: 30px; border: none; cursor: pointer;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: #666;">TA的文字颜色</label>
+                                        <input type="color" id="theme-var-remote-color" value="#ffffff" style="width: 100%; height: 30px; border: none; cursor: pointer;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: #666;">我的气泡颜色</label>
+                                        <input type="color" id="theme-var-local-bg" value="#e5e5ea" style="width: 100%; height: 30px; border: none; cursor: pointer;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: #666;">我的文字颜色</label>
+                                        <input type="color" id="theme-var-local-color" value="#1d1d1f" style="width: 100%; height: 30px; border: none; cursor: pointer;">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="ins-modal-footer">
                             <button class="ins-btn-primary" id="confirm-add-theme">添加</button>
@@ -1758,6 +1789,7 @@
     </div>
 
     <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+    <script src="theme_engine.js"></script>
     <script src="script.js"></script>
     <script src="love_journal.js"></script>
     <script>
