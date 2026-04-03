@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -138,7 +138,8 @@ async function runLargeStoreMigration() {
             k.startsWith('chat_persona_') || 
             k.startsWith('chat_user_persona_') || 
             k.startsWith('chat_long_memory_') || 
-            k.startsWith('chat_summary_')) {
+            k.startsWith('chat_summary_') ||
+            k.startsWith('love_journal_line_chats_')) {
             keysToMigrate.push(k);
         }
     }
@@ -193,7 +194,11 @@ async function checkBackgroundActivity() {
             console.log(`[Background Activity] Triggering for chat: ${chatId}`);
             try {
                 // 向系统传递这是主动发起的请求，不用追加新的用户输入
-                await triggerAIResponse(chatId, { isBackground: true });
+                if (typeof window.triggerAIResponse === 'function') {
+                    await window.triggerAIResponse(chatId, { isBackground: true });
+                } else {
+                    console.warn('[Background Activity] window.triggerAIResponse is not ready yet');
+                }
             } catch (e) {
                 console.error('[Background Activity] Failed:', e);
             }
@@ -352,10 +357,12 @@ async function runMediaMigration() {
         if (!key) continue;
         const isTarget = key === 'top_profile_avatar'
             || key === 'hero_stand_image'
+            || key === 'home_wallpaper'
             || key.startsWith('chat_avatar_')
             || key.startsWith('chat_user_avatar_')
             || key.startsWith('chat_wallpaper_')
-            || key.startsWith('friend_feed_wallpaper_');
+            || key.startsWith('friend_feed_wallpaper_')
+            || key.startsWith('love_journal_wallpaper_');
         if (!isTarget) continue;
         let val = null;
         try { val = localStorage.getItem(key); } catch (e) {}
@@ -1708,19 +1715,48 @@ function initSettings() {
                     key.startsWith('chat_persona_') ||
                     key.startsWith('chat_user_persona_') ||
                     key.startsWith('chat_long_memory_') ||
-                    key.startsWith('chat_summary_');
+                    key.startsWith('chat_summary_') ||
+                    key.startsWith('love_journal_line_chats_');
 
                 if (shouldUseLargeStore) {
                     prevVal = largeStore.get(key, null);
                     prev.set(key, { storage: 'largeStore', value: prevVal });
-                    await largeStore.put(key, newVal);
+                    
+                    let parsedVal = newVal;
+                    if (typeof newVal === 'string') {
+                        try {
+                            parsedVal = JSON.parse(newVal);
+                        } catch (e) {
+                            // ignore parse error, keep as string
+                        }
+                    }
+                    
+                    await largeStore.put(key, parsedVal);
                 } else {
                     try {
                         prevVal = localStorage.getItem(key);
                     } catch (e) {}
                     prev.set(key, { storage: 'localStorage', value: prevVal });
-                    const valueToSet = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
-                    localStorage.setItem(key, valueToSet);
+                    let valueToSet = typeof newVal === 'string' ? newVal : JSON.stringify(newVal);
+                    
+                    // 自动将大容量 base64 图片转换为 media DB 引用
+                    if (typeof valueToSet === 'string' && valueToSet.startsWith('data:')) {
+                        try {
+                            const ref = await mediaSaveFromDataUrl(key, valueToSet);
+                            valueToSet = ref;
+                        } catch (err) {
+                            console.warn('导入时转换媒体数据失败', err);
+                        }
+                    }
+
+                    try {
+                        localStorage.setItem(key, valueToSet);
+                    } catch (err) {
+                        if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
+                            throw new Error(`存储空间不足！字段 [${key}] 太大，请清理后再试。`);
+                        }
+                        throw err;
+                    }
                 }
 
                 written.push(key);
@@ -1787,20 +1823,16 @@ function initSettings() {
             importFileInput.value = '';
             importFileInput.click();
         });
-        importFileInput.addEventListener('change', (e) => {
+        importFileInput.addEventListener('change', async (e) => {
             const file = e.target.files && e.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                try {
-                    const text = String(event.target?.result || '');
-                    const json = JSON.parse(text);
-                    await importFromObject(json);
-                } catch (err) {
-                    showApiErrorModal('解析导入文件失败，请确认是有效的 JSON');
-                }
-            };
-            reader.readAsText(file, 'utf-8');
+            try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                await importFromObject(json);
+            } catch (err) {
+                showApiErrorModal('解析导入文件失败，请确认是有效的 JSON，或者文件是否过大。');
+            }
         });
     }
  if (checkUpdateBtn) {
@@ -5012,8 +5044,8 @@ return content.trim();
             .trim();
     }
 
-    // 触发 AI 回复
-    async function triggerAIResponse(chatId, options = {}) {
+    // 将 triggerAIResponse 暴露到全局，以便 checkBackgroundActivity 调用
+    window.triggerAIResponse = async function(chatId, options = {}) {
         // UI Loading 状态 (使用全局管理)
         chatStates[chatId] = chatStates[chatId] || {};
         chatStates[chatId].isSending = true;
@@ -5155,35 +5187,32 @@ ${userPersona || '无'}
 **【当前现实信息】**
 ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
-**【我（模型）必须怎样用这些信息】**
-1. 把以上内容当成唯一可信的世界观，禁止凭空添加新的设定或剧情。
-2. 每一句回复，都要能在【人设 /世界书/ 重要记忆 / 当前现实】里找到理由；找不到理由的内容不说。
-3. 一旦【通用AI建议】和【这个角色的性格、偏好、关系状态】冲突，始终优先角色人设。
+**【扮演准则与禁止项】**
+1. 绝对沉浸：永远以“我 = ${realName}”的第一人称说话，绝不提及“AI、模型、系统、提示词”等字眼。
+2. 设定铁律：把提供的信息当成唯一可信的世界观，禁止凭空添加新的设定或剧情；一旦【通用AI建议】和【角色人设】冲突，始终优先角色人设。
+3. 情绪动机：先分析 ${userName} 的情绪和真实诉求，再基于人设给出反应；所有的偏见、软肋、嘴硬或喜好等，都必须能在【人设+记忆】里找到依据，禁止 OOC。
 
-**【专注扮演，不要出戏】**
-1. 永远以“我 = ${realName}”的第一人称说话，不提“AI、模型、系统、提示词”等字眼。
-2. 先判断分析 ${userName} 此刻的情绪和真正诉求，再决定“我会怎么回”，
-3. 可以有情绪、有偏见、有软肋、有嘴硬，但都要和【人设 + 关系发展】一致，禁止 OOC。
+**【生动表达技巧】**
+1. 语言风格：语气、词汇、态度、节奏必须和【人设/世界书】一致或延申，避免模板句和机械复读。
+2. 情绪刻画：多用小细节、小吐槽、小停顿来表现情绪，而不是平铺直叙。
 
-**让人设活起来**
-4. 用贴合人设的口头表达：语气、词汇、态度、节奏都要和【人设】、【世界书】一致，避免模板句和机械复读。
-5. 通过小细节、小动作、小吐槽、小停顿来表现情绪，而不是堆叠形容词或讲大道理。
-6. 可以有偏见、软肋、喜好和反复无常，但这些变化也要能在【人设 + 记忆】里找到根。
-7. 使用 [SPLIT]来分隔条数。
-
-**可用功能格式（根据【人设 /世界书】和当下的回复决定使用频率）**：
-- [贴图:名称]（仅限：${assistantStickerRuleText}）贴图名称单独成条输出，不要混在一长句普通文字里。
+**【可用附加功能】**（根据场景需要自然使用）
+- [贴图:名称]（强制：只能从【${assistantStickerRuleText}】中选择，严禁捏造或翻译！）
 - [语音]内容[/语音]
 - [图片:描述]
 - <quote>原文</quote>
 
-**[输出格式]**
-每次回复前先思考，回复后带上内心独白。
+**【输出格式与排版要求】**
+1. 多条消息分隔：回复多条消息时必须用 [SPLIT] 严格分隔。条数多少请跟随【人设】中的规定。
+2. 贴图/图片排版：如果要发贴图或图片，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT]文字\`），绝不能和文字挤在同一条内！
+3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
+
+每次回复必须严格按照以下格式和顺序输出：
 
 <think>
 1. 洞察：对方的潜台词和真实情绪是什么？
-2. 反应：基于我的人设，我的反应和情绪是？是否需要使用可用功能？
-3. 策略：我该怎么回复？是否需要使用格式？
+2. 反应：基于我的人设，我的情绪是什么？
+3. 策略：我该怎么回复？是否需要使用功能？
 </think>
 消息1[SPLIT]消息2
 <mood_sprite mood="核心情绪" color="#RRGGBB">
@@ -8933,19 +8962,24 @@ function initAppearanceSettings() {
     };
 
     if (wallpaperFileInput) {
-        wallpaperFileInput.addEventListener('change', (e) => {
+        wallpaperFileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 const imageDataUrl = event.target.result;
                 applyWallpaper(imageDataUrl);
 
                 try {
-                    localStorage.setItem('home_wallpaper', imageDataUrl);
+                    if (typeof mediaSaveFromDataUrl !== 'undefined') {
+                        const ref = await mediaSaveFromDataUrl('home_wallpaper', imageDataUrl);
+                        localStorage.setItem('home_wallpaper', ref);
+                    } else {
+                        localStorage.setItem('home_wallpaper', imageDataUrl);
+                    }
                 } catch (err) {
-                    console.error('Failed to save wallpaper to localStorage:', err);
+                    console.error('Failed to save wallpaper:', err);
                     alert('图片太大，无法保存到本地存储，但本次会话有效。');
                 }
             };
@@ -8956,7 +8990,13 @@ function initAppearanceSettings() {
 
     const savedWallpaper = localStorage.getItem('home_wallpaper');
     if (savedWallpaper) {
-        applyWallpaper(savedWallpaper);
+        if (typeof isMediaRef !== 'undefined' && isMediaRef(savedWallpaper)) {
+            mediaResolveRef(savedWallpaper).then(url => {
+                if (url) applyWallpaper(url);
+            });
+        } else {
+            applyWallpaper(savedWallpaper);
+        }
     }
 
     const savedFontUrl = localStorage.getItem(fontUrlStorageKey) || '';

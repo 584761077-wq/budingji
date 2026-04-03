@@ -94,8 +94,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedWallpaper = localStorage.getItem('love_journal_wallpaper_' + currentChatId);
     if (loveJournalBg) {
       if (savedWallpaper) {
-        loveJournalBg.style.backgroundImage = `url('${savedWallpaper}')`;
-        if (placeholderContent) placeholderContent.style.display = 'none';
+        if (typeof isMediaRef !== 'undefined' && isMediaRef(savedWallpaper)) {
+          mediaResolveRef(savedWallpaper).then(url => {
+            if (url) {
+              loveJournalBg.style.backgroundImage = `url('${url}')`;
+              if (placeholderContent) placeholderContent.style.display = 'none';
+            }
+          });
+        } else {
+          loveJournalBg.style.backgroundImage = `url('${savedWallpaper}')`;
+          if (placeholderContent) placeholderContent.style.display = 'none';
+        }
       } else {
         loveJournalBg.style.backgroundImage = '';
         if (placeholderContent) placeholderContent.style.display = 'block';
@@ -372,8 +381,17 @@ document.addEventListener('DOMContentLoaded', () => {
       settingsModal.classList.add('active');
       const currentSavedWallpaper = localStorage.getItem('love_journal_wallpaper_' + currentChatId);
       if (currentSavedWallpaper) {
-        wallpaperPreview.style.backgroundImage = `url('${currentSavedWallpaper}')`;
-        wallpaperPreview.style.display = 'block';
+        if (typeof isMediaRef !== 'undefined' && isMediaRef(currentSavedWallpaper)) {
+          mediaResolveRef(currentSavedWallpaper).then(url => {
+            if (url) {
+              wallpaperPreview.style.backgroundImage = `url('${url}')`;
+              wallpaperPreview.style.display = 'block';
+            }
+          });
+        } else {
+          wallpaperPreview.style.backgroundImage = `url('${currentSavedWallpaper}')`;
+          wallpaperPreview.style.display = 'block';
+        }
       } else {
         wallpaperPreview.style.display = 'none';
         wallpaperPreview.style.backgroundImage = '';
@@ -441,9 +459,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (saveSettingsBtn && settingsModal) {
-    saveSettingsBtn.addEventListener('click', () => {
+    saveSettingsBtn.addEventListener('click', async () => {
       if (tempWallpaper && currentChatId) {
-        localStorage.setItem('love_journal_wallpaper_' + currentChatId, tempWallpaper);
+        if (typeof mediaSaveFromDataUrl !== 'undefined') {
+          try {
+            const ref = await mediaSaveFromDataUrl('love_journal_wallpaper_' + currentChatId, tempWallpaper);
+            localStorage.setItem('love_journal_wallpaper_' + currentChatId, ref);
+          } catch(e) {}
+        } else {
+          localStorage.setItem('love_journal_wallpaper_' + currentChatId, tempWallpaper);
+        }
         if (loveJournalBg) loveJournalBg.style.backgroundImage = `url('${tempWallpaper}')`;
         if (placeholderContent) placeholderContent.style.display = 'none';
       }
@@ -493,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getLineChats(chatId) {
-    return JSON.parse(localStorage.getItem('love_journal_line_chats_' + chatId) || '[]');
+    return largeStore.get('love_journal_line_chats_' + chatId, []);
   }
   function renderLineChatList() {
     if (!currentChatId || !phoneLineList) return;
@@ -681,6 +706,6 @@ summary像聊天列表预览。
     if (newChats.length === 0) {
       throw new Error('生成结果不符合规则：没有可用对话，请重试');
     }
-    localStorage.setItem('love_journal_line_chats_' + chatId, JSON.stringify(newChats.slice(0, 5)));
+    largeStore.put('love_journal_line_chats_' + chatId, newChats.slice(0, 5));
   }
 });
