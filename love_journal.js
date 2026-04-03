@@ -33,11 +33,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const scheduleNavItems = scheduleModal ? scheduleModal.querySelectorAll('.nav-item') : [];
   const scheduleContentMe = document.getElementById('schedule-content-me');
   const scheduleContentHer = document.getElementById('schedule-content-her');
+  const scheduleCalendarView = document.getElementById('schedule-calendar-view');
+  const scheduleHeaderTitle = document.getElementById('schedule-header-title');
+  const calendarPrevMonth = document.getElementById('calendar-prev-month');
+  const calendarNextMonth = document.getElementById('calendar-next-month');
+  const calendarMonthYear = document.getElementById('calendar-month-year');
+  const calendarGrid = document.getElementById('calendar-grid');
+  
+  let currentScheduleDate = new Date();
+  let selectedScheduleDateStr = currentScheduleDate.toISOString().split('T')[0]; // YYYY-MM-DD
   const generateMeScheduleBtn = document.getElementById('generate-me-schedule-btn');
   const updateMeScheduleBtn = document.getElementById('update-me-schedule-btn');
   const importMeScheduleBtn = document.getElementById('import-me-schedule-btn');
   const meScheduleDisplay = document.getElementById('me-schedule-display');
   const meScheduleLoading = document.getElementById('me-schedule-loading');
+
+  const generateHerScheduleBtn = document.getElementById('generate-her-schedule-btn');
+  const updateHerScheduleBtn = document.getElementById('update-her-schedule-btn');
+  const importHerScheduleBtn = document.getElementById('import-her-schedule-btn');
+  const herScheduleDisplay = document.getElementById('her-schedule-display');
+  const herScheduleLoading = document.getElementById('her-schedule-loading');
+  const calendarContainer = document.getElementById('calendar-container');
+
+  let currentScheduleTab = 'me';
   const phoneModal = document.getElementById('phone-lock-modal');
   const phoneCloseBtn = document.getElementById('phone-lock-close');
   const phoneTime = document.getElementById('phone-lock-time');
@@ -413,12 +431,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (phoneBtn) phoneBtn.addEventListener('click', openPhoneLock);
   
-  function renderMeSchedule(scheduleDataStr) {
-    if (!meScheduleDisplay) return;
-    meScheduleDisplay.innerHTML = '';
+  function renderSchedule(scheduleDataStr, type, displayEl) {
+    if (!displayEl) return;
+    displayEl.innerHTML = '';
     
     if (!scheduleDataStr) {
-      meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>';
+      displayEl.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>';
       return;
     }
 
@@ -427,17 +445,28 @@ document.addEventListener('DOMContentLoaded', () => {
       scheduleData = JSON.parse(scheduleDataStr);
     } catch (e) {
       // 兼容旧格式或非 JSON 格式
-      meScheduleDisplay.innerHTML = `<div style="white-space: pre-wrap; padding: 10px;">${scheduleDataStr}</div>`;
+      displayEl.innerHTML = `<div style="white-space: pre-wrap; padding: 10px;">${scheduleDataStr}</div>`;
       return;
     }
 
     if (!Array.isArray(scheduleData) || scheduleData.length === 0) {
-      meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常数据。</div>';
+      displayEl.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常数据。</div>';
       return;
     }
 
     const timeline = document.createElement('div');
     timeline.className = 'schedule-timeline';
+
+    // Add Date Header at the top of the timeline
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'schedule-date-header';
+    const parts = selectedScheduleDateStr.split('-');
+    if (parts.length === 3) {
+      dateHeader.textContent = `${parts[1]}月${parts[2]}日`;
+    } else {
+      dateHeader.textContent = selectedScheduleDateStr;
+    }
+    timeline.appendChild(dateHeader);
 
     scheduleData.forEach((item, index) => {
       const node = document.createElement('div');
@@ -453,15 +482,19 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="schedule-time">${item.time || '全天'}</div>
           <div class="schedule-title">${item.title || '无标题'}</div>
           <div class="schedule-desc">${item.desc || ''}</div>
-          ${noteContent ? `<div class="schedule-note" contenteditable="true" data-index="${index}">${noteContent}</div>` : `<div class="schedule-note empty-note" contenteditable="true" data-index="${index}"></div>`}
       `;
 
-      if (noteContent || userNoteContent) {
-        html += `
-          ${userNoteContent ? `<div class="schedule-note user-note" contenteditable="true" data-index="${index}">${userNoteContent}</div>` : `<div class="schedule-note user-note empty-note" contenteditable="true" data-index="${index}"></div>`}
-        `;
+      // 1. Initial Role Note
+      // Only show the empty placeholder for role note if there is NO noteContent yet
+      // BUT if it's the very first generation (no notes at all), we hide userNote and replyNote entirely
+      if (noteContent || userNoteContent || replyNoteContent) {
+        html += `<div class="schedule-note ${noteContent ? '' : 'empty-note'}" contenteditable="true" data-index="${index}">${noteContent}</div>`;
+        html += `<div class="schedule-note user-note ${userNoteContent ? '' : 'empty-note'}" contenteditable="true" data-index="${index}">${userNoteContent}</div>`;
       }
+      // If everything is completely empty, we don't show ANY note placeholders
+      // They will appear after the first "Update Progress" adds the role note.
 
+      // 3. Reply Note (Role's reply to User Note)
       if (replyNoteContent) {
         html += `
           <div class="schedule-note reply-note" data-index="${index}">${replyNoteContent}</div>
@@ -483,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
               noteEl.classList.add('empty-note');
               noteEl.innerHTML = '';
           }
-          largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
+          largeStore.put(`love_journal_${type}_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, JSON.stringify(scheduleData));
         });
         
         noteEl.addEventListener('focus', () => {
@@ -505,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
               userNoteEl.classList.add('empty-note');
               userNoteEl.innerHTML = '';
           }
-          largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
+          largeStore.put(`love_journal_${type}_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, JSON.stringify(scheduleData));
         });
         
         userNoteEl.addEventListener('focus', () => {
@@ -518,7 +551,95 @@ document.addEventListener('DOMContentLoaded', () => {
       timeline.appendChild(node);
     });
 
-    meScheduleDisplay.appendChild(timeline);
+    displayEl.appendChild(timeline);
+  }
+
+  function renderCalendar() {
+    if (!calendarGrid || !calendarMonthYear || !currentChatId) return;
+
+    const year = currentScheduleDate.getFullYear();
+    const month = currentScheduleDate.getMonth();
+    
+    calendarMonthYear.textContent = `${year}年${month + 1}月`;
+    calendarGrid.innerHTML = '';
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    
+    // Fill empty days
+    for (let i = 0; i < firstDay; i++) {
+      const emptyDay = document.createElement('div');
+      emptyDay.className = 'calendar-day empty';
+      calendarGrid.appendChild(emptyDay);
+    }
+
+    // Fill days
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dayEl = document.createElement('div');
+      dayEl.className = 'calendar-day';
+      dayEl.textContent = i;
+      
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      
+      if (year === today.getFullYear() && month === today.getMonth() && i === today.getDate()) {
+        dayEl.classList.add('today');
+      }
+
+      // Check if schedule exists for this day
+      const keyPrefix = currentScheduleTab === 'me' ? 'love_journal_me_schedule_' : 'love_journal_her_schedule_';
+      const savedData = largeStore.get(`${keyPrefix}${currentChatId}_${dateStr}`, '');
+      if (savedData) {
+        dayEl.classList.add('has-schedule');
+      }
+
+      dayEl.addEventListener('click', () => {
+        selectedScheduleDateStr = dateStr;
+        scheduleCalendarView.style.display = 'none';
+        if (currentScheduleTab === 'me') {
+          scheduleContentMe.style.display = 'block';
+        } else {
+          scheduleContentHer.style.display = 'block';
+        }
+        
+        if (scheduleHeaderTitle) {
+          scheduleHeaderTitle.textContent = `${year}年${month + 1}月${i}日 日程`;
+        }
+        if (saveScheduleBtn) saveScheduleBtn.style.display = 'block';
+
+        const tempKeyPrefix = currentScheduleTab === 'me' ? 'love_journal_me_schedule_temp_' : 'love_journal_her_schedule_temp_';
+        
+        // Use temp schedule if exists, otherwise fallback to saved schedule, and finally to empty
+        let scheduleToRender = largeStore.get(`${tempKeyPrefix}${currentChatId}_${selectedScheduleDateStr}`, null);
+        if (scheduleToRender === null) {
+          scheduleToRender = largeStore.get(`${keyPrefix}${currentChatId}_${selectedScheduleDateStr}`, '');
+          // Init temp with saved so we can edit
+          largeStore.put(`${tempKeyPrefix}${currentChatId}_${selectedScheduleDateStr}`, scheduleToRender);
+        }
+        
+        if (currentScheduleTab === 'me') {
+          renderSchedule(scheduleToRender, 'me', meScheduleDisplay);
+        } else {
+          renderSchedule(scheduleToRender, 'her', herScheduleDisplay);
+        }
+      });
+
+      calendarGrid.appendChild(dayEl);
+    }
+  }
+
+  if (calendarPrevMonth) {
+    calendarPrevMonth.addEventListener('click', () => {
+      currentScheduleDate.setMonth(currentScheduleDate.getMonth() - 1);
+      renderCalendar();
+    });
+  }
+
+  if (calendarNextMonth) {
+    calendarNextMonth.addEventListener('click', () => {
+      currentScheduleDate.setMonth(currentScheduleDate.getMonth() + 1);
+      renderCalendar();
+    });
   }
 
   if (scheduleBtn && scheduleModal) {
@@ -527,15 +648,32 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('请先选择一个恋爱对象');
         return;
       }
-      const savedMeSchedule = largeStore.get('love_journal_me_schedule_' + currentChatId, '');
-      largeStore.put('love_journal_me_schedule_temp_' + currentChatId, savedMeSchedule);
-      renderMeSchedule(savedMeSchedule);
+      
+      // 重置状态
+      if (scheduleHeaderTitle) scheduleHeaderTitle.textContent = '日程日历';
+      if (scheduleCalendarView) scheduleCalendarView.style.display = 'block';
+      if (scheduleContentMe) scheduleContentMe.style.display = 'none';
+      if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+      if (saveScheduleBtn) saveScheduleBtn.style.display = 'none';
+      
+      currentScheduleDate = new Date();
+      renderCalendar();
       scheduleModal.classList.add('active');
     });
   }
   if (closeScheduleBtn && scheduleModal) {
     closeScheduleBtn.addEventListener('click', () => {
-      scheduleModal.classList.remove('active');
+      // 如果在详情页，则返回日历；如果在日历页，则关闭弹窗
+      if (scheduleContentMe.style.display === 'block' || scheduleContentHer.style.display === 'block') {
+        if (scheduleHeaderTitle) scheduleHeaderTitle.textContent = '日程日历';
+        if (scheduleCalendarView) scheduleCalendarView.style.display = 'block';
+        if (scheduleContentMe) scheduleContentMe.style.display = 'none';
+        if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+        if (saveScheduleBtn) saveScheduleBtn.style.display = 'none';
+        renderCalendar();
+      } else {
+        scheduleModal.classList.remove('active');
+      }
     });
   }
   if (generateMeScheduleBtn) {
@@ -550,9 +688,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (meScheduleDisplay) meScheduleDisplay.innerHTML = '';
 
       try {
-        const scheduleStr = await generateMeSchedule(currentChatId, 'generate');
-        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, scheduleStr);
-        renderMeSchedule(scheduleStr);
+        const scheduleStr = await generateSchedule(currentChatId, 'generate', '', 'me');
+        largeStore.put(`love_journal_me_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, scheduleStr);
+        renderSchedule(scheduleStr, 'me', meScheduleDisplay);
       } catch (e) {
         alert('生成失败: ' + (e?.message || e));
         if (meScheduleDisplay) meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #ff9f0a; margin-top: 50px;">生成失败，请重试。</div>';
@@ -567,7 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMeScheduleBtn.addEventListener('click', async () => {
       if (!currentChatId) return;
       
-      const currentSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      const currentSchedule = largeStore.get(`love_journal_me_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, '');
       if (!currentSchedule) {
         alert('请先生成日程规划，然后再更新进度。');
         return;
@@ -580,9 +718,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const scheduleStr = await generateMeSchedule(currentChatId, 'update', currentSchedule);
-        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, scheduleStr);
-        renderMeSchedule(scheduleStr);
+        const scheduleStr = await generateSchedule(currentChatId, 'update', currentSchedule, 'me');
+        largeStore.put(`love_journal_me_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, scheduleStr);
+        renderSchedule(scheduleStr, 'me', meScheduleDisplay);
       } catch (e) {
         alert('更新失败: ' + (e?.message || e));
       } finally {
@@ -595,17 +733,84 @@ document.addEventListener('DOMContentLoaded', () => {
   if (importMeScheduleBtn) {
     importMeScheduleBtn.addEventListener('click', () => {
       if (!currentChatId) return;
-      const tempSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      const tempSchedule = largeStore.get(`love_journal_me_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, '');
       if (!tempSchedule) {
         alert('请先生成日常');
         return;
       }
-      largeStore.put('love_journal_me_schedule_' + currentChatId, tempSchedule);
+      largeStore.put(`love_journal_me_schedule_${currentChatId}_${selectedScheduleDateStr}`, tempSchedule);
       alert('导入成功！已注入AI回复记忆中。');
     });
   }
 
-  async function generateMeSchedule(chatId, mode = 'generate', currentScheduleStr = '') {
+  if (generateHerScheduleBtn) {
+    generateHerScheduleBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      
+      generateHerScheduleBtn.disabled = true;
+      if (herScheduleLoading) {
+        herScheduleLoading.textContent = '正在读取记忆与世界书生成中...';
+        herScheduleLoading.style.display = 'block';
+      }
+      if (herScheduleDisplay) herScheduleDisplay.innerHTML = '';
+
+      try {
+        const scheduleStr = await generateSchedule(currentChatId, 'generate', '', 'her');
+        largeStore.put(`love_journal_her_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, scheduleStr);
+        renderSchedule(scheduleStr, 'her', herScheduleDisplay);
+      } catch (e) {
+        alert('生成失败: ' + (e?.message || e));
+        if (herScheduleDisplay) herScheduleDisplay.innerHTML = '<div style="text-align: center; color: #ff9f0a; margin-top: 50px;">生成失败，请重试。</div>';
+      } finally {
+        generateHerScheduleBtn.disabled = false;
+        if (herScheduleLoading) herScheduleLoading.style.display = 'none';
+      }
+    });
+  }
+
+  if (updateHerScheduleBtn) {
+    updateHerScheduleBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      
+      const currentSchedule = largeStore.get(`love_journal_her_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, '');
+      if (!currentSchedule) {
+        alert('请先生成日程规划，然后再更新进度。');
+        return;
+      }
+      
+      updateHerScheduleBtn.disabled = true;
+      if (herScheduleLoading) {
+        herScheduleLoading.textContent = '正在结合当前时间与上下文更新进度...';
+        herScheduleLoading.style.display = 'block';
+      }
+
+      try {
+        const scheduleStr = await generateSchedule(currentChatId, 'update', currentSchedule, 'her');
+        largeStore.put(`love_journal_her_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, scheduleStr);
+        renderSchedule(scheduleStr, 'her', herScheduleDisplay);
+      } catch (e) {
+        alert('更新失败: ' + (e?.message || e));
+      } finally {
+        updateHerScheduleBtn.disabled = false;
+        if (herScheduleLoading) herScheduleLoading.style.display = 'none';
+      }
+    });
+  }
+
+  if (importHerScheduleBtn) {
+    importHerScheduleBtn.addEventListener('click', () => {
+      if (!currentChatId) return;
+      const tempSchedule = largeStore.get(`love_journal_her_schedule_temp_${currentChatId}_${selectedScheduleDateStr}`, '');
+      if (!tempSchedule) {
+        alert('请先生成日常');
+        return;
+      }
+      largeStore.put(`love_journal_her_schedule_${currentChatId}_${selectedScheduleDateStr}`, tempSchedule);
+      alert('导入成功！已注入AI回复记忆中。');
+    });
+  }
+
+  async function generateSchedule(chatId, mode = 'generate', currentScheduleStr = '', type = 'me') {
     const apiUrl = localStorage.getItem('api_url');
     const apiKey = localStorage.getItem('api_key');
     const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
@@ -630,11 +835,12 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('\n');
       
     const currentTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const targetPerson = type === 'me' ? userName : myName;
 
     let prompt = '';
     
     if (mode === 'generate') {
-        prompt = `你是${myName}。请根据你的人设和世界背景，为你生成今天一整天的详细日程规划（就像你早上刚醒来时写在备忘录上的待办清单）。
+        prompt = `你是${myName}。请根据你的人设和世界背景，为【${targetPerson}】生成今天一整天的详细日程规划（就像早上刚醒来时写在备忘录上的待办清单）。
 人设：
 ${persona || '无'}
 
@@ -647,7 +853,7 @@ ${recentHistory || '无'}
 要求：
 1. 这是一个**纯粹客观的行程计划表**，详细列出今天从早到晚不同时间段的活动安排。
 2. 绝对**不要**生成你对这些事情的感想、情绪，也**不要**写成日记或对聊天记录的总结。
-3. 结合聊天记录中提到的待办事项（如果有），自然地穿插进符合你人设的日常工作、生活安排中。
+3. 结合聊天记录中提到的待办事项（如果有），自然地穿插进符合【${targetPerson}】身份的日常工作、生活安排中。
 4. 必须只返回一个 JSON 数组，不需要任何多余的解释。每个元素代表一个日程节点，包含以下字段：
    - "time": 时间段描述（如 "08:00 - 09:30" 或 "上午"）
    - "title": 具体的任务名称（如 "前往行草工作室"、"商业项目编曲"）
@@ -657,7 +863,7 @@ ${recentHistory || '无'}
    - "replyNote": 必须为空字符串 ""。
 `;
     } else if (mode === 'update') {
-        prompt = `你是${myName}。以下是你今天的原有日程规划：
+        prompt = `你是${myName}。以下是【${targetPerson}】今天的原有日程规划：
 ${currentScheduleStr}
 
 最近和${userName}的聊天记录：
@@ -668,8 +874,10 @@ ${recentHistory || '无'}
 请你更新这个日程规划。
 要求：
 1. 保持原有的日程节点基本结构和时间顺序不变。
-2. 对于时间在 ${currentTime} **之前**或**当前正在进行**的日程节点，根据你的【人设】和【最近聊天记录】，补充角色在执行该日程时的真实感受或吐槽到 "note"（批注）字段中，以第一人称“我”的口吻来写，展现陪伴感和情绪。
-3. 如果原有节点中有用户的批注（"userNote" 字段不为空），请你在 "replyNote" 字段中，以第一人称“我”的口吻，对用户的批注进行回复。如果没有用户批注，"replyNote" 保持为空字符串 ""。
+2. 对于时间在 ${currentTime} **之前**或**当前正在进行**的日程节点：
+   - 如果原有的 "note"（批注）字段为空，请根据你的【人设】和【最近聊天记录】，补充角色在执行该日程时的真实感受或吐槽到 "note" 字段中，以第一人称“我”的口吻来写，展现陪伴感和情绪。
+   - **如果原有的 "note" 字段已经有内容，绝对不要修改它，原样保留。**
+3. 如果原有节点中有用户的批注（"userNote" 字段不为空），请你在 "replyNote" 字段中，以第一人称“我”的口吻，对用户的批注进行回复。如果没有用户批注，"replyNote" 保持为空字符串 ""。**如果 "replyNote" 已经有内容，不要覆盖，可以继续追加或保持原样。**
 4. 对于时间在 ${currentTime} **之后**（还没发生）的日程节点，"note" 字段必须保持为空字符串 ""。
 5. 必须只返回一个 JSON 数组，不需要任何多余的解释。字段要求同上："time", "title", "desc", "note", 并且包含原有的 "userNote"（如有）以及新生成的 "replyNote"。
 `;
@@ -713,12 +921,21 @@ ${recentHistory || '无'}
   if (saveScheduleBtn && scheduleModal) {
     saveScheduleBtn.addEventListener('click', () => {
       if (!currentChatId) return;
-      const tempSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      const keyPrefix = currentScheduleTab === 'me' ? 'love_journal_me_schedule_' : 'love_journal_her_schedule_';
+      const tempKeyPrefix = currentScheduleTab === 'me' ? 'love_journal_me_schedule_temp_' : 'love_journal_her_schedule_temp_';
+      const tempSchedule = largeStore.get(`${tempKeyPrefix}${currentChatId}_${selectedScheduleDateStr}`, '');
       if (tempSchedule) {
-        largeStore.put('love_journal_me_schedule_' + currentChatId, tempSchedule);
+        largeStore.put(`${keyPrefix}${currentChatId}_${selectedScheduleDateStr}`, tempSchedule);
         alert('日常与批注保存成功！');
       }
-      scheduleModal.classList.remove('active');
+      
+      // Go back to calendar
+      if (scheduleHeaderTitle) scheduleHeaderTitle.textContent = '日程日历';
+      if (scheduleCalendarView) scheduleCalendarView.style.display = 'block';
+      if (scheduleContentMe) scheduleContentMe.style.display = 'none';
+      if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+      if (saveScheduleBtn) saveScheduleBtn.style.display = 'none';
+      renderCalendar();
     });
   }
 
@@ -729,14 +946,23 @@ ${recentHistory || '无'}
         
         scheduleNavItems.forEach(nav => nav.classList.remove('active'));
         item.classList.add('active');
+        currentScheduleTab = tab;
+
+        // Reset to calendar view when switching tabs
+        if (scheduleCalendarView) scheduleCalendarView.style.display = 'block';
+        if (scheduleContentMe) scheduleContentMe.style.display = 'none';
+        if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+        if (saveScheduleBtn) saveScheduleBtn.style.display = 'none';
+        if (scheduleHeaderTitle) scheduleHeaderTitle.textContent = '日程日历';
 
         if (tab === 'me') {
-          if (scheduleContentMe) scheduleContentMe.style.display = 'block';
-          if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+          calendarContainer.classList.remove('theme-pink');
+          calendarContainer.classList.add('theme-blue');
         } else if (tab === 'her') {
-          if (scheduleContentMe) scheduleContentMe.style.display = 'none';
-          if (scheduleContentHer) scheduleContentHer.style.display = 'block';
+          calendarContainer.classList.remove('theme-blue');
+          calendarContainer.classList.add('theme-pink');
         }
+        renderCalendar();
       });
     });
   }

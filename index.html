@@ -627,14 +627,33 @@
                         <button class="header-btn" id="close-schedule-btn">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                         </button>
-                        <div class="header-title">日程</div>
-                        <button class="header-btn save-btn" id="save-schedule-btn">保存</button>
+                        <div class="header-title" id="schedule-header-title">日程日历</div>
+                        <button class="header-btn save-btn" id="save-schedule-btn" style="display: none;">保存</button>
                     </div>
-                    <div class="settings-content" id="schedule-content-me">
+                    
+                    <!-- 日历视图 -->
+                    <div class="settings-content" id="schedule-calendar-view">
+                        <div class="calendar-container theme-blue" id="calendar-container">
+                            <div class="calendar-header">
+                                <button class="calendar-nav-btn" id="calendar-prev-month">&lt;</button>
+                                <div class="calendar-month-year" id="calendar-month-year">2026年4月</div>
+                                <button class="calendar-nav-btn" id="calendar-next-month">&gt;</button>
+                            </div>
+                            <div class="calendar-weekdays">
+                                <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                            </div>
+                            <div class="calendar-grid" id="calendar-grid">
+                                <!-- 日期格子将通过JS动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 具体的日程视图 -->
+                    <div class="settings-content" id="schedule-content-me" style="display: none;">
                         <div class="settings-group">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                                 <button class="action-btn" id="generate-me-schedule-btn" style="flex: 1; margin-right: 5px; background: #1d1d1f; color: white; padding: 6px 0;">生成规划</button>
-                                <button class="action-btn" id="update-me-schedule-btn" style="flex: 1; margin-left: 5px; margin-right: 5px; background: #007aff; color: white; padding: 6px 0;">更新进度</button>
+                                <button class="action-btn" id="update-me-schedule-btn" style="flex: 1; margin-left: 5px; margin-right: 5px; background: #7cb9e8; color: white; padding: 6px 0;">更新进度</button>
                                 <button class="action-btn" id="import-me-schedule-btn" style="flex: 1; margin-left: 5px; padding: 6px 0;">导入</button>
                             </div>
                             <div class="schedule-display-area" id="me-schedule-display" style="min-height: 200px; padding: 15px 5px; font-size: 14px; line-height: 1.6; color: #1d1d1f;">
@@ -645,10 +664,20 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- 她的具体日程视图 -->
                     <div class="settings-content" id="schedule-content-her" style="display: none;">
                         <div class="settings-group">
-                            <div style="text-align: center; color: #86868b; margin-top: 50px;">
-                                她的日程功能开发中...
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                                <button class="action-btn" id="generate-her-schedule-btn" style="flex: 1; margin-right: 5px; background: #1d1d1f; color: white; padding: 6px 0;">生成规划</button>
+                                <button class="action-btn" id="update-her-schedule-btn" style="flex: 1; margin-left: 5px; margin-right: 5px; background: #f4a4b4; color: white; padding: 6px 0;">更新进度</button>
+                                <button class="action-btn" id="import-her-schedule-btn" style="flex: 1; margin-left: 5px; padding: 6px 0;">导入</button>
+                            </div>
+                            <div class="schedule-display-area" id="her-schedule-display" style="min-height: 200px; padding: 15px 5px; font-size: 14px; line-height: 1.6; color: #1d1d1f;">
+                                <div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>
+                            </div>
+                            <div id="her-schedule-loading" style="display: none; text-align: center; color: #86868b; margin-top: 15px;">
+                                正在读取记忆与世界书生成中...
                             </div>
                         </div>
                     </div>
