@@ -26,6 +26,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerTitle = modal ? modal.querySelector('.header-title') : document.querySelector('.header-title');
   const characterAvatarDisplay = document.getElementById('character-avatar-display');
   const phoneBtn = document.getElementById('love-journal-phone-btn');
+  const scheduleBtn = document.getElementById('love-journal-schedule-btn');
+  const scheduleModal = document.getElementById('love-journal-schedule-modal');
+  const closeScheduleBtn = document.getElementById('close-schedule-btn');
+  const saveScheduleBtn = document.getElementById('save-schedule-btn');
+  const scheduleNavItems = scheduleModal ? scheduleModal.querySelectorAll('.nav-item') : [];
+  const scheduleContentMe = document.getElementById('schedule-content-me');
+  const scheduleContentHer = document.getElementById('schedule-content-her');
+  const generateMeScheduleBtn = document.getElementById('generate-me-schedule-btn');
+  const importMeScheduleBtn = document.getElementById('import-me-schedule-btn');
+  const meScheduleDisplay = document.getElementById('me-schedule-display');
+  const meScheduleLoading = document.getElementById('me-schedule-loading');
   const phoneModal = document.getElementById('phone-lock-modal');
   const phoneCloseBtn = document.getElementById('phone-lock-close');
   const phoneTime = document.getElementById('phone-lock-time');
@@ -400,6 +411,221 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (phoneBtn) phoneBtn.addEventListener('click', openPhoneLock);
+  
+  function renderMeSchedule(scheduleDataStr) {
+    if (!meScheduleDisplay) return;
+    meScheduleDisplay.innerHTML = '';
+    
+    if (!scheduleDataStr) {
+      meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>';
+      return;
+    }
+
+    let scheduleData = [];
+    try {
+      scheduleData = JSON.parse(scheduleDataStr);
+    } catch (e) {
+      // 兼容旧格式或非 JSON 格式
+      meScheduleDisplay.innerHTML = `<div style="white-space: pre-wrap; padding: 10px;">${scheduleDataStr}</div>`;
+      return;
+    }
+
+    if (!Array.isArray(scheduleData) || scheduleData.length === 0) {
+      meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常数据。</div>';
+      return;
+    }
+
+    const timeline = document.createElement('div');
+    timeline.className = 'schedule-timeline';
+
+    scheduleData.forEach((item, index) => {
+      const node = document.createElement('div');
+      node.className = 'schedule-node';
+      
+      const noteContent = item.note || '';
+
+      node.innerHTML = `
+        <div class="schedule-dot"></div>
+        <div class="schedule-content">
+          <div class="schedule-time">${item.time || '全天'}</div>
+          <div class="schedule-title">${item.title || '无标题'}</div>
+          <div class="schedule-desc">${item.desc || ''}</div>
+          <div class="schedule-note" contenteditable="true" data-index="${index}">${noteContent}</div>
+        </div>
+      `;
+
+      // 监听批注编辑
+      const noteEl = node.querySelector('.schedule-note');
+      noteEl.addEventListener('blur', () => {
+        const newNote = noteEl.textContent.trim() === '添加批注...' ? '' : noteEl.textContent.trim();
+        scheduleData[index].note = newNote;
+        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, JSON.stringify(scheduleData));
+      });
+
+      timeline.appendChild(node);
+    });
+
+    meScheduleDisplay.appendChild(timeline);
+  }
+
+  if (scheduleBtn && scheduleModal) {
+    scheduleBtn.addEventListener('click', () => {
+      if (!currentChatId) {
+        alert('请先选择一个恋爱对象');
+        return;
+      }
+      const savedMeSchedule = largeStore.get('love_journal_me_schedule_' + currentChatId, '');
+      largeStore.put('love_journal_me_schedule_temp_' + currentChatId, savedMeSchedule);
+      renderMeSchedule(savedMeSchedule);
+      scheduleModal.classList.add('active');
+    });
+  }
+  if (closeScheduleBtn && scheduleModal) {
+    closeScheduleBtn.addEventListener('click', () => {
+      scheduleModal.classList.remove('active');
+    });
+  }
+  if (generateMeScheduleBtn) {
+    generateMeScheduleBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      
+      generateMeScheduleBtn.disabled = true;
+      if (meScheduleLoading) meScheduleLoading.style.display = 'block';
+      if (meScheduleDisplay) meScheduleDisplay.innerHTML = '';
+
+      try {
+        const scheduleStr = await generateMeSchedule(currentChatId);
+        largeStore.put('love_journal_me_schedule_temp_' + currentChatId, scheduleStr);
+        renderMeSchedule(scheduleStr);
+      } catch (e) {
+        alert('生成失败: ' + (e?.message || e));
+        if (meScheduleDisplay) meScheduleDisplay.innerHTML = '<div style="text-align: center; color: #ff9f0a; margin-top: 50px;">生成失败，请重试。</div>';
+      } finally {
+        generateMeScheduleBtn.disabled = false;
+        if (meScheduleLoading) meScheduleLoading.style.display = 'none';
+      }
+    });
+  }
+
+  if (importMeScheduleBtn) {
+    importMeScheduleBtn.addEventListener('click', () => {
+      if (!currentChatId) return;
+      const tempSchedule = largeStore.get('love_journal_me_schedule_temp_' + currentChatId, '');
+      if (!tempSchedule) {
+        alert('请先生成日常');
+        return;
+      }
+      largeStore.put('love_journal_me_schedule_' + currentChatId, tempSchedule);
+      alert('导入成功！已注入AI回复记忆中。');
+    });
+  }
+
+  async function generateMeSchedule(chatId) {
+    const apiUrl = localStorage.getItem('api_url');
+    const apiKey = localStorage.getItem('api_key');
+    const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+    const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
+
+    if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
+
+    const persona = largeStore.get('chat_persona_' + chatId, '');
+    const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
+    const allWorldbooks = largeStore.get('worldbook_items', []);
+    const boundWorldbooks = allWorldbooks.filter(wb => worldbookIds.includes(wb.id));
+    const wbContext = boundWorldbooks.map(wb => `${wb.name || ''}: ${wb.content || ''}`).join('\n');
+
+    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+    const myName = meta.remark || meta.realName || '我';
+    const userName = String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || '用户').trim() || '用户';
+    
+    const history = largeStore.get('chat_history_' + chatId, []).slice(-10);
+    const recentHistory = history
+      .map(m => `${m.role === 'user' ? userName : myName}: ${m.content}`)
+      .join('\n');
+
+    const prompt = `你是${myName}。请根据以下上下文，为你生成今天一天的日程安排。
+人设：
+${persona || '无'}
+
+世界书背景：
+${wbContext || '无'}
+
+最近和${userName}的聊天记录：
+${recentHistory || '无'}
+
+要求：
+1. 详细列出今天不同时间段（如早上、上午、中午、下午、晚上）的活动安排。
+2. 日程要符合你的人设和世界背景。
+3. 结合最近的聊天记录，如果聊天中提到了今天的计划，请务必包含在内。
+4. 必须只返回一个 JSON 数组，不需要任何多余的解释。每个元素代表一个日程节点，包含以下字段：
+   - "time": 时间段描述（如 "早上 08:00"）
+   - "title": 日程标题（简短精炼）
+   - "desc": 日程的详细描述（以第一人称“我”来写，带有陪伴感和小情绪）
+   - "note": 留空字符串 ""
+`;
+
+    const messages = [{ role: 'user', content: prompt }];
+    
+    const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: messages,
+        temperature: globalTemperature
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`API Error: ${err}`);
+    }
+
+    const data = await response.json();
+    let content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('生成内容为空');
+    
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    try {
+      JSON.parse(content);
+    } catch (e) {
+      throw new Error('生成格式错误，不是有效的JSON');
+    }
+    
+    return content;
+  }
+
+  if (saveScheduleBtn && scheduleModal) {
+    saveScheduleBtn.addEventListener('click', () => {
+      // TODO: 实现保存逻辑
+      scheduleModal.classList.remove('active');
+    });
+  }
+
+  if (scheduleNavItems.length > 0) {
+    scheduleNavItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const tab = item.getAttribute('data-tab');
+        
+        scheduleNavItems.forEach(nav => nav.classList.remove('active'));
+        item.classList.add('active');
+
+        if (tab === 'me') {
+          if (scheduleContentMe) scheduleContentMe.style.display = 'block';
+          if (scheduleContentHer) scheduleContentHer.style.display = 'none';
+        } else if (tab === 'her') {
+          if (scheduleContentMe) scheduleContentMe.style.display = 'none';
+          if (scheduleContentHer) scheduleContentHer.style.display = 'block';
+        }
+      });
+    });
+  }
+
   if (phoneCloseBtn) phoneCloseBtn.addEventListener('click', closePhoneLock);
   if (phoneModal) {
     phoneModal.addEventListener('click', (event) => {

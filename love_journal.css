@@ -85,6 +85,23 @@
   cursor: pointer;
 }
 
+#love-journal-modal .love-journal-schedule-btn {
+  position: absolute;
+  left: 18px;
+  top: calc(65% + 50px);
+  width: 40px;
+  height: 40px;
+  color: rgba(29, 29, 31, 0.6);
+  z-index: 6;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 /* 选择好友弹层 */
 #love-journal-modal .selection-modal {
   position: absolute;
@@ -150,19 +167,22 @@
 }
 
 /* 设置页（仅用于恋爱志内部的设置弹窗） */
-#love-journal-modal .settings-header {
+#love-journal-modal .settings-header,
+#love-journal-schedule-modal .settings-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px;
   margin-top: 40px;
 }
-#love-journal-modal .settings-content {
+#love-journal-modal .settings-content,
+#love-journal-schedule-modal .settings-content {
   padding: 20px;
   flex: 1;
   overflow-y: auto;
 }
-#love-journal-modal .settings-group {
+#love-journal-modal .settings-group,
+#love-journal-schedule-modal .settings-group {
   background: white;
   border-radius: 12px;
   padding: 15px;
@@ -186,6 +206,119 @@
   cursor: pointer;
   font-size: 14px;
   color: #1d1d1f;
+}
+
+/* 日程底部导航栏 */
+#love-journal-schedule-modal .schedule-bottom-nav {
+  display: flex;
+  height: 60px;
+  background: #ffffff;
+  border-top: 1px solid #e5e5ea;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+#love-journal-schedule-modal .nav-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #86868b;
+  cursor: pointer;
+  transition: color 0.2s, font-weight 0.2s;
+}
+
+#love-journal-schedule-modal .nav-item.active {
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+/* 节点式日程列表 */
+.schedule-timeline {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+}
+
+.schedule-node {
+  display: flex;
+  position: relative;
+  padding-bottom: 40px;
+}
+
+.schedule-node:last-child {
+  padding-bottom: 10px;
+}
+
+.schedule-node::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 20px;
+  bottom: 0;
+  width: 2px;
+  background: #e5e5ea;
+}
+
+.schedule-node:last-child::before {
+  display: none;
+}
+
+.schedule-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1d1d1f;
+  border: 3px solid #ffffff;
+  position: relative;
+  z-index: 2;
+  margin-top: 4px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px #e5e5ea;
+}
+
+.schedule-content {
+  margin-left: 20px;
+  flex: 1;
+}
+
+.schedule-time {
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.schedule-title {
+  font-size: 15px;
+  color: #1d1d1f;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.schedule-desc {
+  font-size: 14px;
+  color: #555555;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.schedule-note {
+  background: #f9f9f9;
+  border-left: 3px solid #d1d1d6;
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: #86868b;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  cursor: text;
+}
+
+.schedule-note:empty::before {
+  content: '添加批注...';
+  color: #c7c7cc;
 }
 
 /* 锁屏与手机 UI */

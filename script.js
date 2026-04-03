@@ -133,13 +133,17 @@ async function runLargeStoreMigration() {
     const keysToMigrate = [];
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
+        const isSummaryContentKey =
+            k && k.startsWith('chat_summary_') &&
+            !k.startsWith('chat_summary_limit_') &&
+            !k.startsWith('chat_summary_cursor_');
         if (k === 'worldbook_items' || 
-            k.startsWith('chat_history_') || 
-            k.startsWith('chat_persona_') || 
-            k.startsWith('chat_user_persona_') || 
-            k.startsWith('chat_long_memory_') || 
-            k.startsWith('chat_summary_') ||
-            k.startsWith('love_journal_line_chats_')) {
+            (k && k.startsWith('chat_history_')) || 
+            (k && k.startsWith('chat_persona_')) || 
+            (k && k.startsWith('chat_user_persona_')) || 
+            (k && k.startsWith('chat_long_memory_')) || 
+            isSummaryContentKey ||
+            (k && k.startsWith('love_journal_line_chats_'))) {
             keysToMigrate.push(k);
         }
     }
@@ -150,7 +154,7 @@ async function runLargeStoreMigration() {
             try {
                 parsed = JSON.parse(raw);
             } catch(e) {
-                parsed = raw; // Could be a raw string
+                parsed = raw;
             }
             await largeStore.put(key, parsed);
             if (key.startsWith('chat_history_')) {
@@ -166,6 +170,27 @@ async function runLargeStoreMigration() {
             console.error(`[LargeStore] Failed to migrate ${key}:`, e);
         }
     }
+
+    try {
+        const all = await largeStore.getAll();
+        const keys = Object.keys(all || {});
+        for (const key of keys) {
+            if (!key) continue;
+            if (key.startsWith('chat_summary_limit_') || key.startsWith('chat_summary_cursor_')) {
+                let needRestore = false;
+                try {
+                    needRestore = localStorage.getItem(key) === null;
+                } catch (e) {
+                    needRestore = false;
+                }
+                if (!needRestore) continue;
+                const val = all[key];
+                try {
+                    localStorage.setItem(key, String(val));
+                } catch (e) {}
+            }
+        }
+    } catch (e) {}
 }
 
 async function checkBackgroundActivity() {
@@ -762,34 +787,50 @@ function showApiErrorModal(error) {
         return;
     }
 
-    let simpleMsg = '';
+    let simpleMsgHtml = '';
     let detailMsg = '';
     
     const errMsg = error?.message || String(error);
-    const statusMatch = errMsg.match(/status:\s*(\d{3})/i) || errMsg.match(/（(\d{3})）/) || errMsg.match(/(\d{3})/);
-    let status = (error && error.response && error.response.status) || error?.status || (statusMatch ? statusMatch[1] : null);
     
-    if (!status && errMsg.includes('429')) status = 429;
-    if (!status && errMsg.includes('400')) status = 400;
-    if (!status && errMsg.includes('500')) status = 500;
-    if (!status && errMsg.includes('401')) status = 401;
-    if (!status && errMsg.includes('404')) status = 404;
-    
-    if (status == 429) {
-        simpleMsg = '请求太频繁啦，请稍后再试哦 (429)';
-    } else if (status == 400) {
-        simpleMsg = '请求参数错误或格式不正确 (400)';
-    } else if (status == 500) {
-        simpleMsg = '服务器出小差了，请稍后重试 (500)';
-    } else if (status == 401) {
-        simpleMsg = 'API Key 无效或未授权，请检查设置 (401)';
-    } else if (status == 404) {
-        simpleMsg = '找不到请求的资源，可能是模型名称填写错误 (404)';
-    } else if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('Failed to load resource')) {
-        simpleMsg = '网络连接失败，请检查网络或 API 地址是否正确';
-    } else {
-        simpleMsg = errMsg && errMsg.length <= 160 ? errMsg : '发生了一个错误，请查看详情';
+    let status = null;
+    const statusMatch = errMsg.match(/\b(400|401|402|403|404|413|429|500|502|503|504)\b/);
+    if (statusMatch) {
+        status = parseInt(statusMatch[1]);
     }
+    
+    if (!status) {
+        if (errMsg.includes('upstream_capacity_exhausted') || errMsg.includes('service_unavailable')) status = 503;
+        else if (errMsg.includes('insufficient_quota')) status = 429;
+        else if (errMsg.includes('invalid_api_key')) status = 401;
+        else if (errMsg.includes('model_not_found')) status = 404;
+        else if (errMsg.includes('context_length_exceeded')) status = 413;
+        else if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('Failed to load resource')) status = '网络错误';
+        else if (errMsg.includes('未返回可显示文字')) status = '内容为空';
+    }
+    
+    let cnDesc = '发生了一个错误，请查看下方详细报错。';
+    if (status === 400) cnDesc = '请求参数或格式不正确，模型无法理解。';
+    else if (status === 401) cnDesc = 'API Key 无效或未授权，请检查设置。';
+    else if (status === 402) cnDesc = 'API 账户余额不足或未绑定支付方式。';
+    else if (status === 403) cnDesc = 'API Key 没有权限访问该模型或服务。';
+    else if (status === 404) cnDesc = '找不到请求的模型或资源，请检查模型名称。';
+    else if (status === 413) cnDesc = '发送的上下文太长了，超过了模型限制。';
+    else if (status === 429) cnDesc = '请求太频繁或额度已耗尽，请稍等一会儿。';
+    else if (status === 500) cnDesc = '服务器发生了内部错误，请稍后重试。';
+    else if (status === 502) cnDesc = '网关错误，API 服务提供商当前网络存在问题。';
+    else if (status === 503) cnDesc = '服务不可用或上游容量耗尽（如请求人数过多），请稍后再试。';
+    else if (status === 504) cnDesc = '请求超时，模型响应太慢了，请稍后重试。';
+    else if (status === '网络错误') cnDesc = '无法连接到 API，可能是网络不通或 API 地址不正确。';
+    else if (status === '内容为空') cnDesc = '模型成功返回了结果，但未能生成任何可显示的文字。';
+    else {
+        status = 'Error';
+        cnDesc = 'API 调用过程中遇到了一些问题，详见下方原始报错信息。';
+    }
+
+    simpleMsgHtml = `
+        <div style="font-size: 2.2rem; font-weight: 800; line-height: 1.1; color: #ff3b30; margin-bottom: 6px;">${status}</div>
+        <div style="font-size: 1rem; color: #1d1d1f; font-weight: 500;">${cnDesc}</div>
+    `;
     
     try {
         const parts = [];
@@ -816,7 +857,7 @@ function showApiErrorModal(error) {
     }
     if (!detailMsg) {
         const normalized = (errMsg || '').trim();
-        if (normalized && normalized !== String(simpleMsg || '').trim()) {
+        if (normalized) {
             detailMsg = normalized.length > 8000 ? normalized.slice(0, 8000) + '\n...(已截断)' : normalized;
         }
     }
@@ -825,7 +866,7 @@ function showApiErrorModal(error) {
     const detailWrapEl = document.getElementById('api-error-detail-wrap');
     const detailEl = document.getElementById('api-error-detail');
     if (simpleEl && detailWrapEl && detailEl) {
-        simpleEl.textContent = simpleMsg;
+        simpleEl.innerHTML = simpleMsgHtml;
         if (detailMsg) {
             detailEl.textContent = detailMsg;
             detailWrapEl.style.display = 'block';
@@ -835,7 +876,7 @@ function showApiErrorModal(error) {
         }
     } else {
         messageEl.innerHTML = `
-            <div style="font-size: 1.05rem; font-weight: 600; color: #ff3b30; margin-bottom: 8px;">${simpleMsg}</div>
+            ${simpleMsgHtml}
             <div style="font-size: 0.85rem; color: #666; background: #f5f5f7; padding: 10px; border-radius: 8px; margin-bottom: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${detailMsg}</div>
         `;
     }
@@ -1709,14 +1750,18 @@ function initSettings() {
                 let prevVal = null;
 
                 // 这些大字段统一走 largeStore，不再写 localStorage
+                const isSummaryContentKey =
+                    key && key.startsWith('chat_summary_') &&
+                    !key.startsWith('chat_summary_limit_') &&
+                    !key.startsWith('chat_summary_cursor_');
                 const shouldUseLargeStore =
                     key === 'worldbook_items' ||
-                    key.startsWith('chat_history_') ||
-                    key.startsWith('chat_persona_') ||
-                    key.startsWith('chat_user_persona_') ||
-                    key.startsWith('chat_long_memory_') ||
-                    key.startsWith('chat_summary_') ||
-                    key.startsWith('love_journal_line_chats_');
+                    (key && key.startsWith('chat_history_')) ||
+                    (key && key.startsWith('chat_persona_')) ||
+                    (key && key.startsWith('chat_user_persona_')) ||
+                    (key && key.startsWith('chat_long_memory_')) ||
+                    isSummaryContentKey ||
+                    (key && key.startsWith('love_journal_line_chats_'));
 
                 if (shouldUseLargeStore) {
                     prevVal = largeStore.get(key, null);
@@ -5244,10 +5289,17 @@ ${roundMessageText}
             const userPersonaText = `[${userName}是谁]\n${userPersona || '无'}`;
             const timeUserText = String(timeSyncPrompt || '').trim();
 
+            const savedMeSchedule = largeStore.get('love_journal_me_schedule_' + chatId, '');
+            const meScheduleText = savedMeSchedule ? `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排，但不要生硬地背诵。` : '';
+
             const messages = [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: historyUserText },
             ];
+
+            if (meScheduleText) {
+                messages.push({ role: "system", content: meScheduleText });
+            }
 
             if (isBackground) {
                 messages.push({ role: "user", content: "时间到了，该你主动发消息给我了。" });
