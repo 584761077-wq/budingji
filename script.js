@@ -5114,7 +5114,7 @@ ${timeGapPrompt}
             }).join('\n');
 
              const systemPrompt = `
-你是${realName}，现在正在和${userName}聊天。默认为i线上聊天，不允许提及现实见面等。
+你是${realName}，现在正在和${userName}聊天。默认为线上聊天，不允许提及现实见面等。
 
 **【你的人设】**
 ${charPersona || '无'}
@@ -5800,16 +5800,14 @@ if (quoteMatch) {
             let history = largeStore.get('chat_history_' + chatId, []);
             const msgIndex = history.findIndex(m => m.id === currentContextMsg.id);
             
-            if (msgIndex !== -1) {
-                history[msgIndex].content = newContent;
-                history = history.slice(0, msgIndex + 1);
-                persistChatHistory(chatId, history);
-                
-                // Update UI (Reload history or update DOM)
-                // Reload is safer to sync everything
-                loadChatHistory(chatId);
-                refreshChatListPreviewFor(chatId);
-            }
+           if (msgIndex !== -1) {
+    history[msgIndex].content = newContent;
+    persistChatHistory(chatId, history);
+
+    // Reload is safer to sync everything
+    loadChatHistory(chatId);
+    refreshChatListPreviewFor(chatId);
+}
 
             editModal.style.display = 'none';
         });
