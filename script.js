@@ -5046,10 +5046,55 @@ function initChatRoomLogic() {
         return Array.from(stickerMap.values());
     }
 
+    function createAssistantStickerTokenRegex() {
+        return /(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi;
+    }
+
+    // 将混合段拆成真正的短消息，并在这里就丢弃未绑定贴图。
+    function normalizeAssistantReplySegments(content, allowedStickers) {
+        if (typeof content !== 'string') return [];
+        const trimmed = content.trim();
+        if (!trimmed) return [];
+
+        const byName = new Map((allowedStickers || []).map(item => [item.name, item]));
+        const tokenRegex = createAssistantStickerTokenRegex();
+        const segments = [];
+        let lastIndex = 0;
+        let matchedAnyToken = false;
+        let match;
+
+        while ((match = tokenRegex.exec(content)) !== null) {
+            matchedAnyToken = true;
+            const beforeText = content.slice(lastIndex, match.index).trim();
+            if (beforeText) {
+                segments.push({ type: 'text', content: beforeText });
+            }
+
+            const stickerName = String(match[1] || '').trim();
+            const sticker = byName.get(stickerName);
+            if (sticker) {
+                segments.push({ type: 'sticker', content: `[贴图:${sticker.name}]` });
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (!matchedAnyToken) {
+            return [{ type: 'text', content: trimmed }];
+        }
+
+        const afterText = content.slice(lastIndex).trim();
+        if (afterText) {
+            segments.push({ type: 'text', content: afterText });
+        }
+
+        return segments;
+    }
+
     function convertAssistantStickerTokens(content, allowedStickers) {
         if (typeof content !== 'string') return '';
-        const byName = new Map(allowedStickers.map(item => [item.name, item]));
-        const tokenRegex = /(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi;
+        const byName = new Map((allowedStickers || []).map(item => [item.name, item]));
+        const tokenRegex = createAssistantStickerTokenRegex();
         const stickers = [];
         let matchedAnyToken = false;
         let match;
@@ -5060,10 +5105,10 @@ function initChatRoomLogic() {
             if (!sticker) continue;
             stickers.push(`<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`);
         }
-       if (matchedAnyToken) {
-    return stickers.length > 0 ? stickers.join('') : content.trim();
-}
-return content.trim();
+        if (matchedAnyToken) {
+            return stickers.length > 0 ? stickers.join('') : '';
+        }
+        return content.trim();
     }
 
     function decodeAssistantMarkupEntities(text) {
@@ -5233,9 +5278,13 @@ ${timeGapPrompt}
             }).join('\n');
 
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
-            const assistantStickerRuleText = assistantBoundStickers.length > 0
+            const hasBoundAssistantStickers = assistantBoundStickers.length > 0;
+            const assistantStickerRuleText = hasBoundAssistantStickers
                 ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
-                : '无';
+                : '';
+            const assistantStickerPromptText = hasBoundAssistantStickers
+                ? `- [贴图:名称]（强制：只能从【${assistantStickerRuleText}】中选择，严禁捏造或翻译！）`
+                : '- 当前未绑定任何贴图：禁止输出任何 [贴图:名称]、【贴图:名称】或 STICKER 标记；需要表达情绪时，只能使用文字、语音或图片。';
 
             const phoneLockData = await ensurePhoneLockDataAsync(chatId);
                         const phoneLockPrompt = phoneLockData
@@ -5284,13 +5333,13 @@ ${timeSyncPrompt}
 2. 情绪刻画：多用小细节、小吐槽、小停顿来表现情绪，而不是平铺直叙。
 
 **【可用附加功能】**（根据场景需要自然使用）
-- [贴图:名称]（强制：只能从【${assistantStickerRuleText}】中选择，严禁捏造或翻译！）
+${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
 - <quote>原文</quote>
 
 **【输出格式与排版要求】**
-1. 多条消息分隔：回复多条消息时必须用 [SPLIT] 严格分隔。条数多少请跟随【人设】中的规定。
+1. 多条消息分隔：回复多条消息时必须用 [SPLIT] 严格分隔。
 2. 贴图/图片排版：如果要发贴图或图片，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT]文字\`），绝不能和文字挤在同一条内！
 3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
@@ -5332,8 +5381,16 @@ ${roundMessageText}
             const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
 
-            const savedMeSchedule = largeStore.get('love_journal_me_schedule_' + chatId, '');
-            const meScheduleText = savedMeSchedule ? `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排。` : '';
+            const savedMeSchedule = largeStore.get('love_journal_imported_schedule_' + chatId, '');
+            const importedWbs = largeStore.get('love_journal_imported_wbs_' + chatId, '');
+            
+            let meScheduleText = '';
+            if (savedMeSchedule) {
+                meScheduleText = `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排。`;
+                if (importedWbs) {
+                    meScheduleText += `\n[日程关联世界书/背景]\n${importedWbs}`;
+                }
+            }
 
             // 2. 定义各个插入区域 (Zones) 模仿 SillyTavern 结构
             let topSystemBlocks = [systemPrompt]; // 顶部系统设定池
@@ -5373,6 +5430,15 @@ ${roundMessageText}
                         break;
                 }
             }
+
+            try {
+                const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || 'null');
+                if (replyCountConfig && (replyCountConfig.min || replyCountConfig.max)) {
+                    const min = replyCountConfig.min || replyCountConfig.max;
+                    const max = replyCountConfig.max || replyCountConfig.min;
+                    topSystemBlocks.push(`\n**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`);
+                }
+            } catch (e) {}
 
             // 4. 最终合并打包
             const messages = [
@@ -5518,6 +5584,7 @@ if (quoteMatch) {
 
             const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
             const replyMessages = visibleReply.split(splitToken);
+            const normalizedReplyMessages = [];
             let hasVisibleMessage = false;
             let backgroundNotificationPreview = '';
             
@@ -5526,35 +5593,62 @@ if (quoteMatch) {
                 if (!rawPart) continue;
                 const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
-                const msgContent = parsedPhoto
-                    ? buildCameraPlaceholderHtml(parsedPhoto.text)
-                    : parsedVoice
-                        ? parsedVoice.transcript
-                        : convertAssistantStickerTokens(rawPart, assistantBoundStickers);
-                if (msgContent) {
-                    hasVisibleMessage = true;
-                    if (!backgroundNotificationPreview) {
-                        backgroundNotificationPreview = parsedVoice ? '发送了一条语音消息' : msgContent;
-                    }
-                    if (i > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 800));
-                    }
-                    
-                    const isLast = i === replyMessages.length - 1;
-                    const isFirst = i === 0;
-                    const extra = {};
-                    if (parsedVoice) extra.voice = parsedVoice;
-                    if (isLast && spriteData) extra.sprite = spriteData;
-                    if (isFirst && quoteData) extra.quote = quoteData;
-
-                    const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
-                    const shouldUnread = !isChatRoomOpenFor(chatId);
-                    if (shouldUnread) {
-                        increaseUnread(chatId);
-                        showIncomingMessageToast(chatId, parsedVoice ? '发送了一条语音消息' : msgContent);
-                    }
-                    appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
+                if (parsedPhoto) {
+                    normalizedReplyMessages.push({
+                        msgContent: buildCameraPlaceholderHtml(parsedPhoto.text),
+                        parsedVoice: null
+                    });
+                    continue;
                 }
+                if (parsedVoice) {
+                    normalizedReplyMessages.push({
+                        msgContent: parsedVoice.transcript,
+                        parsedVoice
+                    });
+                    continue;
+                }
+
+                const normalizedSegments = normalizeAssistantReplySegments(rawPart, assistantBoundStickers);
+                normalizedSegments.forEach(segment => {
+                    const msgContent = segment.type === 'sticker'
+                        ? convertAssistantStickerTokens(segment.content, assistantBoundStickers)
+                        : segment.content;
+                    if (!msgContent) return;
+                    normalizedReplyMessages.push({
+                        msgContent,
+                        parsedVoice: null
+                    });
+                });
+            }
+
+            for (let i = 0; i < normalizedReplyMessages.length; i++) {
+                const messageItem = normalizedReplyMessages[i];
+                const msgContent = messageItem.msgContent;
+                const parsedVoice = messageItem.parsedVoice;
+                if (!msgContent) continue;
+
+                hasVisibleMessage = true;
+                if (!backgroundNotificationPreview) {
+                    backgroundNotificationPreview = parsedVoice ? '发送了一条语音消息' : msgContent;
+                }
+                if (i > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+
+                const isLast = i === normalizedReplyMessages.length - 1;
+                const isFirst = i === 0;
+                const extra = {};
+                if (parsedVoice) extra.voice = parsedVoice;
+                if (isLast && spriteData) extra.sprite = spriteData;
+                if (isFirst && quoteData) extra.quote = quoteData;
+
+                const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
+                const shouldUnread = !isChatRoomOpenFor(chatId);
+                if (shouldUnread) {
+                    increaseUnread(chatId);
+                    showIncomingMessageToast(chatId, parsedVoice ? '发送了一条语音消息' : msgContent);
+                }
+                appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
             }
 
             if (backgroundNotificationPreview) {
@@ -6639,6 +6733,9 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const realNameInput = document.getElementById('chat-settings-realname');
     const remarkInput = document.getElementById('chat-settings-remark');
     const personaInput = document.getElementById('chat-settings-persona');
+    
+    const replyCountMinInput = document.getElementById('chat-settings-reply-min');
+    const replyCountMaxInput = document.getElementById('chat-settings-reply-max');
 
     // User Profile Elements
     const userAvatarWrapper = document.querySelector('.chat-profile-avatar-wrapper.small-avatar');
@@ -6762,6 +6859,10 @@ function initChatSettingsLogic(chatRoomNameEl) {
             realNameInput.value = meta.realName || '';
             remarkInput.value = remarkName;
             personaInput.value = persona;
+            
+            const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || '{"min":"","max":""}');
+            if (replyCountMinInput) replyCountMinInput.value = replyCountConfig.min || '';
+            if (replyCountMaxInput) replyCountMaxInput.value = replyCountConfig.max || '';
             
             // 显示 Chat 当前头像
             if (avatarSrc) {
@@ -6947,6 +7048,14 @@ function initChatSettingsLogic(chatRoomNameEl) {
                 largeStore.put('chat_persona_' + chatId, newPersona);
             } else {
                 largeStore.remove('chat_persona_' + chatId);
+            }
+            
+            const minVal = replyCountMinInput ? replyCountMinInput.value.trim() : '';
+            const maxVal = replyCountMaxInput ? replyCountMaxInput.value.trim() : '';
+            if (minVal || maxVal) {
+                localStorage.setItem('chat_reply_count_' + chatId, JSON.stringify({min: minVal, max: maxVal}));
+            } else {
+                localStorage.removeItem('chat_reply_count_' + chatId);
             }
 
             // 保存 Chat 头像

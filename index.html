@@ -654,7 +654,12 @@
                             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                                 <button class="action-btn" id="generate-me-schedule-btn" style="flex: 1; margin-right: 5px; background: #1d1d1f; color: white; padding: 6px 0;">生成规划</button>
                                 <button class="action-btn" id="update-me-schedule-btn" style="flex: 1; margin-left: 5px; margin-right: 5px; background: #7cb9e8; color: white; padding: 6px 0;">更新进度</button>
-                                <button class="action-btn" id="import-me-schedule-btn" style="flex: 1; margin-left: 5px; padding: 6px 0;">导入</button>
+                                <div style="display: flex; flex: 1; margin-left: 5px;">
+                                    <button class="action-btn" id="import-me-schedule-btn" style="flex: 1; padding: 6px 0; border-top-right-radius: 0; border-bottom-right-radius: 0;">导入</button>
+                                    <button class="action-btn icon-btn" id="setting-me-schedule-btn" style="width: 36px; padding: 6px 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgba(255,255,255,0.1); background: #f2f2f7;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="schedule-display-area" id="me-schedule-display" style="min-height: 200px; padding: 15px 5px; font-size: 14px; line-height: 1.6; color: #1d1d1f;">
                                 <div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>
@@ -671,7 +676,12 @@
                             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                                 <button class="action-btn" id="generate-her-schedule-btn" style="flex: 1; margin-right: 5px; background: #1d1d1f; color: white; padding: 6px 0;">生成规划</button>
                                 <button class="action-btn" id="update-her-schedule-btn" style="flex: 1; margin-left: 5px; margin-right: 5px; background: #f4a4b4; color: white; padding: 6px 0;">更新进度</button>
-                                <button class="action-btn" id="import-her-schedule-btn" style="flex: 1; margin-left: 5px; padding: 6px 0;">导入</button>
+                                <div style="display: flex; flex: 1; margin-left: 5px;">
+                                    <button class="action-btn" id="import-her-schedule-btn" style="flex: 1; padding: 6px 0; border-top-right-radius: 0; border-bottom-right-radius: 0;">导入</button>
+                                    <button class="action-btn icon-btn" id="setting-her-schedule-btn" style="width: 36px; padding: 6px 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgba(255,255,255,0.1); background: #f2f2f7;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="schedule-display-area" id="her-schedule-display" style="min-height: 200px; padding: 15px 5px; font-size: 14px; line-height: 1.6; color: #1d1d1f;">
                                 <div style="text-align: center; color: #86868b; margin-top: 50px;">暂无日常，点击上方按钮生成。</div>
@@ -687,6 +697,23 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 日程世界书设置模态框 -->
+            <div class="app-modal" id="schedule-wb-modal" style="display: none; z-index: 1000;">
+                <div class="app-header">
+                    <button class="header-btn back-btn" id="close-schedule-wb-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h2 class="header-title">关联世界书 (日程生成用)</h2>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div class="app-content">
+                    <div class="settings-group" id="schedule-wb-list" style="margin-top: 15px;">
+                        <!-- Checkboxes will go here -->
+                    </div>
+                </div>
+            </div>
+
             <div class="app-modal" id="line-modal">
                 <div class="line-app-container">
                     <!-- LINE Header (Top Bar) -->
@@ -944,6 +971,16 @@
                                     <div class="settings-section">
                                         <h4 class="section-title">人设</h4>
                                         <textarea class="persona-input" id="chat-settings-persona" placeholder="输入或粘贴人设描述..."></textarea>
+                                    </div>
+                                    
+                                    <div class="settings-section">
+                                        <h4 class="section-title">回复条数</h4>
+                                        <div class="reply-count-row" style="display: flex; gap: 10px; align-items: center;">
+                                            <input type="number" class="info-input" id="chat-settings-reply-min" placeholder="最少" min="1" max="10" style="width: 80px; text-align: center; border: 1px solid #e5e5ea; border-radius: 8px; padding: 5px;">
+                                            <span>-</span>
+                                            <input type="number" class="info-input" id="chat-settings-reply-max" placeholder="最多" min="1" max="10" style="width: 80px; text-align: center; border: 1px solid #e5e5ea; border-radius: 8px; padding: 5px;">
+                                            <span style="font-size: 0.8rem; color: #86868b; margin-left: 10px;">留空则默认</span>
+                                        </div>
                                     </div>
                                     
                                     <!-- World Book Binding Section -->

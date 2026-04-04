@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateHerScheduleBtn = document.getElementById('generate-her-schedule-btn');
   const updateHerScheduleBtn = document.getElementById('update-her-schedule-btn');
   const importHerScheduleBtn = document.getElementById('import-her-schedule-btn');
+  const settingMeScheduleBtn = document.getElementById('setting-me-schedule-btn');
+  const settingHerScheduleBtn = document.getElementById('setting-her-schedule-btn');
+  const scheduleWbModal = document.getElementById('schedule-wb-modal');
+  const closeScheduleWbModal = document.getElementById('close-schedule-wb-modal');
+  const scheduleWbList = document.getElementById('schedule-wb-list');
+
   const herScheduleDisplay = document.getElementById('her-schedule-display');
   const herScheduleLoading = document.getElementById('her-schedule-loading');
   const calendarContainer = document.getElementById('calendar-container');
@@ -676,6 +682,63 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  function openScheduleWbModal() {
+    if (!currentChatId) return;
+    scheduleWbModal.style.display = 'block';
+    scheduleWbList.innerHTML = '';
+    
+    const allWorldbooks = largeStore.get('worldbook_items', []);
+    const selectedWbs = largeStore.get('love_journal_wbs_' + currentChatId, []);
+    
+    if (allWorldbooks.length === 0) {
+      scheduleWbList.innerHTML = '<div style="text-align: center; color: #86868b;">系统内暂无世界书</div>';
+      return;
+    }
+    
+    allWorldbooks.forEach(wb => {
+      const item = document.createElement('div');
+      item.className = 'api-preset-item';
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.marginBottom = '10px';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.style.marginRight = '10px';
+      checkbox.checked = selectedWbs.includes(wb.id);
+      
+      checkbox.addEventListener('change', () => {
+        let currentSelected = largeStore.get('love_journal_wbs_' + currentChatId, []);
+        if (checkbox.checked) {
+          if (!currentSelected.includes(wb.id)) currentSelected.push(wb.id);
+        } else {
+          currentSelected = currentSelected.filter(id => id !== wb.id);
+        }
+        largeStore.put('love_journal_wbs_' + currentChatId, currentSelected);
+      });
+      
+      const nameEl = document.createElement('span');
+      nameEl.textContent = wb.name || '未命名世界书';
+      
+      item.appendChild(checkbox);
+      item.appendChild(nameEl);
+      scheduleWbList.appendChild(item);
+    });
+  }
+
+  if (settingMeScheduleBtn) {
+    settingMeScheduleBtn.addEventListener('click', openScheduleWbModal);
+  }
+  if (settingHerScheduleBtn) {
+    settingHerScheduleBtn.addEventListener('click', openScheduleWbModal);
+  }
+  if (closeScheduleWbModal) {
+    closeScheduleWbModal.addEventListener('click', () => {
+      scheduleWbModal.style.display = 'none';
+    });
+  }
+
   if (generateMeScheduleBtn) {
     generateMeScheduleBtn.addEventListener('click', async () => {
       if (!currentChatId) return;
@@ -739,6 +802,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       largeStore.put(`love_journal_me_schedule_${currentChatId}_${selectedScheduleDateStr}`, tempSchedule);
+      
+      const selectedWbs = largeStore.get('love_journal_wbs_' + currentChatId, []);
+      const allWbs = largeStore.get('worldbook_items', []);
+      const wbContext = allWbs.filter(w => selectedWbs.includes(w.id)).map(w => `${w.name || ''}: ${w.content || ''}`).join('\n');
+      
+      largeStore.put('love_journal_imported_schedule_' + currentChatId, tempSchedule);
+      largeStore.put('love_journal_imported_wbs_' + currentChatId, wbContext);
+      
       alert('导入成功！已注入AI回复记忆中。');
     });
   }
@@ -806,6 +877,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       largeStore.put(`love_journal_her_schedule_${currentChatId}_${selectedScheduleDateStr}`, tempSchedule);
+      
+      const selectedWbs = largeStore.get('love_journal_wbs_' + currentChatId, []);
+      const allWbs = largeStore.get('worldbook_items', []);
+      const wbContext = allWbs.filter(w => selectedWbs.includes(w.id)).map(w => `${w.name || ''}: ${w.content || ''}`).join('\n');
+      
+      largeStore.put('love_journal_imported_her_schedule_' + currentChatId, tempSchedule);
+      largeStore.put('love_journal_imported_her_wbs_' + currentChatId, wbContext);
+      
       alert('导入成功！已注入AI回复记忆中。');
     });
   }
@@ -820,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
 
     const persona = largeStore.get('chat_persona_' + chatId, '');
-    const worldbookIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
+    const worldbookIds = largeStore.get('love_journal_wbs_' + chatId, []);
     const allWorldbooks = largeStore.get('worldbook_items', []);
     const boundWorldbooks = allWorldbooks.filter(wb => worldbookIds.includes(wb.id));
     const wbContext = boundWorldbooks.map(wb => `${wb.name || ''}: ${wb.content || ''}`).join('\n');
