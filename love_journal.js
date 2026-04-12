@@ -745,7 +745,14 @@ document.addEventListener('DOMContentLoaded', () => {
       
       generateMeScheduleBtn.disabled = true;
       if (meScheduleLoading) {
-        meScheduleLoading.textContent = '正在读取记忆与世界书生成中...';
+        const meta = JSON.parse(localStorage.getItem('chat_meta_' + currentChatId) || '{}');
+        const myName = meta.remark || meta.realName || '我';
+        const selectedWbs = largeStore.get('love_journal_wbs_' + currentChatId, []);
+        if (selectedWbs.length > 0) {
+          meScheduleLoading.textContent = `正在根据人设和记忆、已选择的世界书生成【${myName}】日程规划...`;
+        } else {
+          meScheduleLoading.textContent = `正在根据人设和记忆生成【${myName}】日程规划...`;
+        }
         meScheduleLoading.style.display = 'block';
       }
       if (meScheduleDisplay) meScheduleDisplay.innerHTML = '';
@@ -820,7 +827,13 @@ document.addEventListener('DOMContentLoaded', () => {
       
       generateHerScheduleBtn.disabled = true;
       if (herScheduleLoading) {
-        herScheduleLoading.textContent = '正在读取记忆与世界书生成中...';
+        const userName = String(localStorage.getItem('chat_user_realname_' + currentChatId) || localStorage.getItem('chat_user_remark_' + currentChatId) || '用户').trim() || '用户';
+        const selectedWbs = largeStore.get('love_journal_wbs_' + currentChatId, []);
+        if (selectedWbs.length > 0) {
+          herScheduleLoading.textContent = `正在根据人设和记忆、已选择的世界书生成【${userName}】日程规划...`;
+        } else {
+          herScheduleLoading.textContent = `正在根据人设和记忆生成【${userName}】日程规划...`;
+        }
         herScheduleLoading.style.display = 'block';
       }
       if (herScheduleDisplay) herScheduleDisplay.innerHTML = '';
@@ -914,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('\n');
       
     const currentTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    const targetPerson = type === 'me' ? userName : myName;
+    const targetPerson = type === 'me' ? myName : userName;
 
     let prompt = '';
     
