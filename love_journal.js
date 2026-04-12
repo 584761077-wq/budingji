@@ -685,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openScheduleWbModal() {
     if (!currentChatId) return;
-    scheduleWbModal.style.display = 'block';
+    scheduleWbModal.classList.add('active');
     scheduleWbList.innerHTML = '';
     
     const allWorldbooks = largeStore.get('worldbook_items', []);
@@ -735,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (closeScheduleWbModal) {
     closeScheduleWbModal.addEventListener('click', () => {
-      scheduleWbModal.style.display = 'none';
+      scheduleWbModal.classList.remove('active');
     });
   }
 
@@ -919,13 +919,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let prompt = '';
     
     if (mode === 'generate') {
-        prompt = `你是${myName}。请根据你的人设和世界背景，为【${targetPerson}】生成今天一整天的详细日程规划（就像早上刚醒来时写在备忘录上的待办清单）。
+        const wbPromptPart = wbContext ? `和世界书设定` : ``;
+        const wbContextPart = wbContext ? `\n世界书背景：\n${wbContext}\n` : ``;
+
+        prompt = `你是${myName}。请根据你的人设${wbPromptPart}，为【${targetPerson}】生成今天一整天的详细日程规划（就像早上刚醒来时写在备忘录上的待办清单）。
 人设：
 ${persona || '无'}
-
-世界书背景：
-${wbContext || '无'}
-
+${wbContextPart}
 最近和${userName}的聊天记录：
 ${recentHistory || '无'}
 
