@@ -4587,7 +4587,7 @@ function initChatRoomLogic() {
         const voiceDuration = voiceData ? Math.max(1, Number(voiceData.duration) || 1) : 0;
         const voiceTranscriptRaw = voiceData ? String(voiceData.transcript || content || '') : '';
         const safeVoiceTranscript = escapeHtml(voiceTranscriptRaw.trim() || '无可用转文字内容');
-        const bubbleContent = voiceData
+        let bubbleContent = voiceData
             ? `<button class="voice-message-btn" type="button"><span class="voice-message-duration">${voiceDuration}"</span><span class="voice-message-wave"><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span></span></button><div class="voice-transcript" style="display:none;">${safeVoiceTranscript}</div>`
             : content;
         const quotePreview = quote ? truncateQuoteText(quote.text) : '';
@@ -4627,6 +4627,18 @@ function initChatRoomLogic() {
             }
         }
 
+        const translationText = extra && extra.translation ? extra.translation : '';
+        let translationHtml = '';
+        
+        if (translationText) {
+            const bilingualStyle = localStorage.getItem('chat_bilingual_style_' + chatId) || 'outside';
+            if (bilingualStyle === 'inside') {
+                bubbleContent += `<hr style="border:none; border-top: 1px solid rgba(0,0,0,0.1); margin: 8px 0;" /><span style="font-size:0.85em; color:#86868b;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</span>`;
+            } else {
+                translationHtml = `<div class="message-translation" style="display: none; font-size: 0.85rem; color: #86868b; margin-top: 4px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-radius: 8px; line-height: 1.4; word-break: break-word;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</div>`;
+            }
+        }
+
         const bubbleClasses = [
             'message-bubble',
             isStickerMessage ? 'sticker-bubble' : '',
@@ -4641,6 +4653,7 @@ function initChatRoomLogic() {
             <div class="message-container">
                 <div class="message-main">
                     ${bubbleMarkup}
+                    ${translationHtml}
                     ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
                 </div>
                 <div class="message-meta-info">
@@ -4649,6 +4662,22 @@ function initChatRoomLogic() {
                 </div>
             </div>
         `;
+        
+        // 双语模式：点击气泡显示/隐藏翻译
+        if (translationText) {
+            const bubbleEl = msgRow.querySelector('.message-bubble, .message-special');
+            const transEl = msgRow.querySelector('.message-translation');
+            if (bubbleEl && transEl) {
+                bubbleEl.addEventListener('click', (e) => {
+                    // 如果点击的是图片等内部元素，可能需要冒泡，但如果是普通文本气泡直接处理
+                    if (transEl.style.display === 'none') {
+                        transEl.style.display = 'block';
+                    } else {
+                        transEl.style.display = 'none';
+                    }
+                });
+            }
+        }
         const resolveMediaImagesInElement = (el) => {
             const imgs = el.querySelectorAll('img');
             imgs.forEach((img) => {
@@ -5463,6 +5492,13 @@ ${savedHerSchedule}
                 }
             } catch (e) {}
 
+            try {
+                const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
+                if (bilingualEnabled) {
+                    topSystemBlocks.push(`\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`);
+                }
+            } catch (e) {}
+
             // 4. 最终合并打包
             const messages = [
                 { role: "system", content: topSystemBlocks.join('\n\n') },
@@ -5612,21 +5648,31 @@ if (quoteMatch) {
             let backgroundNotificationPreview = '';
             
             for (let i = 0; i < replyMessages.length; i++) {
-                const rawPart = stripMoodSpriteFragments(replyMessages[i]);
+                let rawPart = stripMoodSpriteFragments(replyMessages[i]);
+                
+                let translationText = null;
+                const transMatch = rawPart.match(/<translation>([\s\S]*?)<\/translation>/i);
+                if (transMatch) {
+                    translationText = transMatch[1].trim();
+                    rawPart = rawPart.replace(/<translation>[\s\S]*?<\/translation>/ig, '').trim();
+                }
+                
                 if (!rawPart) continue;
                 const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
                 if (parsedPhoto) {
                     normalizedReplyMessages.push({
                         msgContent: buildCameraPlaceholderHtml(parsedPhoto.text),
-                        parsedVoice: null
+                        parsedVoice: null,
+                        translationText
                     });
                     continue;
                 }
                 if (parsedVoice) {
                     normalizedReplyMessages.push({
                         msgContent: parsedVoice.transcript,
-                        parsedVoice
+                        parsedVoice,
+                        translationText
                     });
                     continue;
                 }
@@ -5639,7 +5685,8 @@ if (quoteMatch) {
                     if (!msgContent) return;
                     normalizedReplyMessages.push({
                         msgContent,
-                        parsedVoice: null
+                        parsedVoice: null,
+                        translationText
                     });
                 });
             }
@@ -5664,6 +5711,7 @@ if (quoteMatch) {
                 if (parsedVoice) extra.voice = parsedVoice;
                 if (isLast && spriteData) extra.sprite = spriteData;
                 if (isFirst && quoteData) extra.quote = quoteData;
+                if (messageItem.translationText) extra.translation = messageItem.translationText;
 
                 const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
                 const shouldUnread = !isChatRoomOpenFor(chatId);
@@ -6737,6 +6785,7 @@ if (quoteMatch) {
     });
 
     initChatSettingsLogic(chatRoomName);
+    initChatAdvancedSettingsLogic(chatRoomName);
 }
 
 // 6. 聊天设置功能逻辑
@@ -6756,9 +6805,6 @@ function initChatSettingsLogic(chatRoomNameEl) {
     const realNameInput = document.getElementById('chat-settings-realname');
     const remarkInput = document.getElementById('chat-settings-remark');
     const personaInput = document.getElementById('chat-settings-persona');
-    
-    const replyCountMinInput = document.getElementById('chat-settings-reply-min');
-    const replyCountMaxInput = document.getElementById('chat-settings-reply-max');
 
     // User Profile Elements
     const userAvatarWrapper = document.querySelector('.chat-profile-avatar-wrapper.small-avatar');
@@ -6882,10 +6928,6 @@ function initChatSettingsLogic(chatRoomNameEl) {
             realNameInput.value = meta.realName || '';
             remarkInput.value = remarkName;
             personaInput.value = persona;
-            
-            const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || '{"min":"","max":""}');
-            if (replyCountMinInput) replyCountMinInput.value = replyCountConfig.min || '';
-            if (replyCountMaxInput) replyCountMaxInput.value = replyCountConfig.max || '';
             
             // 显示 Chat 当前头像
             if (avatarSrc) {
@@ -7072,14 +7114,6 @@ function initChatSettingsLogic(chatRoomNameEl) {
             } else {
                 largeStore.remove('chat_persona_' + chatId);
             }
-            
-            const minVal = replyCountMinInput ? replyCountMinInput.value.trim() : '';
-            const maxVal = replyCountMaxInput ? replyCountMaxInput.value.trim() : '';
-            if (minVal || maxVal) {
-                localStorage.setItem('chat_reply_count_' + chatId, JSON.stringify({min: minVal, max: maxVal}));
-            } else {
-                localStorage.removeItem('chat_reply_count_' + chatId);
-            }
 
             // 保存 Chat 头像
             let newAvatarSrc = null;
@@ -7239,6 +7273,109 @@ function initChatSettingsLogic(chatRoomNameEl) {
     initMemorySettingsLogic(chatRoomNameEl);
     initTimeSettingsLogic(chatRoomNameEl);
     initBackgroundSettingsLogic(chatRoomNameEl);
+}
+
+function initChatAdvancedSettingsLogic(chatRoomNameEl) {
+    const advSettingsBtn = document.getElementById('chat-advanced-settings-btn');
+    const modal = document.getElementById('chat-advanced-settings-modal');
+    const closeBtn = document.getElementById('close-chat-advanced-settings');
+    const saveBtn = document.getElementById('save-chat-advanced-settings');
+    
+    const replyCountMinInput = document.getElementById('chat-settings-reply-min');
+    const replyCountMaxInput = document.getElementById('chat-settings-reply-max');
+    
+    const bilingualToggle = document.getElementById('chat-bilingual-toggle');
+    const bilingualOptionsDiv = document.getElementById('chat-bilingual-options');
+    const bilingualStyleRadios = document.getElementsByName('bilingual_style');
+    const bilingualStyleDesc = document.getElementById('bilingual-style-desc');
+    
+    if (!advSettingsBtn || !modal) return;
+
+    const updateBilingualDesc = (style) => {
+        if (!bilingualStyleDesc) return;
+        if (style === 'inside') {
+            bilingualStyleDesc.textContent = '气泡内：在一个气泡里，中间用细横线分隔开，上面是翻译前的话，下面是翻译，翻译的字会小一点，颜色浅一点。';
+        } else {
+            bilingualStyleDesc.textContent = '气泡外：点击气泡后，像微信翻译那样在气泡下方显示翻译。';
+        }
+    };
+
+    const syncFromStorage = () => {
+        const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+        
+        const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || '{"min":"","max":""}');
+        if (replyCountMinInput) replyCountMinInput.value = replyCountConfig.min || '';
+        if (replyCountMaxInput) replyCountMaxInput.value = replyCountConfig.max || '';
+        
+        const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
+        if (bilingualToggle) {
+            bilingualToggle.checked = bilingualEnabled;
+            bilingualOptionsDiv.style.display = bilingualEnabled ? 'block' : 'none';
+        }
+        
+        const bilingualStyle = localStorage.getItem('chat_bilingual_style_' + chatId) || 'outside';
+        if (bilingualStyleRadios) {
+            for (const radio of bilingualStyleRadios) {
+                if (radio.value === bilingualStyle) radio.checked = true;
+            }
+        }
+        updateBilingualDesc(bilingualStyle);
+    };
+
+    advSettingsBtn.addEventListener('click', () => {
+        syncFromStorage();
+        openAppModal(modal);
+    });
+
+    if (bilingualToggle) {
+        bilingualToggle.addEventListener('change', () => {
+            bilingualOptionsDiv.style.display = bilingualToggle.checked ? 'block' : 'none';
+        });
+    }
+
+    if (bilingualStyleRadios) {
+        for (const radio of bilingualStyleRadios) {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    updateBilingualDesc(e.target.value);
+                }
+            });
+        }
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            closeAppModal(modal);
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            
+            const minVal = replyCountMinInput ? replyCountMinInput.value.trim() : '';
+            const maxVal = replyCountMaxInput ? replyCountMaxInput.value.trim() : '';
+            if (minVal || maxVal) {
+                localStorage.setItem('chat_reply_count_' + chatId, JSON.stringify({min: minVal, max: maxVal}));
+            } else {
+                localStorage.removeItem('chat_reply_count_' + chatId);
+            }
+            
+            if (bilingualToggle) {
+                localStorage.setItem('chat_bilingual_' + chatId, bilingualToggle.checked ? 'true' : 'false');
+            }
+            
+            if (bilingualStyleRadios) {
+                let selectedStyle = 'outside';
+                for (const radio of bilingualStyleRadios) {
+                    if (radio.checked) selectedStyle = radio.value;
+                }
+                localStorage.setItem('chat_bilingual_style_' + chatId, selectedStyle);
+            }
+            
+            closeAppModal(modal);
+        });
+    }
 }
 
 function initBackgroundSettingsLogic(chatRoomNameEl) {
