@@ -5384,12 +5384,33 @@ ${roundMessageText}
 
             const savedMeSchedule = largeStore.get('love_journal_imported_schedule_' + chatId, '');
             const importedWbs = largeStore.get('love_journal_imported_wbs_' + chatId, '');
+            const savedHerSchedule = largeStore.get('love_journal_imported_her_schedule_' + chatId, '');
+            const importedHerWbs = largeStore.get('love_journal_imported_her_wbs_' + chatId, '');
             
             let meScheduleText = '';
             if (savedMeSchedule) {
-                meScheduleText = `[我今天的日程安排]\n${savedMeSchedule}\n请在回复中自然地体现或暗示你正在做的事情，符合这个日程安排。`;
+                meScheduleText = `[你的心里认知：你今天的日程安排]
+${savedMeSchedule}
+
+【你的日程处理原则（非常重要）】：
+1. 正常聊天即可，绝对不需要在回复中刻意说明或反复提及你在执行日程，这只是让你心里知道自己这个时间点大概在干嘛。
+2. 保持灵活变通：如果聊天中有了新的决定或突发情况，你可以随时改变计划，不需要死板地完全遵守日程。
+3. 无日程的时间段：如果当前时间不在日程表的时间段内（比如凌晨深夜），说明现在是自由/休息时间（比如本该睡觉但还在聊天），此时可以完全忽略日程的约束。但如果被问起白天或其他时间的安排，你需要清楚知道日程里的内容。`;
                 if (importedWbs) {
-                    meScheduleText += `\n[日程关联世界书/背景]\n${importedWbs}`;
+                    meScheduleText += `\n\n[日程关联世界书/背景]\n${importedWbs}`;
+                }
+            }
+
+            let herScheduleText = '';
+            if (savedHerSchedule) {
+                herScheduleText = `[你的心里认知：【${userName}】今天的日程安排]
+${savedHerSchedule}
+
+【对方日程处理原则（非常重要）】：
+1. 正常聊天即可，不需要反复提及对方的日程，这只是让你心里清楚对方今天在忙什么。
+2. 可以根据时间点适时地关心或配合对方的日程，但不要生硬照念。`;
+                if (importedHerWbs) {
+                    herScheduleText += `\n\n[对方日程关联世界书/背景]\n${importedHerWbs}`;
                 }
             }
 
@@ -5410,6 +5431,7 @@ ${roundMessageText}
 
             // 日程安排更靠近当前，放入 Bottom 区块
             if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
+            if (herScheduleText) bottomMessages.push({ role: "system", content: herScheduleText });
 
             // 3. 世界书的动态插入逻辑 (预留未来的配置项，方便后期做 UI 让用户自选)
             const wbInsertPosition = 'system_bottom'; // 可选值: system_top, system_bottom, before_history, before_latest
