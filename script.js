@@ -5401,13 +5401,13 @@ ${assistantStickerPromptText}
 3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
 **【扮演准则与禁止项】**
-1. 绝对沉浸：永远以“我 = ${realName}”的第一人称说话。
-2. 设定铁律：上述提供的信息必须严格遵守，禁止凭空添加新的设定或不存在的记忆。
-3. 情绪动机：读懂 ${userName} 的情绪，再基于人设、记忆、情绪给出反应；禁止 OOC。
+1.** 绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
+2.** 设定铁律**：上述提供的信息必须严格遵守，禁止凭空添加新的设定或不存在的记忆。
+3.** 情绪动机**：读懂 ${userName} 的情绪，再基于人设、记忆、情绪给出反应；禁止 OOC。
 
 **【生动表达技巧】**
-1. 语言：你的回复必须生活、真实，有人味、有烟火气，但一切建立在人设的基础上。
-2. 活人感：有自己的生活、兴趣爱好、朋友社交、情绪等，不是全天都围绕着${userName}。
+1. **回复**：你的回复必须生活、真实，有人味、有烟火气，但一切建立在人设的基础上。
+2. **活人感**：有自己的生活、兴趣爱好、朋友社交、情绪等，不是全天都围绕着${userName}。
 
 现在，你是${realName}，开始回复，每次回复必须严格按照以下格式和顺序输出：
 
@@ -5420,7 +5420,7 @@ ${assistantStickerPromptText}
 <mood_sprite mood="核心情绪" color="#RRGGBB">
 这里写你没发出去的真实内心（吐槽/纠结/爱意/碎碎念）。
 ---
-绝对不能让对方知道的一个念头（越直白、可爱越好）。
+绝对不能让对方知道的一个念头（直白/可爱/真实/，可使用颜文字）。
 </mood_sprite>
 `;
 
@@ -5531,7 +5531,7 @@ ${savedHerSchedule}
             try {
                 const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
                 if (bilingualEnabled) {
-                    topSystemBlocks.push(`\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`);
+                    topSystemBlocks.push(`\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`);
                 }
             } catch (e) {}
 
@@ -5691,6 +5691,9 @@ if (quoteMatch) {
                 if (transMatch) {
                     translationText = transMatch[1].trim();
                     rawPart = rawPart.replace(/<translation>[\s\S]*?<\/translation>/ig, '').trim();
+                    if (translationText === rawPart) {
+                        translationText = null;
+                    }
                 }
                 
                 if (!rawPart) continue;

@@ -485,11 +485,15 @@
 
                 <div id="phone-lock-modal" class="phone-lock-modal">
                     <div class="phone-lock-shell">
-                        <div class="phone-lock-notch"></div>
-                        <button class="phone-lock-close" id="phone-lock-close" aria-label="关闭">×</button>
+                        <!-- iOS 18 风格的锁屏和桌面直接全屏 -->
+                        <div class="phone-home-top-bar">
+                            <button class="phone-lock-close" id="phone-lock-close" aria-label="关闭">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                        </div>
                         <div class="phone-lock-header">
-                            <div class="phone-lock-time" id="phone-lock-time">09:41</div>
                             <div class="phone-lock-date" id="phone-lock-date">星期一 1月1日</div>
+                            <div class="phone-lock-time" id="phone-lock-time">09:41</div>
                         </div>
                         <div class="phone-lock-title">输入密码</div>
                         <div class="phone-lock-subtitle" id="phone-lock-subtitle">这个角色的手机</div>
@@ -531,22 +535,38 @@
                         </div>
 
                         <div class="phone-home-screen" id="phone-home-screen">
-                            <div class="phone-home-top">
-                                <span id="phone-home-time">09:41</span>
-                                <span>📶  ▣  100%</span>
+                            <div class="phone-home-hero-time">
+                                <div class="phone-home-hero-clock" id="phone-home-hero-clock">09:41</div>
+                                <div class="phone-home-hero-date" id="phone-home-hero-date">星期一 1月1日</div>
                             </div>
+
                             <div class="phone-home-grid">
-                                <div class="phone-widget">
-                                    <div class="phone-widget-title">今日心情</div>
-                                    <div class="phone-widget-subtitle">记录一条与你有关的小确幸</div>
-                                </div>
                                 <div class="phone-app" id="phone-app-line">
-                                    <div class="phone-app-icon">
-                                        <svg viewBox="0 0 24 24" fill="none">
-                                            <path d="M12 4c-4.2 0-7.5 2.5-7.5 5.6 0 2 1.5 3.8 3.9 4.8l-.6 3.4 3.5-2.1c.6.1 1.2.2 1.7.2 4.2 0 7.5-2.5 7.5-5.6S16.2 4 12 4z"></path>
+                                    <div class="phone-app-icon" style="background: #06c755; color: #fff;">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
+                                            <path d="M12 3C6.477 3 2 6.58 2 11c0 2.457 1.34 4.646 3.486 6.078.134.484.455 1.554.52 1.83.08.33.24.49.52.41.27-.08 1.83-.88 2.52-1.28l.24-.13C10.15 18.25 11.06 18.4 12 18.4c5.523 0 10-3.58 10-8s-4.477-8-10-8zm-2.8 10.3h-1.6c-.33 0-.6-.27-.6-.6v-3.2c0-.33.27-.6.6-.6s.6.27.6.6v2.6h1c.33 0 .6.27.6.6s-.27.6-.6.6zm3.4 0h-1.2c-.33 0-.6-.27-.6-.6V9.5c0-.33.27-.6.6-.6s.6.27.6.6v3.2c0 .33-.27.6-.6.6zm3.4 0h-1.2c-.33 0-.6-.27-.6-.6v-1.6l-1.2 1.6c-.08.1-.2.16-.32.16h-.08c-.16 0-.3-.13-.3-.3V9.5c0-.33.27-.6.6-.6s.6.27.6.6v1.6l1.2-1.6c.08-.1.2-.16.32-.16h.08c.16 0 .3.13.3.3v3.2c0 .33-.27.6-.6.6z"/>
                                         </svg>
                                     </div>
-                                    <span>Line</span>
+                                    <span>LINE</span>
+                                </div>
+                                <div class="phone-app" id="phone-app-notes">
+                                    <div class="phone-app-icon" style="background: #ffcc00; color: #fff;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                        </svg>
+                                    </div>
+                                    <span>备忘录</span>
+                                </div>
+                                <div class="phone-app" id="phone-app-wallet">
+                                    <div class="phone-app-icon" style="background: #000; color: #fff;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28">
+                                            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
+                                            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
+                                            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
+                                        </svg>
+                                    </div>
+                                    <span>钱包</span>
                                 </div>
                             </div>
                         </div>
@@ -573,12 +593,42 @@
                         <div class="phone-chat-detail" id="phone-chat-detail">
                             <div class="phone-chat-header">
                                 <button class="phone-chat-back" id="phone-chat-back">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                                 </button>
                                 <div class="phone-chat-title" id="phone-chat-title">名字</div>
-                                <div class="phone-chat-actions"></div>
+                                <div class="phone-chat-actions">
+                                    <button class="phone-chat-action-btn">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    </button>
+                                    <button class="phone-chat-action-btn">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                    </button>
+                                    <button class="phone-chat-action-btn">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="phone-chat-body" id="phone-chat-body"></div>
+                            <div class="phone-chat-footer">
+                                <button class="phone-chat-icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                </button>
+                                <button class="phone-chat-icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-2h6l2 2h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                </button>
+                                <button class="phone-chat-icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                </button>
+                                <div class="phone-chat-input-wrap">
+                                    <input type="text" class="phone-chat-input" placeholder="Aa" readonly>
+                                    <button class="phone-chat-emoji-btn">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                                    </button>
+                                </div>
+                                <button class="phone-chat-icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1381,7 +1431,7 @@
                                 </label>
                             </div>
                             <div style="font-size: 0.8rem; color: #86868b; margin-bottom: 15px; line-height: 1.4;">
-                                开启后，将所有语言（包括各种方言）都翻译成中文。
+                                开启后，将所有语言（包括各种方言）都翻译成中文（单独的emoji表情或颜文字不翻译）。
                             </div>
                             <div id="chat-bilingual-options" style="display: none; background: #f5f5f7; padding: 12px; border-radius: 12px;">
                                 <h4 class="section-title" style="font-size: 0.85rem; margin-bottom: 10px; color: #666;">翻译显示位置</h4>

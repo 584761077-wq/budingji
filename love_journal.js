@@ -256,10 +256,15 @@ document.addEventListener('DOMContentLoaded', () => {
     phoneDate.textContent = dateText;
   }
   function updateHomeTime() {
-    if (!phoneHomeTime) return;
     const now = new Date();
     const timeText = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    phoneHomeTime.textContent = timeText;
+    const dateText = now.toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' });
+    const smallEl = document.getElementById('phone-home-time-small');
+    const clockEl = document.getElementById('phone-home-hero-clock');
+    const dateEl = document.getElementById('phone-home-hero-date');
+    if (smallEl) smallEl.textContent = timeText;
+    if (clockEl) clockEl.textContent = timeText;
+    if (dateEl) dateEl.textContent = dateText;
   }
   function showPanel(panel) {
     if (forgotPanel) forgotPanel.classList.remove('active');
@@ -291,6 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
     showPanel(null);
     if (forgotResult) forgotResult.textContent = '';
     if (phoneHome) phoneHome.classList.remove('active');
+    const phoneLineScreen = document.getElementById('phone-line-screen');
+    const phoneChatDetail = document.getElementById('phone-chat-detail');
+    if (phoneLineScreen) phoneLineScreen.classList.remove('active');
+    if (phoneChatDetail) phoneChatDetail.classList.remove('active');
   }
   function normalizeAnswer(value) {
     return String(value || '').trim().toLowerCase();
@@ -1210,12 +1219,8 @@ ${recentHistory || '无'}
     safeMessages.forEach(msg => {
       const row = document.createElement('div');
       row.className = `line-message ${msg.role}`;
-      let avatarHtml = '';
-      if (msg.role === 'other') {
-        avatarHtml = `<div class="line-avatar" style="background-color: #ccc; display:flex; align-items:center; justify-content:center; color:#555;">${(chat.targetName || '?')[0]}</div>`;
-      }
       const contentHtml = String(msg.content || '').replace(/\n/g, '<br>');
-      row.innerHTML = `${avatarHtml}<div class="line-bubble">${contentHtml}</div>`;
+      row.innerHTML = `<div class="line-bubble">${contentHtml}</div>`;
       phoneChatBody.appendChild(row);
     });
     phoneChatDetail.classList.add('active');
