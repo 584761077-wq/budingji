@@ -5403,7 +5403,7 @@ function initChatRoomLogic() {
         if (translationText) {
             const bilingualStyle = localStorage.getItem('chat_bilingual_style_' + chatId) || 'outside';
             if (bilingualStyle === 'inside') {
-                bubbleContent += `<hr style="border:none; border-top: 1px solid rgba(0,0,0,0.1); margin: 8px 0;" /><span style="font-size:0.85em; color:#86868b;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</span>`;
+                bubbleContent += `<hr style="border:none; border-top: 1px solid rgba(0,0,0,0.1); margin: 4px 0;" /><span style="font-size:0.85em; color:#86868b;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</span>`;
             } else {
                 translationHtml = `<div class="message-translation" style="display: none; font-size: 0.85rem; color: #86868b; margin-top: 4px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-radius: 8px; line-height: 1.4; word-break: break-word;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</div>`;
             }
@@ -6195,7 +6195,7 @@ ${pendingIncomingTransfersPrompt}
 若为“无”，你禁止输出任何 [转账处理:...] 标签。
 
 **【输出格式与排版要求】**
-1. 多条消息拆分：回复多条消息时必须用 [SPLIT] 严格分隔。禁止每轮条数一样。
+1. 多条消息拆分：回复消息时必须用 [SPLIT] 拆分信息。禁止每轮条数一样。
 2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
 3. 贴图发送时机：禁止每轮都发送贴图。并且贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
