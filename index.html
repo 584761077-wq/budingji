@@ -535,6 +535,11 @@
                         </div>
 
                         <div class="phone-home-screen" id="phone-home-screen">
+                            <div class="phone-home-screen-top-bar">
+                                <button class="phone-home-close" id="phone-home-close" aria-label="返回">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                            </div>
                             <div class="phone-home-hero-time">
                                 <div class="phone-home-hero-clock" id="phone-home-hero-clock">09:41</div>
                                 <div class="phone-home-hero-date" id="phone-home-hero-date">星期一 1月1日</div>
@@ -628,6 +633,66 @@
                                 <button class="phone-chat-icon-btn">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
                                 </button>
+                            </div>
+                        </div>
+
+                        <div class="phone-wallet-screen" id="phone-wallet-screen">
+                            <div class="phone-wallet-header">
+                                <button class="phone-wallet-back" id="phone-wallet-back" aria-label="返回">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                                <div class="phone-wallet-title">钱包</div>
+                                <div class="phone-wallet-actions">
+                                    <button class="phone-wallet-action-btn" id="phone-wallet-generate-btn" title="生成余额">
+                                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                    </button>
+                                    <button class="phone-wallet-action-btn" id="phone-wallet-settings-btn" title="设置">
+                                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="phone-wallet-content">
+                                <div class="wallet-balance-card">
+                                    <div class="wallet-label">余额</div>
+                                    <div class="wallet-balance" id="phone-wallet-balance">¥0.00</div>
+                                </div>
+                                <div class="wallet-cards-row">
+                                    <div class="wallet-card-group">
+                                        <div class="wallet-group-title-row">
+                                            <div class="wallet-group-title">角色银行卡 / 信用卡</div>
+                                            <button class="wallet-group-generate-btn" id="wallet-cards-generate-btn" title="生成卡片">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                            </button>
+                                        </div>
+                                        <div class="wallet-group-body" id="wallet-main-cards">
+                                            <div class="wallet-empty-tip">点击标题旁图标生成卡片</div>
+                                        </div>
+                                    </div>
+                                    <div class="wallet-card-group">
+                                        <div class="wallet-group-title">亲属卡（送出 / 收到）</div>
+                                        <div class="wallet-group-body" id="wallet-family-cards">
+                                            <div class="wallet-empty-tip">暂无亲属卡（赠送/收到后显示）</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="wallet-divider"></div>
+                                <div class="wallet-bill-section">
+                                    <div class="wallet-bill-title">账单</div>
+                                    <div class="wallet-bill-list" id="wallet-bill-list">
+                                        <div class="wallet-empty-tip">暂无消费记录</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="phone-wallet-settings" id="phone-wallet-settings">
+                            <div class="phone-wallet-settings-card">
+                                <div class="phone-wallet-settings-title">钱包设置</div>
+                                <label class="wallet-setting-row">
+                                    <span>生成后自动记录消费</span>
+                                    <input type="checkbox" id="wallet-auto-bill-toggle" checked>
+                                </label>
+                                <button class="phone-wallet-settings-close" id="phone-wallet-settings-close">完成</button>
                             </div>
                         </div>
                     </div>
@@ -1221,6 +1286,119 @@
                         </div>
                     </div>
 
+                    <div class="line-page" id="line-more-page" style="display: none;">
+                        <div class="line-chat-header">
+                            <div class="chat-header-title">更多</div>
+                            <div class="chat-header-icons"></div>
+                        </div>
+                        <div class="line-more-list">
+                            <button class="line-more-item-btn" id="line-more-wallet-btn" type="button">
+                                <div class="line-more-item-left">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
+                                        <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
+                                        <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
+                                    </svg>
+                                </div>
+                                <div class="line-more-item-text">钱包</div>
+                                <div class="line-more-item-arrow">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="line-page" id="line-user-wallet-page" style="display: none;">
+                        <div class="line-chat-header">
+                            <button class="line-icon-btn" id="line-user-wallet-back-btn" type="button" aria-label="返回">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                            <div class="chat-header-title">我的钱包</div>
+                            <div class="chat-header-icons"></div>
+                        </div>
+                        <div class="line-user-wallet-content">
+                            <div class="line-user-wallet-balance-card">
+                                <div class="line-user-wallet-balance-row">
+                                    <div class="line-user-wallet-label">余额</div>
+                                    <button class="line-user-wallet-edit-btn" id="line-user-wallet-edit-balance-btn" type="button">修改</button>
+                                </div>
+                                <div class="line-user-wallet-balance" id="line-user-wallet-balance">¥0.00</div>
+                            </div>
+                            <div class="line-user-wallet-cards-group">
+                                <div class="line-user-wallet-cards-title-row">
+                                    <div class="line-user-wallet-cards-title">银行卡 / 信用卡</div>
+                                    <div class="line-user-wallet-cards-actions">
+                                        <button class="line-user-wallet-cards-generate-btn" id="line-user-wallet-cards-generate-btn" title="生成卡片" type="button">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                        </button>
+                                        <button class="line-user-wallet-cards-generate-btn" id="line-user-wallet-cards-manage-btn" title="管理卡片" type="button">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="line-user-wallet-cards-body" id="line-user-wallet-cards-body">
+                                    <div class="line-user-wallet-empty-tip">点击右上角小图标生成卡片</div>
+                                </div>
+                            </div>
+                            <div class="line-user-wallet-cards-group">
+                                <div class="line-user-wallet-cards-title-row">
+                                    <div class="line-user-wallet-cards-title">亲属卡（送出 / 收到）</div>
+                                    <button class="line-user-wallet-edit-btn" id="line-user-wallet-gift-btn" type="button">赠送</button>
+                                </div>
+                                <div class="line-user-wallet-cards-body" id="line-user-wallet-family-cards-body">
+                                    <div class="line-user-wallet-empty-tip">暂无亲属卡（赠送/收到后显示）</div>
+                                </div>
+                            </div>
+                            <div class="line-user-wallet-divider"></div>
+                            <div class="line-user-wallet-cards-group">
+                                <div class="line-user-wallet-cards-title">账单</div>
+                                <div class="line-user-wallet-cards-body" id="line-user-wallet-bills-body">
+                                    <div class="line-user-wallet-empty-tip">暂无消费记录</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ins-modal-overlay" id="line-wallet-gift-overlay" style="display: none;">
+                        <div class="ins-modal">
+                            <div class="ins-modal-header">
+                                <h3>赠送亲属卡</h3>
+                                <button class="ins-modal-close" id="line-wallet-gift-close">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                            <div class="ins-modal-body">
+                                <div class="form-group">
+                                    <label>赠送对象</label>
+                                    <select id="line-wallet-gift-target" class="candy-input"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>赠送额度（元）</label>
+                                    <input id="line-wallet-gift-amount" class="candy-input" type="number" min="1" step="1" placeholder="请输入金额">
+                                </div>
+                            </div>
+                            <div class="ins-modal-footer">
+                                <button class="ins-btn-secondary" id="line-wallet-gift-cancel" type="button">取消</button>
+                                <button class="ins-btn-primary" id="line-wallet-gift-confirm" type="button">确认赠送</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ins-modal-overlay" id="line-wallet-card-manage-overlay" style="display: none;">
+                        <div class="ins-modal">
+                            <div class="ins-modal-header">
+                                <h3>管理银行卡</h3>
+                                <button class="ins-modal-close" id="line-wallet-card-manage-close">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                            <div class="ins-modal-body" id="line-wallet-card-manage-list"></div>
+                            <div class="ins-modal-footer">
+                                <button class="ins-btn-secondary" id="line-wallet-card-manage-done" type="button">完成</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Bottom Navigation -->
                     <div class="line-bottom-nav">
                         <div class="line-nav-item active" data-page="line-home-page">
@@ -1235,7 +1413,7 @@
                             </div>
                             <span>聊天</span>
                         </div>
-                        <div class="line-nav-item">
+                        <div class="line-nav-item" data-page="line-more-page">
                             <div class="nav-icon">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="5" cy="12" r="2"></circle></svg>
                             </div>

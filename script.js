@@ -1970,6 +1970,26 @@ function initLineApp() {
     const cancelLineUserAddBtn = document.getElementById('cancel-line-user-add');
     const confirmLineUserAddBtn = document.getElementById('confirm-line-user-add');
     const lineUserAddRealnameInput = document.getElementById('line-user-add-realname');
+    const lineMoreWalletBtn = document.getElementById('line-more-wallet-btn');
+    const lineUserWalletBackBtn = document.getElementById('line-user-wallet-back-btn');
+    const lineUserWalletBalance = document.getElementById('line-user-wallet-balance');
+    const lineUserWalletEditBalanceBtn = document.getElementById('line-user-wallet-edit-balance-btn');
+    const lineUserWalletCardsGenerateBtn = document.getElementById('line-user-wallet-cards-generate-btn');
+    const lineUserWalletCardsManageBtn = document.getElementById('line-user-wallet-cards-manage-btn');
+    const lineUserWalletGiftBtn = document.getElementById('line-user-wallet-gift-btn');
+    const lineUserWalletCardsBody = document.getElementById('line-user-wallet-cards-body');
+    const lineUserWalletFamilyCardsBody = document.getElementById('line-user-wallet-family-cards-body');
+    const lineUserWalletBillsBody = document.getElementById('line-user-wallet-bills-body');
+    const lineWalletGiftOverlay = document.getElementById('line-wallet-gift-overlay');
+    const lineWalletGiftClose = document.getElementById('line-wallet-gift-close');
+    const lineWalletGiftCancel = document.getElementById('line-wallet-gift-cancel');
+    const lineWalletGiftConfirm = document.getElementById('line-wallet-gift-confirm');
+    const lineWalletGiftTarget = document.getElementById('line-wallet-gift-target');
+    const lineWalletGiftAmount = document.getElementById('line-wallet-gift-amount');
+    const lineWalletCardManageOverlay = document.getElementById('line-wallet-card-manage-overlay');
+    const lineWalletCardManageClose = document.getElementById('line-wallet-card-manage-close');
+    const lineWalletCardManageDone = document.getElementById('line-wallet-card-manage-done');
+    const lineWalletCardManageList = document.getElementById('line-wallet-card-manage-list');
     const friendProfileModal = document.getElementById('friend-profile-modal');
     const friendProfileAvatar = document.getElementById('friend-profile-avatar');
     const friendProfileName = document.getElementById('friend-profile-name');
@@ -1992,6 +2012,7 @@ function initLineApp() {
     let lineUserDraft = [];
     let lineSelectedUserId = '';
     let activeFriendChatId = '';
+    let lineWalletCurrentPageId = 'line-more-page';
 
     const getLineUsers = () => {
         const raw = JSON.parse(localStorage.getItem(lineUserStorageKey) || '[]');
@@ -2042,6 +2063,279 @@ function initLineApp() {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    const escapeLineWalletText = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const getCurrentLineUser = () => {
+        const users = getLineUsers();
+        const selectedId = lineSelectedUserId || getLineSelectedUserId();
+        return users.find((item) => item.id === selectedId) || users[0] || null;
+    };
+
+    const getLineUserWalletKey = (userId) => `line_user_wallet_${String(userId || 'default').trim()}`;
+
+    const normalizeLineUserWallet = (raw) => {
+        const data = raw && typeof raw === 'object' ? raw : {};
+        const parsedBalance = Number(data.balance);
+        return {
+            balance: Number.isFinite(parsedBalance) ? parsedBalance : 0,
+            mainCards: Array.isArray(data.mainCards) ? data.mainCards : [],
+            familyCards: Array.isArray(data.familyCards) ? data.familyCards.filter((card) => card && card.source === 'real') : [],
+            bills: Array.isArray(data.bills) ? data.bills : []
+        };
+    };
+
+    const readLineUserWallet = (userId) => {
+        const key = getLineUserWalletKey(userId);
+        const raw = largeStore.get(key, null);
+        if (!raw) return normalizeLineUserWallet(null);
+        if (typeof raw === 'string') {
+            try {
+                return normalizeLineUserWallet(JSON.parse(raw));
+            } catch (e) {
+                return normalizeLineUserWallet(null);
+            }
+        }
+        return normalizeLineUserWallet(raw);
+    };
+
+    const saveLineUserWallet = (userId, wallet) => {
+        const key = getLineUserWalletKey(userId);
+        largeStore.put(key, normalizeLineUserWallet(wallet));
+    };
+
+    const renderLineUserWallet = () => {
+        if (!lineUserWalletBalance || !lineUserWalletCardsBody || !lineUserWalletFamilyCardsBody || !lineUserWalletBillsBody) return;
+        const currentUser = getCurrentLineUser();
+        if (!currentUser) {
+            lineUserWalletBalance.textContent = '¥0.00';
+            lineUserWalletCardsBody.innerHTML = '<div class="line-user-wallet-empty-tip">请先在 LINE 主页设置 User</div>';
+            lineUserWalletFamilyCardsBody.innerHTML = '<div class="line-user-wallet-empty-tip">暂无亲属卡（赠送/收到后显示）</div>';
+            lineUserWalletBillsBody.innerHTML = '<div class="line-user-wallet-empty-tip">暂无消费记录</div>';
+            return;
+        }
+        const wallet = readLineUserWallet(currentUser.id);
+        lineUserWalletBalance.textContent = `¥${Number(wallet.balance || 0).toFixed(2)}`;
+        lineUserWalletCardsBody.innerHTML = '';
+        lineUserWalletFamilyCardsBody.innerHTML = '';
+        lineUserWalletBillsBody.innerHTML = '';
+
+        if (!wallet.mainCards.length) {
+            lineUserWalletCardsBody.innerHTML = '<div class="line-user-wallet-empty-tip">点击右上角小图标生成卡片</div>';
+        } else if (wallet.mainCards.length > 3) {
+            const stack = document.createElement('div');
+            stack.className = 'line-user-wallet-card-stack';
+            wallet.mainCards.slice(0, 3).forEach((card, idx) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `line-user-wallet-mini-card line-user-wallet-stack-layer-${idx + 1}` + (idx % 2 === 1 ? ' light' : '');
+                cardEl.innerHTML = `
+                    <div class="line-user-wallet-card-peek">${escapeLineWalletText(card.name || '银行卡')} · ${escapeLineWalletText(card.last4 || '0000')}</div>
+                    <div class="line-user-wallet-card-name">${escapeLineWalletText(card.name || '银行卡')}</div>
+                    <div class="line-user-wallet-card-no">**** ${escapeLineWalletText(card.last4 || '0000')}</div>
+                `;
+                stack.appendChild(cardEl);
+            });
+            lineUserWalletCardsBody.appendChild(stack);
+            const more = document.createElement('div');
+            more.className = 'line-user-wallet-stack-more';
+            more.textContent = `已收纳 ${wallet.mainCards.length} 张卡`;
+            lineUserWalletCardsBody.appendChild(more);
+        } else {
+            wallet.mainCards.forEach((card, idx) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'line-user-wallet-mini-card' + (idx % 2 === 1 ? ' light' : '');
+                cardEl.innerHTML = `
+                    <div class="line-user-wallet-card-name">${escapeLineWalletText(card.name || '银行卡')}</div>
+                    <div class="line-user-wallet-card-no">**** ${escapeLineWalletText(card.last4 || '0000')}</div>
+                `;
+                lineUserWalletCardsBody.appendChild(cardEl);
+            });
+        }
+
+        if (!wallet.familyCards.length) {
+            lineUserWalletFamilyCardsBody.innerHTML = '<div class="line-user-wallet-empty-tip">暂无亲属卡（赠送/收到后显示）</div>';
+        } else {
+            wallet.familyCards.forEach((card) => {
+                const row = document.createElement('div');
+                row.className = 'line-user-wallet-family-item';
+                row.innerHTML = `
+                    <div style="font-size:12px;font-weight:700;">${escapeLineWalletText(card.name || '亲属卡')}</div>
+                    <div style="font-size:11px;color:#666a72;margin-top:2px;">${escapeLineWalletText(card.meta || '')}</div>
+                `;
+                lineUserWalletFamilyCardsBody.appendChild(row);
+            });
+        }
+
+        if (!wallet.mainCards.length) {
+            lineUserWalletBillsBody.innerHTML = '<div class="line-user-wallet-empty-tip">未生成银行卡/信用卡，暂不可消费</div>';
+        } else if (!wallet.bills.length) {
+            lineUserWalletBillsBody.innerHTML = '<div class="line-user-wallet-empty-tip">暂无消费记录</div>';
+        } else {
+            wallet.bills.forEach((bill) => {
+                const row = document.createElement('div');
+                row.className = 'line-user-wallet-bill-item';
+                const isIncome = bill.type === 'income';
+                const symbol = isIncome ? '+' : '-';
+                row.innerHTML = `
+                    <div style="min-width:0;">
+                        <div style="font-size:13px;font-weight:600;">${escapeLineWalletText(bill.merchant || '消费')}</div>
+                        <div style="font-size:11px;color:#666a72;margin-top:2px;">${escapeLineWalletText(bill.desc || '')}</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;white-space:nowrap;">${symbol}¥${Number(bill.amount || 0).toFixed(2)}</div>
+                `;
+                lineUserWalletBillsBody.appendChild(row);
+            });
+        }
+    };
+
+    const generateLineUserWalletCardsFallback = (user) => {
+        const name = String(user?.name || 'User').trim() || 'User';
+        const seed = Math.abs(name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
+        const tail = String(seed % 10000).padStart(4, '0');
+        const count = 1 + (seed % 4);
+        const presetNames = ['信用卡', '储蓄卡', '旅行卡', '日常卡', '联名卡'];
+        const cards = [];
+        for (let i = 0; i < count; i += 1) {
+            const last4 = String((Number(tail) + 1733 * (i + 1)) % 10000).padStart(4, '0');
+            cards.push({
+                name: `${name}${presetNames[i % presetNames.length]}`,
+                last4
+            });
+        }
+        return cards;
+    };
+
+    const generateLineUserWalletCardsByPersona = async (user) => {
+        const apiUrl = localStorage.getItem('api_url');
+        const apiKey = localStorage.getItem('api_key');
+        const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+        const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+        const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
+        if (!apiUrl || !apiKey) return generateLineUserWalletCardsFallback(user);
+
+        const userName = String(user?.name || 'User').trim() || 'User';
+        const persona = String(user?.persona || '').trim();
+        const prompt = `你是${userName}本人。请根据人设生成钱包银行卡/信用卡列表，只输出 JSON。
+要求：
+1. mainCards 为 1-4 张，按人设合理，不要过多。
+2. 每张卡包含 name 和 last4（4位数字字符串）。
+3. 只输出 JSON：
+{"mainCards":[{"name":"xx信用卡","last4":"1234"}]}
+人设：
+${persona || '无'}
+`;
+        try {
+            const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: globalTemperature,
+                    stream: false
+                })
+            });
+            if (!response.ok) throw new Error('卡片生成失败');
+            const data = await response.json();
+            const content = String(data.choices?.[0]?.message?.content || '').trim();
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('格式错误');
+            const parsed = JSON.parse(jsonMatch[0]);
+            const cards = Array.isArray(parsed.mainCards) ? parsed.mainCards : [];
+            if (!cards.length) throw new Error('空结果');
+            return cards;
+        } catch (e) {
+            return generateLineUserWalletCardsFallback(user);
+        }
+    };
+
+    const getGiftTargets = () => {
+        let friendIds = [];
+        try {
+            friendIds = JSON.parse(localStorage.getItem('global_friends_list') || '[]');
+        } catch (e) {
+            friendIds = [];
+        }
+        if (!Array.isArray(friendIds)) friendIds = [];
+        return friendIds
+            .map((chatId) => {
+                const id = String(chatId || '').trim();
+                if (!id) return null;
+                const meta = JSON.parse(localStorage.getItem('chat_meta_' + id) || '{}');
+                const name = String(meta.remark || meta.realName || '').trim() || '未命名对象';
+                return { id, name };
+            })
+            .filter(Boolean);
+    };
+
+    const openLineWalletGiftModal = () => {
+        if (!lineWalletGiftOverlay || !lineWalletGiftTarget || !lineWalletGiftAmount) return;
+        const targets = getGiftTargets();
+        if (!targets.length) {
+            alert('暂无可赠送对象，请先添加好友');
+            return;
+        }
+        lineWalletGiftTarget.innerHTML = '';
+        targets.forEach((target) => {
+            const opt = document.createElement('option');
+            opt.value = target.id;
+            opt.textContent = target.name;
+            lineWalletGiftTarget.appendChild(opt);
+        });
+        lineWalletGiftAmount.value = '';
+        lineWalletGiftOverlay.style.display = 'flex';
+    };
+
+    const closeLineWalletGiftModal = () => {
+        if (!lineWalletGiftOverlay) return;
+        lineWalletGiftOverlay.style.display = 'none';
+    };
+
+    const renderLineWalletCardManageList = () => {
+        if (!lineWalletCardManageList) return;
+        const currentUser = getCurrentLineUser();
+        if (!currentUser) {
+            lineWalletCardManageList.innerHTML = '<div class="line-user-wallet-empty-tip">请先设置 LINE User</div>';
+            return;
+        }
+        const wallet = readLineUserWallet(currentUser.id);
+        const cards = Array.isArray(wallet.mainCards) ? wallet.mainCards : [];
+        if (!cards.length) {
+            lineWalletCardManageList.innerHTML = '<div class="line-user-wallet-empty-tip">暂无银行卡 / 信用卡</div>';
+            return;
+        }
+        lineWalletCardManageList.innerHTML = '';
+        cards.forEach((card, index) => {
+            const row = document.createElement('div');
+            row.className = 'line-wallet-card-manage-item';
+            row.innerHTML = `
+                <div style="min-width:0;">
+                    <div class="line-wallet-card-manage-title">${escapeLineWalletText(card.name || '银行卡')}</div>
+                    <div class="line-wallet-card-manage-sub">**** ${escapeLineWalletText(card.last4 || '0000')}</div>
+                </div>
+                <button class="ins-btn-danger line-wallet-card-delete-btn" data-index="${index}" type="button">删除</button>
+            `;
+            lineWalletCardManageList.appendChild(row);
+        });
+    };
+
+    const openLineWalletCardManageModal = () => {
+        if (!lineWalletCardManageOverlay) return;
+        renderLineWalletCardManageList();
+        lineWalletCardManageOverlay.style.display = 'flex';
+    };
+
+    const closeLineWalletCardManageModal = () => {
+        if (!lineWalletCardManageOverlay) return;
+        lineWalletCardManageOverlay.style.display = 'none';
+    };
 
     const renderLineHomeSummary = () => {
         if (!lineHomeUsername || !lineHomeAvatar) return;
@@ -2349,8 +2643,31 @@ function initLineApp() {
     if (appLine) {
         appLine.addEventListener('click', () => {
             lineModal.classList.add('active');
+            switchLinePage('line-home-page');
+            lineWalletCurrentPageId = 'line-more-page';
         });
     }
+
+    const switchLinePage = (targetPageId, syncNav = true) => {
+        if (!targetPageId) return;
+        document.querySelectorAll('.line-page').forEach(page => {
+            page.style.display = 'none';
+        });
+        const targetPage = document.getElementById(targetPageId);
+        if (targetPage) {
+            targetPage.style.display = 'flex';
+        }
+        const commonHeader = document.querySelector('.line-header');
+        if (commonHeader) {
+            commonHeader.style.display = targetPageId === 'line-home-page' ? 'flex' : 'none';
+        }
+        if (syncNav) {
+            const navItems = document.querySelectorAll('.line-nav-item');
+            navItems.forEach((nav) => nav.classList.remove('active'));
+            const nav = document.querySelector(`.line-nav-item[data-page="${targetPageId}"]`);
+            if (nav) nav.classList.add('active');
+        }
+    };
 
     // 点击底部导航栏切换
     const navItems = document.querySelectorAll('.line-nav-item');
@@ -2363,41 +2680,186 @@ function initLineApp() {
             // 切换页面显示
             const targetPageId = item.getAttribute('data-page');
             if (targetPageId) {
-                // 隐藏所有页面
-                document.querySelectorAll('.line-page').forEach(page => {
-                    page.style.display = 'none';
-                });
-                
-                // 显示目标页面
-                const targetPage = document.getElementById(targetPageId);
-                if (targetPage) {
-                    targetPage.style.display = 'flex'; // 使用 flex 以保持布局
-                }
-                
-                // 隐藏主 Header (Home页独有的Header，其实Home页内容都包裹在line-home-page里了，所以不需要额外隐藏外部元素)
-                // 如果有公用的Header需要处理，可以在这里处理
-                
-                // 特殊处理：Chat页面的Header是做在Chat Page内部的，所以直接切换Page即可
-                // Home页面的Header也是在line-home-page内部吗？
-                // 检查HTML结构，Home页面的顶部栏 class="line-header" 原本是在 line-app-container 下直接子元素
-                // 应该把它移入 line-home-page 或者根据页面切换显隐
-                
-                const commonHeader = document.querySelector('.line-header');
-                if (commonHeader) {
-                    if (targetPageId === 'line-home-page') {
-                        commonHeader.style.display = 'flex';
-                    } else {
-                        commonHeader.style.display = 'none';
-                    }
+                switchLinePage(targetPageId, false);
+                if (targetPageId === 'line-more-page') {
+                    lineWalletCurrentPageId = 'line-more-page';
                 }
             }
         });
     });
 
+    if (lineMoreWalletBtn) {
+        lineMoreWalletBtn.addEventListener('click', () => {
+            lineWalletCurrentPageId = 'line-user-wallet-page';
+            switchLinePage('line-user-wallet-page', false);
+            renderLineUserWallet();
+        });
+    }
+    if (lineUserWalletBackBtn) {
+        lineUserWalletBackBtn.addEventListener('click', () => {
+            lineWalletCurrentPageId = 'line-more-page';
+            switchLinePage('line-more-page', false);
+        });
+    }
+    if (lineUserWalletEditBalanceBtn) {
+        lineUserWalletEditBalanceBtn.addEventListener('click', () => {
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) {
+                alert('请先设置 LINE User');
+                return;
+            }
+            const current = readLineUserWallet(currentUser.id);
+            const input = prompt('请输入新的余额（数字）', String(Number(current.balance || 0).toFixed(2)));
+            if (input === null) return;
+            const balance = Number(String(input).trim());
+            if (!Number.isFinite(balance) || balance < 0) {
+                alert('余额格式不正确');
+                return;
+            }
+            saveLineUserWallet(currentUser.id, {
+                ...current,
+                balance: Number(balance.toFixed(2))
+            });
+            renderLineUserWallet();
+        });
+    }
+    if (lineUserWalletCardsGenerateBtn) {
+        lineUserWalletCardsGenerateBtn.addEventListener('click', async () => {
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) {
+                alert('请先设置 LINE User');
+                return;
+            }
+            lineUserWalletCardsGenerateBtn.disabled = true;
+            try {
+                const cards = await generateLineUserWalletCardsByPersona(currentUser);
+                const wallet = readLineUserWallet(currentUser.id);
+                saveLineUserWallet(currentUser.id, {
+                    ...wallet,
+                    mainCards: cards
+                });
+                renderLineUserWallet();
+            } catch (e) {
+                alert('卡片生成失败: ' + (e?.message || e));
+            } finally {
+                lineUserWalletCardsGenerateBtn.disabled = false;
+            }
+        });
+    }
+    if (lineUserWalletGiftBtn) {
+        lineUserWalletGiftBtn.addEventListener('click', () => {
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) {
+                alert('请先设置 LINE User');
+                return;
+            }
+            openLineWalletGiftModal();
+        });
+    }
+    if (lineUserWalletCardsManageBtn) {
+        lineUserWalletCardsManageBtn.addEventListener('click', () => {
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) {
+                alert('请先设置 LINE User');
+                return;
+            }
+            openLineWalletCardManageModal();
+        });
+    }
+    if (lineWalletGiftClose) lineWalletGiftClose.addEventListener('click', closeLineWalletGiftModal);
+    if (lineWalletGiftCancel) lineWalletGiftCancel.addEventListener('click', closeLineWalletGiftModal);
+    if (lineWalletGiftOverlay) {
+        lineWalletGiftOverlay.addEventListener('click', (e) => {
+            if (e.target === lineWalletGiftOverlay) closeLineWalletGiftModal();
+        });
+    }
+    if (lineWalletGiftConfirm) {
+        lineWalletGiftConfirm.addEventListener('click', () => {
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) {
+                alert('请先设置 LINE User');
+                return;
+            }
+            const wallet = readLineUserWallet(currentUser.id);
+            const amount = Number(String(lineWalletGiftAmount?.value || '').trim());
+            const targetId = String(lineWalletGiftTarget?.value || '').trim();
+            if (!targetId) {
+                alert('请选择赠送对象');
+                return;
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+                alert('请输入有效金额');
+                return;
+            }
+            if (Number(wallet.balance || 0) < amount) {
+                alert('余额不足，无法赠送');
+                return;
+            }
+            const targets = getGiftTargets();
+            const target = targets.find((item) => item.id === targetId);
+            const targetName = target ? target.name : '未知对象';
+            const normalizedAmount = Number(amount.toFixed(2));
+            const nextFamilyCards = Array.isArray(wallet.familyCards) ? [...wallet.familyCards] : [];
+            nextFamilyCards.unshift({
+                id: `family_gift_${Date.now()}`,
+                source: 'real',
+                name: `给 ${targetName} 的亲属卡`,
+                meta: `送出 | 额度 ¥${normalizedAmount.toFixed(2)}`
+            });
+            const nextBills = Array.isArray(wallet.bills) ? [...wallet.bills] : [];
+            nextBills.unshift({
+                id: `bill_family_gift_${Date.now()}`,
+                merchant: '亲属卡赠送',
+                desc: `赠送给 ${targetName}`,
+                amount: normalizedAmount,
+                type: 'expense',
+                timestamp: Date.now()
+            });
+            saveLineUserWallet(currentUser.id, {
+                ...wallet,
+                balance: Number((Number(wallet.balance || 0) - normalizedAmount).toFixed(2)),
+                familyCards: nextFamilyCards.slice(0, 20),
+                bills: nextBills.slice(0, 50)
+            });
+            closeLineWalletGiftModal();
+            renderLineUserWallet();
+        });
+    }
+    if (lineWalletCardManageClose) lineWalletCardManageClose.addEventListener('click', closeLineWalletCardManageModal);
+    if (lineWalletCardManageDone) lineWalletCardManageDone.addEventListener('click', closeLineWalletCardManageModal);
+    if (lineWalletCardManageOverlay) {
+        lineWalletCardManageOverlay.addEventListener('click', (e) => {
+            if (e.target === lineWalletCardManageOverlay) closeLineWalletCardManageModal();
+        });
+    }
+    if (lineWalletCardManageList) {
+        lineWalletCardManageList.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const btn = target.closest('.line-wallet-card-delete-btn');
+            if (!btn) return;
+            const currentUser = getCurrentLineUser();
+            if (!currentUser) return;
+            const index = Number(btn.getAttribute('data-index'));
+            if (!Number.isInteger(index) || index < 0) return;
+            const wallet = readLineUserWallet(currentUser.id);
+            const cards = Array.isArray(wallet.mainCards) ? [...wallet.mainCards] : [];
+            if (index >= cards.length) return;
+            cards.splice(index, 1);
+            saveLineUserWallet(currentUser.id, {
+                ...wallet,
+                mainCards: cards
+            });
+            renderLineWalletCardManageList();
+            renderLineUserWallet();
+        });
+    }
+
     if (lineBackHomeBtn && lineModal) {
         lineBackHomeBtn.addEventListener('click', () => {
             closeFriendFeedModal();
             lineModal.classList.remove('active');
+            lineWalletCurrentPageId = 'line-more-page';
         });
     }
 

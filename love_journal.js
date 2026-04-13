@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentScheduleTab = 'me';
   const phoneModal = document.getElementById('phone-lock-modal');
   const phoneCloseBtn = document.getElementById('phone-lock-close');
+  const phoneHomeCloseBtn = document.getElementById('phone-home-close');
   const phoneTime = document.getElementById('phone-lock-time');
   const phoneDate = document.getElementById('phone-lock-date');
   const phoneSubtitle = document.getElementById('phone-lock-subtitle');
@@ -145,6 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loveJournalBg.style.backgroundImage = '';
         if (placeholderContent) placeholderContent.style.display = 'block';
       }
+    }
+    const walletScreen = document.getElementById('phone-wallet-screen');
+    if (walletScreen && walletScreen.classList.contains('active')) {
+      renderWalletScreen();
     }
   }
 
@@ -298,8 +303,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (phoneHome) phoneHome.classList.remove('active');
     const phoneLineScreen = document.getElementById('phone-line-screen');
     const phoneChatDetail = document.getElementById('phone-chat-detail');
+    const phoneWalletScreen = document.getElementById('phone-wallet-screen');
+    const phoneWalletSettings = document.getElementById('phone-wallet-settings');
     if (phoneLineScreen) phoneLineScreen.classList.remove('active');
     if (phoneChatDetail) phoneChatDetail.classList.remove('active');
+    if (phoneWalletScreen) phoneWalletScreen.classList.remove('active');
+    if (phoneWalletSettings) phoneWalletSettings.classList.remove('active');
   }
   function normalizeAnswer(value) {
     return String(value || '').trim().toLowerCase();
@@ -1069,6 +1078,7 @@ ${recentHistory || '无'}
   }
 
   if (phoneCloseBtn) phoneCloseBtn.addEventListener('click', closePhoneLock);
+  if (phoneHomeCloseBtn) phoneHomeCloseBtn.addEventListener('click', closePhoneLock);
   if (phoneModal) {
     phoneModal.addEventListener('click', (event) => {
       if (event.target === phoneModal) {
@@ -1141,6 +1151,489 @@ ${recentHistory || '无'}
         if (placeholderContent) placeholderContent.style.display = 'none';
       }
       settingsModal.classList.remove('active');
+    });
+  }
+
+  // --- Wallet App Logic (within Love Journal) ---
+  const phoneAppWallet = document.getElementById('phone-app-wallet');
+  const phoneWalletScreen = document.getElementById('phone-wallet-screen');
+  const phoneWalletBack = document.getElementById('phone-wallet-back');
+  const phoneWalletGenerateBtn = document.getElementById('phone-wallet-generate-btn');
+  const phoneWalletSettingsBtn = document.getElementById('phone-wallet-settings-btn');
+  const phoneWalletSettings = document.getElementById('phone-wallet-settings');
+  const phoneWalletSettingsClose = document.getElementById('phone-wallet-settings-close');
+  const walletAutoBillToggle = document.getElementById('wallet-auto-bill-toggle');
+  const walletCardsGenerateBtn = document.getElementById('wallet-cards-generate-btn');
+  const phoneWalletBalance = document.getElementById('phone-wallet-balance');
+  const walletMainCards = document.getElementById('wallet-main-cards');
+  const walletFamilyCards = document.getElementById('wallet-family-cards');
+  const walletBillList = document.getElementById('wallet-bill-list');
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getWalletDataKey(chatId) {
+    return 'love_journal_wallet_data_' + chatId;
+  }
+
+  function getWalletSettingsKey(chatId) {
+    return 'love_journal_wallet_settings_' + (chatId || 'default');
+  }
+
+  function normalizeWalletData(raw) {
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const parsedBalance = Number(data.balance);
+    const parsedGeneratedBalance = Number(data.generatedBalance);
+    return {
+      balance: Number.isFinite(parsedBalance) ? parsedBalance : 0,
+      generatedBalance: Number.isFinite(parsedGeneratedBalance)
+        ? parsedGeneratedBalance
+        : (Array.isArray(data.mainCards) && data.mainCards.length > 0 && Number.isFinite(parsedBalance) ? parsedBalance : 0),
+      mainCards: Array.isArray(data.mainCards) ? data.mainCards : [],
+      familyCards: Array.isArray(data.familyCards) ? data.familyCards : [],
+      bills: Array.isArray(data.bills) ? data.bills : []
+    };
+  }
+
+  function readWalletData(chatId) {
+    if (!chatId) return normalizeWalletData(null);
+    const raw = largeStore.get(getWalletDataKey(chatId), null);
+    if (!raw) return normalizeWalletData(null);
+    if (typeof raw === 'string') {
+      try {
+        return normalizeWalletData(JSON.parse(raw));
+      } catch (e) {
+        return normalizeWalletData(null);
+      }
+    }
+    return normalizeWalletData(raw);
+  }
+
+  function saveWalletData(chatId, data) {
+    if (!chatId) return;
+    largeStore.put(getWalletDataKey(chatId), normalizeWalletData(data));
+  }
+
+  function readWalletSettings(chatId) {
+    try {
+      const raw = localStorage.getItem(getWalletSettingsKey(chatId));
+      if (!raw) return { autoBill: true };
+      const parsed = JSON.parse(raw);
+      return { autoBill: parsed?.autoBill !== false };
+    } catch (e) {
+      return { autoBill: true };
+    }
+  }
+
+  function saveWalletSettings(chatId, settings) {
+    localStorage.setItem(getWalletSettingsKey(chatId), JSON.stringify({
+      autoBill: settings?.autoBill !== false
+    }));
+  }
+
+  function resolveMerchant(text) {
+    const merchantRules = [
+      { re: /(咖啡|星巴克|瑞幸|库迪)/i, name: '咖啡消费' },
+      { re: /(外卖|美团|饿了么|餐|午饭|晚饭|早餐)/i, name: '餐饮消费' },
+      { re: /(打车|滴滴|出租|网约车|地铁|公交)/i, name: '出行消费' },
+      { re: /(电影|影院|演出|音乐会)/i, name: '娱乐消费' },
+      { re: /(超市|便利店|7-11|全家|罗森)/i, name: '日常采购' },
+      { re: /(网购|淘宝|京东|拼多多|下单|快递)/i, name: '线上购物' },
+      { re: /(充值|话费|流量|会员|订阅)/i, name: '充值订阅' },
+      { re: /(理发|美容|健身|药店|医院)/i, name: '生活服务' }
+    ];
+    const matched = merchantRules.find(item => item.re.test(text));
+    return matched ? matched.name : '日常支出';
+  }
+
+  function inferBillsFromChatHistory(chatId) {
+    if (!chatId) return [];
+    const history = largeStore.get('chat_history_' + chatId, []);
+    if (!Array.isArray(history) || history.length === 0) return [];
+    const spendLike = /(花了|花费|消费|买了|付款|支付|转账|充值|打车|外卖|咖啡|电影|超市|网购|订阅|理发|健身|饭|餐|奶茶|买)/i;
+    const incomeLike = /(退款|返现|报销|收入|收款|转入)/i;
+
+    const bills = [];
+    history.slice(-60).forEach((msg, index) => {
+      const content = String(msg?.content || '').replace(/\s+/g, ' ').trim();
+      if (!content) return;
+      const hasSpend = spendLike.test(content);
+      const hasIncome = incomeLike.test(content);
+      if (!hasSpend && !hasIncome) return;
+
+      const amountMatch =
+        content.match(/(?:[¥￥]\s*|花了\s*|支付\s*|付款\s*|消费\s*|转账\s*|收款\s*|退款\s*|报销\s*)(\d+(?:\.\d{1,2})?)/i) ||
+        content.match(/(\d+(?:\.\d{1,2})?)\s*(?:元|块|rmb)/i);
+      if (!amountMatch) return;
+      const amount = Number(amountMatch[1]);
+      if (!Number.isFinite(amount) || amount <= 0) return;
+
+      const isIncome = hasIncome && !hasSpend;
+      const timestamp = Number(msg?.timestamp || msg?.time || Date.now() - (60 - index) * 60000);
+      const desc = content.length > 32 ? content.slice(0, 32) + '...' : content;
+      const merchant = resolveMerchant(content);
+      bills.push({
+        id: `bill_auto_${chatId}_${index}_${Math.round(amount * 100)}`,
+        merchant,
+        desc,
+        amount,
+        type: isIncome ? 'income' : 'expense',
+        timestamp: Number.isFinite(timestamp) ? timestamp : Date.now()
+      });
+    });
+    return bills.slice(-20);
+  }
+
+  function mergeBills(primary, secondary) {
+    const merged = new Map();
+    [...(Array.isArray(primary) ? primary : []), ...(Array.isArray(secondary) ? secondary : [])].forEach((bill, index) => {
+      if (!bill || !Number.isFinite(Number(bill.amount))) return;
+      const key = bill.id || `${bill.merchant || ''}|${Number(bill.amount).toFixed(2)}|${bill.desc || ''}|${bill.timestamp || index}`;
+      if (!merged.has(key)) merged.set(key, bill);
+    });
+    return [...merged.values()]
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+      .slice(0, 20);
+  }
+
+  function computeBalance(baseBalance, bills) {
+    let balance = Number.isFinite(Number(baseBalance)) ? Number(baseBalance) : 0;
+    (Array.isArray(bills) ? bills : []).forEach(bill => {
+      const amount = Number(bill.amount || 0);
+      if (!Number.isFinite(amount)) return;
+      if (bill.type === 'income') {
+        balance += amount;
+      } else {
+        balance -= amount;
+      }
+    });
+    return Math.max(0, Number(balance.toFixed(2)));
+  }
+
+  function renderWalletScreen() {
+    if (!phoneWalletBalance || !walletMainCards || !walletFamilyCards || !walletBillList) return;
+    const settings = readWalletSettings(currentChatId);
+    if (walletAutoBillToggle) walletAutoBillToggle.checked = settings.autoBill;
+
+    let walletData = readWalletData(currentChatId);
+    walletData.familyCards = (Array.isArray(walletData.familyCards) ? walletData.familyCards : [])
+      .filter(card => card && card.source === 'real');
+    const hasGeneratedCards = walletData.mainCards.length > 0;
+    if (settings.autoBill && hasGeneratedCards) {
+      const inferredBills = inferBillsFromChatHistory(currentChatId);
+      walletData.bills = mergeBills(walletData.bills, inferredBills);
+    }
+    const effectiveBills = hasGeneratedCards ? walletData.bills : [];
+    const baseBalance = Number(walletData.generatedBalance || walletData.balance || 0);
+    walletData.balance = computeBalance(baseBalance, effectiveBills);
+    saveWalletData(currentChatId, walletData);
+
+    phoneWalletBalance.textContent = `¥${walletData.balance.toFixed(2)}`;
+    walletMainCards.innerHTML = '';
+    walletFamilyCards.innerHTML = '';
+    walletBillList.innerHTML = '';
+
+    if (walletData.mainCards.length === 0) {
+      walletMainCards.innerHTML = '<div class="wallet-empty-tip">点击标题旁图标生成卡片</div>';
+    } else {
+      if (walletData.mainCards.length > 3) {
+        const stack = document.createElement('div');
+        stack.className = 'wallet-card-stack';
+        walletData.mainCards.slice(0, 3).forEach((card, idx) => {
+          const cardEl = document.createElement('div');
+          cardEl.className = `wallet-mini-card wallet-stack-layer-${idx + 1}` + (idx % 2 === 1 ? ' light' : '');
+          cardEl.innerHTML = `
+            <div class="wallet-card-peek">${escapeHtml(card.name || '角色银行卡')} · ${escapeHtml(card.last4 || '0000')}</div>
+            <div class="wallet-card-name">${escapeHtml(card.name || '角色银行卡')}</div>
+            <div class="wallet-card-no">**** ${escapeHtml(card.last4 || '0000')}</div>
+          `;
+          stack.appendChild(cardEl);
+        });
+        walletMainCards.appendChild(stack);
+        const more = document.createElement('div');
+        more.className = 'wallet-stack-more';
+        more.textContent = `已收纳 ${walletData.mainCards.length} 张卡`;
+        walletMainCards.appendChild(more);
+      } else {
+        walletData.mainCards.forEach((card, idx) => {
+          const cardEl = document.createElement('div');
+          cardEl.className = 'wallet-mini-card' + (idx % 2 === 1 ? ' light' : '');
+          cardEl.innerHTML = `
+            <div class="wallet-card-name">${escapeHtml(card.name || '角色银行卡')}</div>
+            <div class="wallet-card-no">**** ${escapeHtml(card.last4 || '0000')}</div>
+          `;
+          walletMainCards.appendChild(cardEl);
+        });
+      }
+    }
+
+    if (walletData.familyCards.length === 0) {
+      walletFamilyCards.innerHTML = '<div class="wallet-empty-tip">暂无亲属卡（赠送/收到后显示）</div>';
+    } else {
+      walletData.familyCards.slice(0, 4).forEach((card) => {
+        const item = document.createElement('div');
+        item.className = 'wallet-family-item';
+        item.innerHTML = `
+          <div class="wallet-family-name">${escapeHtml(card.name || '亲属卡')}</div>
+          <div class="wallet-family-meta">${escapeHtml(card.meta || '')}</div>
+        `;
+        walletFamilyCards.appendChild(item);
+      });
+    }
+
+    if (!hasGeneratedCards) {
+      walletBillList.innerHTML = '<div class="wallet-empty-tip">未生成银行卡/信用卡，暂不可消费</div>';
+    } else if (effectiveBills.length === 0) {
+      walletBillList.innerHTML = '<div class="wallet-empty-tip">暂无消费记录</div>';
+    } else {
+      effectiveBills.forEach((bill) => {
+        const row = document.createElement('div');
+        row.className = 'wallet-bill-item';
+        const isIncome = bill.type === 'income';
+        const symbol = isIncome ? '+' : '-';
+        row.innerHTML = `
+          <div class="wallet-bill-left">
+            <div class="wallet-bill-merchant">${escapeHtml(bill.merchant || '消费')}</div>
+            <div class="wallet-bill-desc">${escapeHtml(bill.desc || '')}</div>
+          </div>
+          <div class="wallet-bill-amount">${symbol}¥${Number(bill.amount || 0).toFixed(2)}</div>
+        `;
+        walletBillList.appendChild(row);
+      });
+    }
+  }
+
+  async function requestWalletCardsFromApi(chatId) {
+    const apiUrl = localStorage.getItem('api_url');
+    const apiKey = localStorage.getItem('api_key');
+    const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+    const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
+    if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
+
+    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+    const displayName = meta.remark || meta.realName || 'TA';
+    const persona = largeStore.get('chat_persona_' + chatId, '');
+    const history = largeStore.get('chat_history_' + chatId, []).slice(-10);
+    const recentHistory = history.map(m => String(m?.content || '')).join('\n');
+    const prompt = `你是${displayName}本人。请根据人物人设生成“钱包中的银行卡/信用卡列表”，返回 JSON。
+要求：
+1. 风格真实自然，符合人物设定。
+2. 只生成 mainCards，不要生成亲属卡，不要生成账单。
+3. 卡片数量根据人设合理生成，通常 1-4 张，不要无脑很多张。
+4. 只输出 JSON，格式：
+{
+  "mainCards":[{"name":"xx信用卡","last4":"1234"},{"name":"xx储蓄卡","last4":"5678"}]
+}
+人设：
+${persona || '无'}
+最近聊天：
+${recentHistory || '无'}
+`;
+    const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: globalTemperature,
+        stream: false
+      })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || '钱包生成失败');
+    }
+    const data = await response.json();
+    const content = String(data.choices?.[0]?.message?.content || '').trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('卡片生成格式错误');
+    const parsed = JSON.parse(jsonMatch[0]);
+    return Array.isArray(parsed.mainCards) ? parsed.mainCards : [];
+  }
+
+  async function requestWalletBalanceFromApi(chatId) {
+    const apiUrl = localStorage.getItem('api_url');
+    const apiKey = localStorage.getItem('api_key');
+    const modelName = localStorage.getItem('model_name') || 'gpt-3.5-turbo';
+    const globalTemperatureRaw = parseFloat(localStorage.getItem('temperature') || '0.7');
+    const globalTemperature = Number.isFinite(globalTemperatureRaw) ? globalTemperatureRaw : 0.7;
+    if (!apiUrl || !apiKey) throw new Error('请先在设置中配置 API URL 和 Key');
+
+    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+    const displayName = meta.remark || meta.realName || 'TA';
+    const persona = largeStore.get('chat_persona_' + chatId, '');
+    const history = largeStore.get('chat_history_' + chatId, []).slice(-10);
+    const recentHistory = history.map(m => String(m?.content || '')).join('\n');
+    const prompt = `你是${displayName}本人。请根据人物人设生成一个钱包可用余额，只输出JSON。
+格式：
+{"balance":5234.5}
+要求：
+1. balance 为数字，>= 0。
+2. 必须符合人物消费能力，不要离谱。
+人设：
+${persona || '无'}
+最近聊天：
+${recentHistory || '无'}
+`;
+    const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: globalTemperature,
+        stream: false
+      })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || '余额生成失败');
+    }
+    const data = await response.json();
+    const content = String(data.choices?.[0]?.message?.content || '').trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('余额生成格式错误');
+    const parsed = JSON.parse(jsonMatch[0]);
+    const balance = Number(parsed.balance);
+    if (!Number.isFinite(balance) || balance < 0) throw new Error('余额无效');
+    return Number(balance.toFixed(2));
+  }
+
+  function buildWalletCardsFallback(chatId) {
+    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+    const displayName = meta.remark || meta.realName || 'TA';
+    const seed = Math.abs(displayName.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
+    const tail = String(seed % 10000).padStart(4, '0');
+    const count = 1 + (seed % 4);
+    const presetNames = ['信用卡', '储蓄卡', '旅行卡', '日常卡', '联名卡', '备用卡'];
+    const mainCards = [];
+    for (let i = 0; i < count; i += 1) {
+      const last4 = String((Number(tail) + 1637 * (i + 1)) % 10000).padStart(4, '0');
+      mainCards.push({
+        name: `${displayName} ${presetNames[i % presetNames.length]}`,
+        last4
+      });
+    }
+    return mainCards;
+  }
+
+  function buildWalletBalanceFallback(chatId) {
+    const meta = JSON.parse(localStorage.getItem('chat_meta_' + chatId) || '{}');
+    const displayName = meta.remark || meta.realName || 'TA';
+    const seed = Math.abs(displayName.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
+    return Number((1000 + (seed % 18000)).toFixed(2));
+  }
+
+  async function generateWalletCards(chatId) {
+    try {
+      const cards = await requestWalletCardsFromApi(chatId);
+      if (!Array.isArray(cards) || cards.length === 0) throw new Error('卡片为空');
+      return cards;
+    } catch (e) {
+      return buildWalletCardsFallback(chatId);
+    }
+  }
+
+  async function generateWalletBalance(chatId) {
+    try {
+      return await requestWalletBalanceFromApi(chatId);
+    } catch (e) {
+      return buildWalletBalanceFallback(chatId);
+    }
+  }
+
+  if (phoneAppWallet && phoneWalletScreen) {
+    phoneAppWallet.addEventListener('click', () => {
+      if (!currentChatId) {
+        alert('请先选择一个恋爱对象');
+        return;
+      }
+      phoneWalletScreen.classList.add('active');
+      renderWalletScreen();
+    });
+  }
+  if (phoneWalletBack && phoneWalletScreen) {
+    phoneWalletBack.addEventListener('click', () => {
+      phoneWalletScreen.classList.remove('active');
+      if (phoneWalletSettings) phoneWalletSettings.classList.remove('active');
+    });
+  }
+  if (phoneWalletGenerateBtn) {
+    phoneWalletGenerateBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      phoneWalletGenerateBtn.disabled = true;
+      try {
+        const generatedBalance = await generateWalletBalance(currentChatId);
+        const currentData = readWalletData(currentChatId);
+        saveWalletData(currentChatId, {
+          balance: generatedBalance,
+          generatedBalance,
+          mainCards: currentData.mainCards,
+          familyCards: currentData.familyCards,
+          bills: currentData.bills
+        });
+        renderWalletScreen();
+      } catch (e) {
+        alert('生成失败: ' + (e?.message || e));
+      } finally {
+        phoneWalletGenerateBtn.disabled = false;
+      }
+    });
+  }
+  if (walletCardsGenerateBtn) {
+    walletCardsGenerateBtn.addEventListener('click', async () => {
+      if (!currentChatId) return;
+      walletCardsGenerateBtn.disabled = true;
+      try {
+        const cards = await generateWalletCards(currentChatId);
+        const currentData = readWalletData(currentChatId);
+        saveWalletData(currentChatId, {
+          balance: currentData.balance,
+          generatedBalance: currentData.generatedBalance,
+          mainCards: cards,
+          familyCards: currentData.familyCards,
+          bills: currentData.bills
+        });
+        renderWalletScreen();
+      } catch (e) {
+        alert('卡片生成失败: ' + (e?.message || e));
+      } finally {
+        walletCardsGenerateBtn.disabled = false;
+      }
+    });
+  }
+  if (phoneWalletSettingsBtn && phoneWalletSettings) {
+    phoneWalletSettingsBtn.addEventListener('click', () => {
+      if (walletAutoBillToggle) {
+        const settings = readWalletSettings(currentChatId);
+        walletAutoBillToggle.checked = settings.autoBill;
+      }
+      phoneWalletSettings.classList.add('active');
+    });
+  }
+  if (phoneWalletSettingsClose && phoneWalletSettings) {
+    phoneWalletSettingsClose.addEventListener('click', () => {
+      saveWalletSettings(currentChatId, { autoBill: !!walletAutoBillToggle?.checked });
+      phoneWalletSettings.classList.remove('active');
+      renderWalletScreen();
+    });
+  }
+  if (phoneWalletSettings) {
+    phoneWalletSettings.addEventListener('click', (event) => {
+      if (event.target === phoneWalletSettings) phoneWalletSettings.classList.remove('active');
     });
   }
 
