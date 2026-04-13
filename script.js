@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.4';
+const APP_VERSION = '1.1.5';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -5595,6 +5595,17 @@ function initChatRoomLogic() {
         };
     }
 
+    function parseAssistantTransferDecisionMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^(?:\[|【)\s*转账处理\s*[:：]\s*(收款|拒绝|拒收|accept|reject)(?:\s*[|｜]\s*([^\]】\n|｜]+))?\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const actionText = String(match[1] || '').trim().toLowerCase();
+        const action = actionText === '收款' || actionText === 'accept' ? 'receive' : 'reject';
+        const transferId = String(match[2] || '').trim();
+        return { action, transferId };
+    }
+
     function extractLocalImageDataUrls(content) {
         return extractLocalImageSources(content);
     }
@@ -5981,6 +5992,7 @@ ${timeGapPrompt}
                 const speaker = msg.role === 'assistant' ? realName : userName;
                 return formatHistoryMessageForModel(msg, speaker);
             }).join('\n');
+            const pendingIncomingTransfersPrompt = buildPendingIncomingTransfersPromptForChar(chatId);
 
              const systemPrompt = `
 严格执行以下高阶沉浸式角色扮演规则。你是${realName}，你现在正在与${userName}通过手机聊天软件（Line）进行线上聊天。
@@ -6003,11 +6015,16 @@ ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
 - [转账:金额|备注]（仅在你要主动给 ${userName} 转账时使用，必须独立成条）
+- [转账处理:收款|转账ID] 或 [转账处理:拒绝|转账ID]（仅用于处理 ${userName} 发给你的待收款转账，必须独立成条）
 - <quote>原文</quote>
+
+**【待你处理的入账转账】**
+${pendingIncomingTransfersPrompt}
+若为“无”，你禁止输出任何 [转账处理:...] 标签。
 
 **【输出格式与排版要求】**
 1. 多条消息拆分：回复多条消息时必须用 [SPLIT] 严格分隔。禁止每轮条数一样。
-2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT]文字\`），绝不能和文字挤在同一条内！
+2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
 3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
 **【扮演准则与禁止项】**
@@ -6028,7 +6045,7 @@ ${assistantStickerPromptText}
 </think>
 消息1[SPLIT]消息2
 <mood_sprite mood="核心情绪" color="#RRGGBB">
-这里写你没发出去的真实内心（吐槽/纠结/爱意/碎碎念）。
+这里写你没发出去的真实内心可以短到一句话也可以长到一大段（吐槽/纠结/爱意/碎碎念）。
 ---
 绝对不能让对方知道的一个念头（直白/可爱/真实/，可使用颜文字）。
 </mood_sprite>
@@ -6292,6 +6309,7 @@ if (quoteMatch) {
             const normalizedReplyMessages = [];
             let hasVisibleMessage = false;
             let backgroundNotificationPreview = '';
+            let transferStatusChangedInThisReply = false;
             
             for (let i = 0; i < replyMessages.length; i++) {
                 let rawPart = stripMoodSpriteFragments(replyMessages[i]);
@@ -6310,11 +6328,13 @@ if (quoteMatch) {
                 const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
                 const parsedTransfer = parseAssistantTransferMessage(rawPart);
+                const parsedTransferDecision = parseAssistantTransferDecisionMessage(rawPart);
                 if (parsedPhoto) {
                     normalizedReplyMessages.push({
                         msgContent: buildCameraPlaceholderHtml(parsedPhoto.text),
                         parsedVoice: null,
                         parsedTransfer: null,
+                        transferMode: null,
                         translationText
                     });
                     continue;
@@ -6324,8 +6344,23 @@ if (quoteMatch) {
                         msgContent: parsedVoice.transcript,
                         parsedVoice,
                         parsedTransfer: null,
+                        transferMode: null,
                         translationText
                     });
+                    continue;
+                }
+                if (parsedTransferDecision) {
+                    const decidedTransfer = applyAssistantTransferDecision(chatId, parsedTransferDecision);
+                    if (decidedTransfer) {
+                        transferStatusChangedInThisReply = true;
+                        normalizedReplyMessages.push({
+                            msgContent: decidedTransfer.status === 'accepted' ? '已收款' : '已拒收',
+                            parsedVoice: null,
+                            parsedTransfer: decidedTransfer,
+                            transferMode: 'decision',
+                            translationText: null
+                        });
+                    }
                     continue;
                 }
                 if (parsedTransfer) {
@@ -6333,6 +6368,7 @@ if (quoteMatch) {
                         msgContent: `[转账] ¥${parsedTransfer.amount.toFixed(2)}`,
                         parsedVoice: null,
                         parsedTransfer,
+                        transferMode: 'new',
                         translationText
                     });
                     continue;
@@ -6348,6 +6384,7 @@ if (quoteMatch) {
                         msgContent,
                         parsedVoice: null,
                         parsedTransfer: null,
+                        transferMode: null,
                         translationText
                     });
                 });
@@ -6358,13 +6395,14 @@ if (quoteMatch) {
                 const msgContent = messageItem.msgContent;
                 const parsedVoice = messageItem.parsedVoice;
                 const parsedTransfer = messageItem.parsedTransfer;
+                const transferMode = messageItem.transferMode || null;
                 if (!msgContent) continue;
 
                 hasVisibleMessage = true;
                 if (!backgroundNotificationPreview) {
                     backgroundNotificationPreview = parsedVoice
                         ? '发送了一条语音消息'
-                        : (parsedTransfer ? '发来一笔转账' : msgContent);
+                        : (parsedTransfer ? (transferMode === 'decision' ? '处理了一笔转账' : '发来一笔转账') : msgContent);
                 }
                 if (i > 0) {
                     await new Promise(resolve => setTimeout(resolve, 800));
@@ -6375,37 +6413,41 @@ if (quoteMatch) {
                 const extra = {};
                 if (parsedVoice) extra.voice = parsedVoice;
                 if (parsedTransfer) {
-                    const charWallet = readCharWalletByChatId(chatId);
-                    if (Number(charWallet.balance || 0) < parsedTransfer.amount) {
-                        const failText = '（转账失败：char余额不足）';
-                        const failMsg = saveMessage(chatId, 'assistant', failText, {});
-                        appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg);
-                        continue;
-                    }
-                    const nextCharWallet = {
-                        ...charWallet,
-                        balance: Number((Number(charWallet.balance || 0) - parsedTransfer.amount).toFixed(2)),
-                        bills: appendWalletBillItem(charWallet.bills, {
-                            merchant: '转账支出',
-                            desc: `向 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')} 转账${parsedTransfer.note ? `（${parsedTransfer.note}）` : ''}`,
+                    if (transferMode === 'decision') {
+                        extra.transfer = normalizeTransferPayload(parsedTransfer);
+                    } else {
+                        const charWallet = readCharWalletByChatId(chatId);
+                        if (Number(charWallet.balance || 0) < parsedTransfer.amount) {
+                            const failText = '（转账失败：char余额不足）';
+                            const failMsg = saveMessage(chatId, 'assistant', failText, {});
+                            appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg);
+                            continue;
+                        }
+                        const nextCharWallet = {
+                            ...charWallet,
+                            balance: Number((Number(charWallet.balance || 0) - parsedTransfer.amount).toFixed(2)),
+                            bills: appendWalletBillItem(charWallet.bills, {
+                                merchant: '转账支出',
+                                desc: `向 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')} 转账${parsedTransfer.note ? `（${parsedTransfer.note}）` : ''}`,
+                                amount: parsedTransfer.amount,
+                                type: 'expense',
+                                timestamp: Date.now()
+                            })
+                        };
+                        saveCharWalletByChatId(chatId, nextCharWallet);
+                        extra.transfer = normalizeTransferPayload({
+                            id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
                             amount: parsedTransfer.amount,
-                            type: 'expense',
-                            timestamp: Date.now()
-                        })
-                    };
-                    saveCharWalletByChatId(chatId, nextCharWallet);
-                    extra.transfer = normalizeTransferPayload({
-                        id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-                        amount: parsedTransfer.amount,
-                        note: parsedTransfer.note,
-                        createdAt: Date.now(),
-                        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-                        senderType: 'char',
-                        senderUserId: String(getCurrentLineUserForWallet()?.id || '').trim(),
-                        status: 'pending',
-                        refunded: false,
-                        received: false
-                    });
+                            note: parsedTransfer.note,
+                            createdAt: Date.now(),
+                            expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                            senderType: 'char',
+                            senderUserId: String(getCurrentLineUserForWallet()?.id || '').trim(),
+                            status: 'pending',
+                            refunded: false,
+                            received: false
+                        });
+                    }
                 }
                 if (isLast && spriteData) extra.sprite = spriteData;
                 if (isFirst && quoteData) extra.quote = quoteData;
@@ -6422,6 +6464,9 @@ if (quoteMatch) {
 
             if (backgroundNotificationPreview) {
                 await showIncomingMessageSystemNotification(chatId, backgroundNotificationPreview);
+            }
+            if (transferStatusChangedInThisReply && isChatRoomOpenFor(chatId)) {
+                loadChatHistory(chatId);
             }
 
             if (!hasVisibleMessage) {
@@ -6476,6 +6521,12 @@ if (quoteMatch) {
     const confirmTransferModalBtn = document.getElementById('confirm-transfer-modal');
     const transferAmountInput = document.getElementById('transfer-amount-input');
     const transferNoteInput = document.getElementById('transfer-note-input');
+    const transferDecisionModal = document.getElementById('transfer-decision-modal');
+    const closeTransferDecisionModalBtn = document.getElementById('close-transfer-decision-modal');
+    const rejectTransferDecisionModalBtn = document.getElementById('reject-transfer-decision-modal');
+    const receiveTransferDecisionModalBtn = document.getElementById('receive-transfer-decision-modal');
+    const transferDecisionAmountEl = document.getElementById('transfer-decision-amount');
+    const transferDecisionNoteEl = document.getElementById('transfer-decision-note');
 
     // Context Menu & Multi-select Logic
     const contextMenu = document.getElementById('message-context-menu');
@@ -6495,6 +6546,7 @@ if (quoteMatch) {
     let isMultiSelectMode = false;
     const selectedMsgIds = new Set();
     let transferExpiryTicker = null;
+    let pendingTransferDecisionContext = null;
 
     function escapeHtml(value) {
         return String(value)
@@ -6549,26 +6601,31 @@ if (quoteMatch) {
         return '待收款（24小时内）';
     }
 
+    function canCurrentUserOperateTransfer(role, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        return safeTransfer.status === 'pending' && safeTransfer.senderType === 'char' && role === 'assistant';
+    }
+
     function renderTransferCardMarkup(role, transfer, msgId) {
         const safeTransfer = normalizeTransferPayload(transfer);
         const note = safeTransfer.note ? escapeHtml(safeTransfer.note) : '无备注';
         const statusLabel = getTransferStatusLabel(safeTransfer);
-        const canOperate = safeTransfer.status === 'pending';
+        const canOperate = canCurrentUserOperateTransfer(role, safeTransfer);
         const title = safeTransfer.senderType === 'char'
             ? (role === 'assistant' ? '来自 TA 的转账' : 'TA 向你转账')
             : (role === 'user' ? '转账给 TA' : '来自 User 的转账');
         return `
-            <div class="transfer-card" data-transfer-card="1" data-transfer-id="${escapeHtml(safeTransfer.id)}">
+            <div
+                class="transfer-card${safeTransfer.senderType === 'char' ? ' sender-char' : ''}${canOperate ? ' is-operable' : ''}"
+                data-transfer-card="1"
+                data-transfer-id="${escapeHtml(safeTransfer.id)}"
+                data-msg-id="${escapeHtml(msgId || '')}"
+                data-transfer-operable="${canOperate ? '1' : '0'}"
+            >
                 <div class="transfer-card-title">${title}</div>
                 <div class="transfer-card-amount">¥${safeTransfer.amount.toFixed(2)}</div>
                 <div class="transfer-card-note">备注：${note}</div>
                 <div class="transfer-card-status">${statusLabel}</div>
-                ${canOperate ? `
-                    <div class="transfer-card-actions">
-                        <button class="transfer-card-btn receive" type="button" data-transfer-action="receive" data-msg-id="${escapeHtml(msgId)}">收款</button>
-                        <button class="transfer-card-btn reject" type="button" data-transfer-action="reject" data-msg-id="${escapeHtml(msgId)}">拒绝收款</button>
-                    </div>
-                ` : ''}
             </div>
         `;
     }
@@ -6584,6 +6641,27 @@ if (quoteMatch) {
         transferNoteInput.value = '';
         transferModal.style.display = 'flex';
         setTimeout(() => transferAmountInput.focus(), 0);
+    }
+
+    function closeTransferDecisionModal() {
+        if (!transferDecisionModal) return;
+        transferDecisionModal.style.display = 'none';
+        pendingTransferDecisionContext = null;
+    }
+
+    function openTransferDecisionModal(chatId, msgId) {
+        if (!transferDecisionModal || !transferDecisionAmountEl || !transferDecisionNoteEl) return;
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return;
+        const target = history.find((msg) => msg && msg.id === msgId && msg.transfer);
+        if (!target) return;
+        const transfer = normalizeTransferPayload(target.transfer);
+        if (!canCurrentUserOperateTransfer(target.role, transfer)) return;
+
+        transferDecisionAmountEl.textContent = `¥${transfer.amount.toFixed(2)}`;
+        transferDecisionNoteEl.textContent = transfer.note || '无备注';
+        pendingTransferDecisionContext = { chatId, msgId };
+        transferDecisionModal.style.display = 'flex';
     }
 
     function refundTransferToUserWallet(chatId, transfer, reasonText) {
@@ -6692,6 +6770,91 @@ if (quoteMatch) {
             return receiveTransferToUserWallet(chatId, safeTransfer);
         }
         return receiveTransferToCharWallet(chatId, safeTransfer);
+    }
+
+    function applyTransferDecisionToHistory(chatId, history, targetIndex, action, operatorType) {
+        if (!Array.isArray(history) || targetIndex < 0 || targetIndex >= history.length) return null;
+        const targetMsg = history[targetIndex];
+        if (!targetMsg || !targetMsg.transfer) return null;
+
+        const transfer = normalizeTransferPayload(targetMsg.transfer);
+        if (transfer.status !== 'pending') return null;
+
+        const expectedSenderType = operatorType === 'char' ? 'user' : 'char';
+        if (transfer.senderType !== expectedSenderType) return null;
+
+        let nextTransfer = transfer;
+        if (action === 'receive') {
+            nextTransfer.status = 'accepted';
+            nextTransfer = receiveTransferBySender(chatId, nextTransfer);
+        } else if (action === 'reject') {
+            nextTransfer.status = 'rejected';
+            const reasonText = operatorType === 'char'
+                ? '对方拒绝收款，已退回'
+                : '你已拒绝收款，已退回';
+            nextTransfer = refundTransferBySender(chatId, nextTransfer, reasonText);
+        } else {
+            return null;
+        }
+
+        history[targetIndex] = {
+            ...targetMsg,
+            transfer: normalizeTransferPayload(nextTransfer)
+        };
+        persistChatHistory(chatId, history);
+        return normalizeTransferPayload(nextTransfer);
+    }
+
+    function applyUserTransferDecision(chatId, msgId, action) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return null;
+        const targetIndex = history.findIndex((msg) => msg && msg.id === msgId && msg.transfer);
+        if (targetIndex < 0) return null;
+        return applyTransferDecisionToHistory(chatId, history, targetIndex, action, 'user');
+    }
+
+    function applyAssistantTransferDecision(chatId, decision) {
+        const action = decision && decision.action;
+        const transferId = String(decision && decision.transferId ? decision.transferId : '').trim();
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return null;
+
+        let targetIndex = -1;
+        if (transferId) {
+            targetIndex = history.findIndex((msg) => {
+                if (!msg || !msg.transfer) return false;
+                const transfer = normalizeTransferPayload(msg.transfer);
+                return transfer.id === transferId && transfer.senderType === 'user' && transfer.status === 'pending';
+            });
+        }
+        if (targetIndex < 0) {
+            for (let i = history.length - 1; i >= 0; i -= 1) {
+                const msg = history[i];
+                if (!msg || !msg.transfer) continue;
+                const transfer = normalizeTransferPayload(msg.transfer);
+                if (transfer.senderType === 'user' && transfer.status === 'pending') {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+        if (targetIndex < 0) return null;
+        return applyTransferDecisionToHistory(chatId, history, targetIndex, action, 'char');
+    }
+
+    function buildPendingIncomingTransfersPromptForChar(chatId) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return '无';
+        const pending = [];
+        for (let i = 0; i < history.length; i += 1) {
+            const msg = history[i];
+            if (!msg || !msg.transfer) continue;
+            const transfer = normalizeTransferPayload(msg.transfer);
+            if (transfer.senderType !== 'user' || transfer.status !== 'pending') continue;
+            const createdTime = new Date(transfer.createdAt).toLocaleString('zh-CN', { hour12: false });
+            pending.push(`- ID:${transfer.id} | 金额:¥${transfer.amount.toFixed(2)} | 备注:${transfer.note || '无'} | 发起时间:${createdTime}`);
+        }
+        return pending.length > 0 ? pending.join('\n') : '无';
     }
 
     function processTransferExpiry(chatId) {
@@ -7101,36 +7264,13 @@ if (quoteMatch) {
 
     if (chatContent) {
         chatContent.addEventListener('click', (e) => {
-            const transferActionEl = e.target.closest('[data-transfer-action]');
-            if (transferActionEl && chatContent.contains(transferActionEl)) {
+            const transferCardEl = e.target.closest('.transfer-card[data-transfer-operable="1"]');
+            if (transferCardEl && chatContent.contains(transferCardEl)) {
                 if (isMultiSelectMode) return;
-                const action = String(transferActionEl.getAttribute('data-transfer-action') || '').trim();
-                const msgId = String(transferActionEl.getAttribute('data-msg-id') || '').trim();
+                const msgId = String(transferCardEl.getAttribute('data-msg-id') || '').trim();
                 const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
-                if (!action || !msgId || !chatId) return;
-                const history = largeStore.get('chat_history_' + chatId, []);
-                if (!Array.isArray(history) || history.length === 0) return;
-                const targetIndex = history.findIndex((msg) => msg && msg.id === msgId && msg.transfer);
-                if (targetIndex < 0) return;
-                const targetMsg = history[targetIndex];
-                const transfer = normalizeTransferPayload(targetMsg.transfer);
-                if (transfer.status !== 'pending') return;
-
-                if (action === 'receive') {
-                    transfer.status = 'accepted';
-                    const receivedTransfer = receiveTransferBySender(chatId, transfer);
-                    history[targetIndex] = { ...targetMsg, transfer: receivedTransfer };
-                } else if (action === 'reject') {
-                    transfer.status = 'rejected';
-                    const refundedTransfer = refundTransferBySender(chatId, transfer, '对方拒绝收款，已退回');
-                    history[targetIndex] = { ...targetMsg, transfer: refundedTransfer };
-                } else {
-                    return;
-                }
-
-                persistChatHistory(chatId, history);
-                loadChatHistory(chatId);
-                refreshChatListPreviewFor(chatId);
+                if (!msgId || !chatId) return;
+                openTransferDecisionModal(chatId, msgId);
                 return;
             }
 
@@ -7298,6 +7438,47 @@ if (quoteMatch) {
             if (e.target === transferModal) {
                 closeTransferModal();
             }
+        });
+    }
+
+    if (closeTransferDecisionModalBtn) {
+        closeTransferDecisionModalBtn.addEventListener('click', closeTransferDecisionModal);
+    }
+
+    if (transferDecisionModal) {
+        transferDecisionModal.addEventListener('click', (e) => {
+            if (e.target === transferDecisionModal) {
+                closeTransferDecisionModal();
+            }
+        });
+    }
+
+    function submitTransferDecisionFromModal(action) {
+        const context = pendingTransferDecisionContext;
+        if (!context || !context.chatId || !context.msgId) return;
+        const nextTransfer = applyUserTransferDecision(context.chatId, context.msgId, action);
+        if (!nextTransfer) {
+            closeTransferDecisionModal();
+            loadChatHistory(context.chatId);
+            refreshChatListPreviewFor(context.chatId);
+            return;
+        }
+        const resultText = action === 'receive' ? '已收款' : '已拒收';
+        saveMessage(context.chatId, 'user', resultText, { transfer: nextTransfer });
+        closeTransferDecisionModal();
+        loadChatHistory(context.chatId);
+        refreshChatListPreviewFor(context.chatId);
+    }
+
+    if (receiveTransferDecisionModalBtn) {
+        receiveTransferDecisionModalBtn.addEventListener('click', () => {
+            submitTransferDecisionFromModal('receive');
+        });
+    }
+
+    if (rejectTransferDecisionModalBtn) {
+        rejectTransferDecisionModalBtn.addEventListener('click', () => {
+            submitTransferDecisionFromModal('reject');
         });
     }
 

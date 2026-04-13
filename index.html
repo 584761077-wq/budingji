@@ -2123,6 +2123,31 @@
             </div>
         </div>
 
+        <div class="ins-modal-overlay" id="transfer-decision-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>处理转账</h3>
+                    <button class="ins-modal-close" id="close-transfer-decision-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label>金额</label>
+                        <div id="transfer-decision-amount">¥0.00</div>
+                    </div>
+                    <div class="ins-input-group">
+                        <label>备注</label>
+                        <div id="transfer-decision-note">无备注</div>
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-danger" id="reject-transfer-decision-modal" type="button">拒绝收款</button>
+                    <button class="ins-btn-primary" id="receive-transfer-decision-modal" type="button">收款</button>
+                </div>
+            </div>
+        </div>
+
         <div class="ins-modal-overlay" id="photo-content-modal" style="display: none;">
             <div class="ins-modal">
                 <div class="ins-modal-header">

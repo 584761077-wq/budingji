@@ -1373,14 +1373,28 @@
 }
 
 .transfer-card {
-    width: auto;
-    max-width: min(176px, 54vw);
+    width: 232px;
+    min-width: 232px;
+    max-width: 232px;
+    height: 126px;
+    min-height: 126px;
+    max-height: 126px;
+    box-sizing: border-box;
     border-radius: 12px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
+    justify-content: space-between;
     border: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.transfer-card.is-operable {
+    cursor: pointer;
+}
+
+.transfer-card.is-operable:active {
+    transform: scale(0.99);
 }
 
 .message-row.right .transfer-card {
@@ -1392,6 +1406,13 @@
     background: #1d1d1f;
     color: #ffffff;
     border-color: rgba(255, 255, 255, 0.18);
+}
+
+.message-row.right .transfer-card.sender-char,
+.message-row.left .transfer-card.sender-char {
+    background: #e5e5ea;
+    color: #1d1d1f;
+    border-color: #d1d1d6;
 }
 
 .transfer-card-title {
@@ -1408,6 +1429,7 @@
 .transfer-card-note {
     font-size: 0.78rem;
     opacity: 0.85;
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1418,39 +1440,17 @@
     opacity: 0.9;
 }
 
-.transfer-card-actions {
-    display: flex;
-    gap: 6px;
-}
-
-.transfer-card-btn {
-    flex: 1;
-    border: none;
-    border-radius: 10px;
-    height: 28px;
-    padding: 0 10px;
-    font-size: 0.72rem;
+#transfer-decision-amount {
+    font-size: 1.2rem;
     font-weight: 700;
-    cursor: pointer;
-}
-
-.transfer-card-btn.receive {
-    background: #000000;
-    color: #ffffff;
-}
-
-.transfer-card-btn.reject {
-    background: #e5e5ea;
     color: #1d1d1f;
 }
 
-.message-row.left .transfer-card-btn.receive {
-    background: #ffffff;
-    color: #1d1d1f;
-}
-
-.message-row.left .transfer-card-btn.reject {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
+#transfer-decision-note {
+    font-size: 0.92rem;
+    color: #6e6e73;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
