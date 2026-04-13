@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.1.1';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -4149,9 +4149,44 @@ function initChatRoomLogic() {
     if (inputField && chatRoomFooter) {
         inputField.addEventListener('focus', () => {
             chatRoomFooter.classList.add('keyboard-open');
+            // 核心修复：彻底解决 iOS 键盘顶起导致的灰条与闪屏
+            // 将 body 固定，强制禁止浏览器原生推挤滚动
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            
+            setTimeout(() => {
+                if (chatContent) chatContent.scrollTop = chatContent.scrollHeight;
+            }, 300); // 键盘弹起动画大约需要 250-300ms
         });
+        
         inputField.addEventListener('blur', () => {
             chatRoomFooter.classList.remove('keyboard-open');
+            // 恢复页面原本流状态
+            document.body.style.position = '';
+            document.body.style.width = '';
+            document.body.style.height = '';
+            if (chatRoom) {
+                chatRoom.style.height = '100%';
+            }
+            window.scrollTo(0, 0);
+        });
+    }
+
+    // 使用 VisualViewport 监听键盘弹起，动态计算真实可用高度
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
+                // 实时同步可视区高度，让底栏完美贴紧键盘上方
+                const vh = window.visualViewport.height + 'px';
+                document.body.style.height = vh;
+                if (chatRoom) {
+                    chatRoom.style.height = vh;
+                }
+                window.scrollTo(0, 0); // 确保不会产生偏移
+                if (chatContent) {
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                }
+            }
         });
     }
 
