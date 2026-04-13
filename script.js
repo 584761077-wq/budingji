@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.9';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -4149,41 +4149,10 @@ function initChatRoomLogic() {
     if (inputField && chatRoomFooter) {
         inputField.addEventListener('focus', () => {
             chatRoomFooter.classList.add('keyboard-open');
-            setTimeout(() => {
-                if (chatContent) chatContent.scrollTop = chatContent.scrollHeight;
-            }, 100);
         });
         inputField.addEventListener('blur', () => {
             chatRoomFooter.classList.remove('keyboard-open');
         });
-    }
-
-    // 修复 iOS PWA 唤起键盘后底部空白、不贴合问题
-    if (window.visualViewport) {
-        const updateChatRoomLayout = () => {
-            if (chatRoom && chatRoom.style.display !== 'none') {
-                // 关键修正：使用 pageTop (而非 offsetTop) 完美抵消 iOS 默认的页面滚动推挤
-                // 使用 visualViewport.height 确保底部精准贴合键盘
-                chatRoom.style.height = window.visualViewport.height + 'px';
-                chatRoom.style.top = window.visualViewport.pageTop + 'px';
-            }
-        };
-        
-        window.visualViewport.addEventListener('resize', updateChatRoomLayout);
-        window.visualViewport.addEventListener('scroll', updateChatRoomLayout);
-
-        // 键盘收起时恢复原状
-        if (inputField) {
-            inputField.addEventListener('blur', () => {
-                setTimeout(() => {
-                    if (chatRoom && chatRoom.style.display !== 'none') {
-                        chatRoom.style.height = '100%';
-                        chatRoom.style.top = '0px';
-                        window.scrollTo(0, 0);
-                    }
-                }, 50);
-            });
-        }
     }
 
     // 聊天状态管理
