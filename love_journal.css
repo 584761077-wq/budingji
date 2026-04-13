@@ -935,7 +935,7 @@
 #love-journal-modal .phone-chat-detail {
   position: absolute;
   inset: 0;
-  background: #8ba7c9;
+  background: #ffffff;
   z-index: 160;
   display: none;
   flex-direction: column;
@@ -1080,6 +1080,10 @@
   display: flex;
 }
 #love-journal-modal .phone-wallet-header {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  right: 0;
   height: 60px;
   display: flex;
   align-items: center;
@@ -1087,6 +1091,7 @@
   padding: 0 20px;
   background: #e9eaed;
   border-bottom: 1px solid rgba(17, 17, 17, 0.08);
+  z-index: 2;
 }
 #love-journal-modal .phone-wallet-back,
 #love-journal-modal .phone-wallet-action-btn {
@@ -1119,7 +1124,7 @@
 #love-journal-modal .phone-wallet-content {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 15px 22px;
+  padding: 114px 15px 22px;
 }
 #love-journal-modal .wallet-balance-card,
 #love-journal-modal .wallet-card-group,
