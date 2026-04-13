@@ -1007,7 +1007,7 @@
                                         </div>
                                         <span class="menu-text">相机</span>
                                     </div>
-                                    <div class="menu-item">
+                                    <div class="menu-item" id="transfer-action-btn">
                                         <div class="menu-icon">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path><path d="M6 14h4"></path></svg>
                                         </div>
@@ -1395,6 +1395,27 @@
                             <div class="ins-modal-body" id="line-wallet-card-manage-list"></div>
                             <div class="ins-modal-footer">
                                 <button class="ins-btn-secondary" id="line-wallet-card-manage-done" type="button">完成</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ins-modal-overlay" id="line-wallet-balance-edit-overlay" style="display: none;">
+                        <div class="ins-modal">
+                            <div class="ins-modal-header">
+                                <h3>修改余额</h3>
+                                <button class="ins-modal-close" id="line-wallet-balance-edit-close">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                            <div class="ins-modal-body">
+                                <div class="ins-input-group">
+                                    <label for="line-wallet-balance-edit-input">余额（元）</label>
+                                    <input id="line-wallet-balance-edit-input" type="number" min="0" step="0.01" placeholder="请输入新的余额">
+                                </div>
+                            </div>
+                            <div class="ins-modal-footer">
+                                <button class="ins-btn-secondary" id="line-wallet-balance-edit-cancel" type="button">取消</button>
+                                <button class="ins-btn-primary" id="line-wallet-balance-edit-confirm" type="button">保存</button>
                             </div>
                         </div>
                     </div>
@@ -2073,6 +2094,31 @@
                 </div>
                 <div class="ins-modal-footer">
                     <button class="ins-btn-primary" id="save-camera-input-btn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-modal-overlay" id="transfer-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>转账</h3>
+                    <button class="ins-modal-close" id="close-transfer-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label for="transfer-amount-input">金额（元）</label>
+                        <input type="number" id="transfer-amount-input" placeholder="请输入金额" min="0.01" step="0.01">
+                    </div>
+                    <div class="ins-input-group">
+                        <label for="transfer-note-input">备注</label>
+                        <input type="text" id="transfer-note-input" placeholder="输入备注（可选）" maxlength="40">
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-secondary" id="cancel-transfer-modal" type="button">取消</button>
+                    <button class="ins-btn-primary" id="confirm-transfer-modal" type="button">确认转账</button>
                 </div>
             </div>
         </div>

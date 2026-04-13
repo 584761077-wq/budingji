@@ -506,7 +506,8 @@
 }
 
 .message-special {
-    display: block;
+    display: inline-block;
+    width: fit-content;
     max-width: 100%;
 }
 
@@ -1369,5 +1370,87 @@
 
 .camera-input-textarea {
     min-height: 120px;
+}
+
+.transfer-card {
+    width: auto;
+    max-width: min(176px, 54vw);
+    border-radius: 12px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.message-row.right .transfer-card {
+    background: #ffffff;
+    color: #1d1d1f;
+}
+
+.message-row.left .transfer-card {
+    background: #1d1d1f;
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.transfer-card-title {
+    font-size: 0.76rem;
+    opacity: 0.88;
+}
+
+.transfer-card-amount {
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.transfer-card-note {
+    font-size: 0.78rem;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.transfer-card-status {
+    font-size: 0.72rem;
+    opacity: 0.9;
+}
+
+.transfer-card-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.transfer-card-btn {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.transfer-card-btn.receive {
+    background: #000000;
+    color: #ffffff;
+}
+
+.transfer-card-btn.reject {
+    background: #e5e5ea;
+    color: #1d1d1f;
+}
+
+.message-row.left .transfer-card-btn.receive {
+    background: #ffffff;
+    color: #1d1d1f;
+}
+
+.message-row.left .transfer-card-btn.reject {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
 }
 

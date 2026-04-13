@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.4';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -252,6 +252,99 @@ function parseChatMeta(raw) {
     } catch (error) {
         return { realName: '', remark: '' };
     }
+}
+
+function getLineUsersForWallet() {
+    let users = [];
+    try {
+        users = JSON.parse(localStorage.getItem('line_home_users') || '[]');
+    } catch (error) {
+        users = [];
+    }
+    if (!Array.isArray(users)) return [];
+    return users
+        .map((item) => ({
+            id: String(item?.id || '').trim(),
+            name: String(item?.name || '').trim()
+        }))
+        .filter((item) => item.id && item.name);
+}
+
+function getCurrentLineUserForWallet() {
+    const users = getLineUsersForWallet();
+    if (!users.length) return null;
+    const selectedId = String(localStorage.getItem('line_home_selected_user_id') || '').trim();
+    return users.find((item) => item.id === selectedId) || users[0];
+}
+
+function normalizeWalletBills(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((item) => item && typeof item === 'object').map((item) => ({
+        id: String(item.id || `bill_${Date.now()}_${Math.random().toString(16).slice(2)}`),
+        merchant: String(item.merchant || '').trim() || '账单',
+        desc: String(item.desc || '').trim(),
+        amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
+        type: item.type === 'income' ? 'income' : 'expense',
+        timestamp: Number.isFinite(Number(item.timestamp)) ? Number(item.timestamp) : Date.now()
+    }));
+}
+
+function normalizeLineWalletData(raw) {
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const parsedBalance = Number(data.balance);
+    return {
+        balance: Number.isFinite(parsedBalance) ? Number(parsedBalance) : 0,
+        mainCards: Array.isArray(data.mainCards) ? data.mainCards : [],
+        familyCards: Array.isArray(data.familyCards) ? data.familyCards.filter((card) => card && card.source === 'real') : [],
+        bills: normalizeWalletBills(data.bills)
+    };
+}
+
+function readLineWalletByUserId(userId) {
+    const key = `line_user_wallet_${String(userId || 'default').trim()}`;
+    const raw = largeStore.get(key, null);
+    if (!raw) return normalizeLineWalletData(null);
+    if (typeof raw === 'string') {
+        try {
+            return normalizeLineWalletData(JSON.parse(raw));
+        } catch (error) {
+            return normalizeLineWalletData(null);
+        }
+    }
+    return normalizeLineWalletData(raw);
+}
+
+function saveLineWalletByUserId(userId, wallet) {
+    const key = `line_user_wallet_${String(userId || 'default').trim()}`;
+    largeStore.put(key, normalizeLineWalletData(wallet));
+}
+
+function normalizeCharWalletData(raw) {
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const parsedBalance = Number(data.balance);
+    return {
+        balance: Number.isFinite(parsedBalance) ? Number(parsedBalance) : 0,
+        bills: normalizeWalletBills(data.bills)
+    };
+}
+
+function readCharWalletByChatId(chatId) {
+    const key = `chat_char_wallet_${String(chatId || '').trim()}`;
+    const raw = largeStore.get(key, null);
+    if (!raw) return normalizeCharWalletData(null);
+    if (typeof raw === 'string') {
+        try {
+            return normalizeCharWalletData(JSON.parse(raw));
+        } catch (error) {
+            return normalizeCharWalletData(null);
+        }
+    }
+    return normalizeCharWalletData(raw);
+}
+
+function saveCharWalletByChatId(chatId, wallet) {
+    const key = `chat_char_wallet_${String(chatId || '').trim()}`;
+    largeStore.put(key, normalizeCharWalletData(wallet));
 }
 
 const budingjiNotificationIconUrl = 'https://img.heliar.top/file/1772810690199_IMG_6314.jpeg';
@@ -1990,6 +2083,11 @@ function initLineApp() {
     const lineWalletCardManageClose = document.getElementById('line-wallet-card-manage-close');
     const lineWalletCardManageDone = document.getElementById('line-wallet-card-manage-done');
     const lineWalletCardManageList = document.getElementById('line-wallet-card-manage-list');
+    const lineWalletBalanceEditOverlay = document.getElementById('line-wallet-balance-edit-overlay');
+    const lineWalletBalanceEditClose = document.getElementById('line-wallet-balance-edit-close');
+    const lineWalletBalanceEditCancel = document.getElementById('line-wallet-balance-edit-cancel');
+    const lineWalletBalanceEditConfirm = document.getElementById('line-wallet-balance-edit-confirm');
+    const lineWalletBalanceEditInput = document.getElementById('line-wallet-balance-edit-input');
     const friendProfileModal = document.getElementById('friend-profile-modal');
     const friendProfileAvatar = document.getElementById('friend-profile-avatar');
     const friendProfileName = document.getElementById('friend-profile-name');
@@ -2296,6 +2394,24 @@ ${persona || '无'}
     const closeLineWalletGiftModal = () => {
         if (!lineWalletGiftOverlay) return;
         lineWalletGiftOverlay.style.display = 'none';
+    };
+
+    const openLineWalletBalanceEditModal = () => {
+        if (!lineWalletBalanceEditOverlay || !lineWalletBalanceEditInput) return;
+        const currentUser = getCurrentLineUser();
+        if (!currentUser) {
+            alert('请先设置 LINE User');
+            return;
+        }
+        const current = readLineUserWallet(currentUser.id);
+        lineWalletBalanceEditInput.value = String(Number(current.balance || 0).toFixed(2));
+        lineWalletBalanceEditOverlay.style.display = 'flex';
+        setTimeout(() => lineWalletBalanceEditInput.focus(), 0);
+    };
+
+    const closeLineWalletBalanceEditModal = () => {
+        if (!lineWalletBalanceEditOverlay) return;
+        lineWalletBalanceEditOverlay.style.display = 'none';
     };
 
     const renderLineWalletCardManageList = () => {
@@ -2703,15 +2819,25 @@ ${persona || '无'}
     }
     if (lineUserWalletEditBalanceBtn) {
         lineUserWalletEditBalanceBtn.addEventListener('click', () => {
+            openLineWalletBalanceEditModal();
+        });
+    }
+    if (lineWalletBalanceEditClose) lineWalletBalanceEditClose.addEventListener('click', closeLineWalletBalanceEditModal);
+    if (lineWalletBalanceEditCancel) lineWalletBalanceEditCancel.addEventListener('click', closeLineWalletBalanceEditModal);
+    if (lineWalletBalanceEditOverlay) {
+        lineWalletBalanceEditOverlay.addEventListener('click', (e) => {
+            if (e.target === lineWalletBalanceEditOverlay) closeLineWalletBalanceEditModal();
+        });
+    }
+    if (lineWalletBalanceEditConfirm) {
+        lineWalletBalanceEditConfirm.addEventListener('click', () => {
             const currentUser = getCurrentLineUser();
             if (!currentUser) {
                 alert('请先设置 LINE User');
                 return;
             }
             const current = readLineUserWallet(currentUser.id);
-            const input = prompt('请输入新的余额（数字）', String(Number(current.balance || 0).toFixed(2)));
-            if (input === null) return;
-            const balance = Number(String(input).trim());
+            const balance = Number(String(lineWalletBalanceEditInput?.value || '').trim());
             if (!Number.isFinite(balance) || balance < 0) {
                 alert('余额格式不正确');
                 return;
@@ -2720,6 +2846,7 @@ ${persona || '无'}
                 ...current,
                 balance: Number(balance.toFixed(2))
             });
+            closeLineWalletBalanceEditModal();
             renderLineUserWallet();
         });
     }
@@ -4899,6 +5026,10 @@ function initChatRoomLogic() {
         if (isMultiSelectMode) {
             exitMultiSelectMode();
         }
+        const transferChanged = processTransferExpiry(chatId);
+        if (transferChanged) {
+            refreshChatListPreviewFor(chatId);
+        }
         chatContent.innerHTML = '';
         const history = normalizeChatHistory(chatId);
         const startIndex = Math.max(0, history.length - HISTORY_PAGE_SIZE);
@@ -5080,6 +5211,7 @@ function initChatRoomLogic() {
         msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
         const isCameraPlaceholder = typeof content === 'string' && content.includes('camera-photo-placeholder');
+        const transferData = extra && extra.transfer ? normalizeTransferPayload(extra.transfer) : null;
         const voiceData = extra && extra.voice ? extra.voice : null;
         const voiceDuration = voiceData ? Math.max(1, Number(voiceData.duration) || 1) : 0;
         const voiceTranscriptRaw = voiceData ? String(voiceData.transcript || content || '') : '';
@@ -5141,7 +5273,9 @@ function initChatRoomLogic() {
             isStickerMessage ? 'sticker-bubble' : '',
             voiceData ? 'voice-bubble' : ''
         ].filter(Boolean).join(' ');
-        const bubbleMarkup = isCameraPlaceholder
+        const bubbleMarkup = transferData
+            ? `<div class="message-special">${renderTransferCardMarkup(role, transferData, id)}</div>`
+            : isCameraPlaceholder
             ? `<div class="message-special">${bubbleContent}</div>`
             : `<div class="${bubbleClasses}">${bubbleContent}</div>`;
 
@@ -5445,6 +5579,19 @@ function initChatRoomLogic() {
         const content = String(match[1] || '').trim();
         return {
             text: content || '无描述'
+        };
+    }
+
+    function parseAssistantTransferMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^(?:\[|【)\s*转账\s*[:：]\s*([0-9]+(?:\.[0-9]{1,2})?)(?:\s*[|｜]\s*([^\]】\n]*))?\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const amount = Number(match[1]);
+        if (!Number.isFinite(amount) || amount <= 0) return null;
+        return {
+            amount: Number(amount.toFixed(2)),
+            note: String(match[2] || '').trim()
         };
     }
 
@@ -5855,11 +6002,12 @@ ${timeSyncPrompt}
 ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
+- [转账:金额|备注]（仅在你要主动给 ${userName} 转账时使用，必须独立成条）
 - <quote>原文</quote>
 
 **【输出格式与排版要求】**
-1. 多条消息拆分：回复多条消息时必须用 [SPLIT] 严格分隔。
-2. 贴图/图片排版：如果要发贴图或图片，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT]文字\`），绝不能和文字挤在同一条内！
+1. 多条消息拆分：回复多条消息时必须用 [SPLIT] 严格分隔。禁止每轮条数一样。
+2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT]文字\`），绝不能和文字挤在同一条内！
 3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
 **【扮演准则与禁止项】**
@@ -6161,10 +6309,12 @@ if (quoteMatch) {
                 if (!rawPart) continue;
                 const parsedPhoto = parseAssistantPhotoMessage(rawPart);
                 const parsedVoice = parseAssistantVoiceMessage(rawPart);
+                const parsedTransfer = parseAssistantTransferMessage(rawPart);
                 if (parsedPhoto) {
                     normalizedReplyMessages.push({
                         msgContent: buildCameraPlaceholderHtml(parsedPhoto.text),
                         parsedVoice: null,
+                        parsedTransfer: null,
                         translationText
                     });
                     continue;
@@ -6173,6 +6323,16 @@ if (quoteMatch) {
                     normalizedReplyMessages.push({
                         msgContent: parsedVoice.transcript,
                         parsedVoice,
+                        parsedTransfer: null,
+                        translationText
+                    });
+                    continue;
+                }
+                if (parsedTransfer) {
+                    normalizedReplyMessages.push({
+                        msgContent: `[转账] ¥${parsedTransfer.amount.toFixed(2)}`,
+                        parsedVoice: null,
+                        parsedTransfer,
                         translationText
                     });
                     continue;
@@ -6187,6 +6347,7 @@ if (quoteMatch) {
                     normalizedReplyMessages.push({
                         msgContent,
                         parsedVoice: null,
+                        parsedTransfer: null,
                         translationText
                     });
                 });
@@ -6196,11 +6357,14 @@ if (quoteMatch) {
                 const messageItem = normalizedReplyMessages[i];
                 const msgContent = messageItem.msgContent;
                 const parsedVoice = messageItem.parsedVoice;
+                const parsedTransfer = messageItem.parsedTransfer;
                 if (!msgContent) continue;
 
                 hasVisibleMessage = true;
                 if (!backgroundNotificationPreview) {
-                    backgroundNotificationPreview = parsedVoice ? '发送了一条语音消息' : msgContent;
+                    backgroundNotificationPreview = parsedVoice
+                        ? '发送了一条语音消息'
+                        : (parsedTransfer ? '发来一笔转账' : msgContent);
                 }
                 if (i > 0) {
                     await new Promise(resolve => setTimeout(resolve, 800));
@@ -6210,6 +6374,39 @@ if (quoteMatch) {
                 const isFirst = i === 0;
                 const extra = {};
                 if (parsedVoice) extra.voice = parsedVoice;
+                if (parsedTransfer) {
+                    const charWallet = readCharWalletByChatId(chatId);
+                    if (Number(charWallet.balance || 0) < parsedTransfer.amount) {
+                        const failText = '（转账失败：char余额不足）';
+                        const failMsg = saveMessage(chatId, 'assistant', failText, {});
+                        appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg);
+                        continue;
+                    }
+                    const nextCharWallet = {
+                        ...charWallet,
+                        balance: Number((Number(charWallet.balance || 0) - parsedTransfer.amount).toFixed(2)),
+                        bills: appendWalletBillItem(charWallet.bills, {
+                            merchant: '转账支出',
+                            desc: `向 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')} 转账${parsedTransfer.note ? `（${parsedTransfer.note}）` : ''}`,
+                            amount: parsedTransfer.amount,
+                            type: 'expense',
+                            timestamp: Date.now()
+                        })
+                    };
+                    saveCharWalletByChatId(chatId, nextCharWallet);
+                    extra.transfer = normalizeTransferPayload({
+                        id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+                        amount: parsedTransfer.amount,
+                        note: parsedTransfer.note,
+                        createdAt: Date.now(),
+                        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                        senderType: 'char',
+                        senderUserId: String(getCurrentLineUserForWallet()?.id || '').trim(),
+                        status: 'pending',
+                        refunded: false,
+                        received: false
+                    });
+                }
                 if (isLast && spriteData) extra.sprite = spriteData;
                 if (isFirst && quoteData) extra.quote = quoteData;
                 if (messageItem.translationText) extra.translation = messageItem.translationText;
@@ -6261,6 +6458,7 @@ if (quoteMatch) {
     const voiceInputContent = document.getElementById('voice-input-content');
     const saveVoiceInputBtn = document.getElementById('save-voice-input-btn');
     const cameraActionBtn = document.getElementById('camera-action-btn');
+    const transferActionBtn = document.getElementById('transfer-action-btn');
     const cameraActionModal = document.getElementById('camera-action-modal');
     const closeCameraActionModalBtn = document.getElementById('close-camera-action-modal');
     const cameraInputBtn = document.getElementById('camera-input-btn');
@@ -6272,6 +6470,12 @@ if (quoteMatch) {
     const photoContentModal = document.getElementById('photo-content-modal');
     const closePhotoContentModalBtn = document.getElementById('close-photo-content-modal');
     const photoContentText = document.getElementById('photo-content-text');
+    const transferModal = document.getElementById('transfer-modal');
+    const closeTransferModalBtn = document.getElementById('close-transfer-modal');
+    const cancelTransferModalBtn = document.getElementById('cancel-transfer-modal');
+    const confirmTransferModalBtn = document.getElementById('confirm-transfer-modal');
+    const transferAmountInput = document.getElementById('transfer-amount-input');
+    const transferNoteInput = document.getElementById('transfer-note-input');
 
     // Context Menu & Multi-select Logic
     const contextMenu = document.getElementById('message-context-menu');
@@ -6290,6 +6494,7 @@ if (quoteMatch) {
     let activeStickerCategoryId = null;
     let isMultiSelectMode = false;
     const selectedMsgIds = new Set();
+    let transferExpiryTicker = null;
 
     function escapeHtml(value) {
         return String(value)
@@ -6298,6 +6503,217 @@ if (quoteMatch) {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    function normalizeTransferPayload(raw) {
+        const data = raw && typeof raw === 'object' ? raw : {};
+        const amount = Number(data.amount);
+        const createdAt = Number.isFinite(Number(data.createdAt)) ? Number(data.createdAt) : Date.now();
+        const expiresAt = Number.isFinite(Number(data.expiresAt)) ? Number(data.expiresAt) : (createdAt + 24 * 60 * 60 * 1000);
+        const statusRaw = String(data.status || 'pending').trim();
+        const allowedStatus = new Set(['pending', 'accepted', 'rejected', 'expired']);
+        return {
+            id: String(data.id || `transfer_${createdAt}_${Math.random().toString(16).slice(2)}`),
+            amount: Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : 0,
+            note: String(data.note || '').trim(),
+            createdAt,
+            expiresAt,
+            senderType: String(data.senderType || 'user').trim() === 'char' ? 'char' : 'user',
+            senderUserId: String(data.senderUserId || '').trim(),
+            status: allowedStatus.has(statusRaw) ? statusRaw : 'pending',
+            refunded: data.refunded === true,
+            received: data.received === true,
+            refundedAt: Number.isFinite(Number(data.refundedAt)) ? Number(data.refundedAt) : null,
+            receivedAt: Number.isFinite(Number(data.receivedAt)) ? Number(data.receivedAt) : null
+        };
+    }
+
+    function appendWalletBillItem(list, bill) {
+        const safe = Array.isArray(list) ? [...list] : [];
+        safe.unshift({
+            id: String(bill.id || `bill_${Date.now()}_${Math.random().toString(16).slice(2)}`),
+            merchant: String(bill.merchant || '').trim() || '账单',
+            desc: String(bill.desc || '').trim(),
+            amount: Number.isFinite(Number(bill.amount)) ? Number(bill.amount) : 0,
+            type: bill.type === 'income' ? 'income' : 'expense',
+            timestamp: Number.isFinite(Number(bill.timestamp)) ? Number(bill.timestamp) : Date.now()
+        });
+        return safe.slice(0, 80);
+    }
+
+    function getTransferStatusLabel(transfer) {
+        const status = String(transfer?.status || 'pending');
+        if (status === 'accepted') return '已收款';
+        if (status === 'rejected') return '已拒收，已退回';
+        if (status === 'expired') return '已超时，已退回';
+        return '待收款（24小时内）';
+    }
+
+    function renderTransferCardMarkup(role, transfer, msgId) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        const note = safeTransfer.note ? escapeHtml(safeTransfer.note) : '无备注';
+        const statusLabel = getTransferStatusLabel(safeTransfer);
+        const canOperate = safeTransfer.status === 'pending';
+        const title = safeTransfer.senderType === 'char'
+            ? (role === 'assistant' ? '来自 TA 的转账' : 'TA 向你转账')
+            : (role === 'user' ? '转账给 TA' : '来自 User 的转账');
+        return `
+            <div class="transfer-card" data-transfer-card="1" data-transfer-id="${escapeHtml(safeTransfer.id)}">
+                <div class="transfer-card-title">${title}</div>
+                <div class="transfer-card-amount">¥${safeTransfer.amount.toFixed(2)}</div>
+                <div class="transfer-card-note">备注：${note}</div>
+                <div class="transfer-card-status">${statusLabel}</div>
+                ${canOperate ? `
+                    <div class="transfer-card-actions">
+                        <button class="transfer-card-btn receive" type="button" data-transfer-action="receive" data-msg-id="${escapeHtml(msgId)}">收款</button>
+                        <button class="transfer-card-btn reject" type="button" data-transfer-action="reject" data-msg-id="${escapeHtml(msgId)}">拒绝收款</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    function closeTransferModal() {
+        if (!transferModal) return;
+        transferModal.style.display = 'none';
+    }
+
+    function openTransferModal() {
+        if (!transferModal || !transferAmountInput || !transferNoteInput) return;
+        transferAmountInput.value = '';
+        transferNoteInput.value = '';
+        transferModal.style.display = 'flex';
+        setTimeout(() => transferAmountInput.focus(), 0);
+    }
+
+    function refundTransferToUserWallet(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.refunded || safeTransfer.amount <= 0) return safeTransfer;
+        const senderUserId = safeTransfer.senderUserId || String(getCurrentLineUserForWallet()?.id || '').trim();
+        if (!senderUserId) return safeTransfer;
+        const senderWallet = readLineWalletByUserId(senderUserId);
+        const amount = safeTransfer.amount;
+        const nextSenderWallet = {
+            ...senderWallet,
+            balance: Number((Number(senderWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(senderWallet.bills, {
+                merchant: '转账退回',
+                desc: reasonText || `来自 ${getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA'} 的退回`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveLineWalletByUserId(senderUserId, nextSenderWallet);
+        safeTransfer.refunded = true;
+        safeTransfer.refundedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function receiveTransferToCharWallet(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.received || safeTransfer.amount <= 0) return safeTransfer;
+        const charWallet = readCharWalletByChatId(chatId);
+        const amount = safeTransfer.amount;
+        const nextCharWallet = {
+            ...charWallet,
+            balance: Number((Number(charWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(charWallet.bills, {
+                merchant: '转账收款',
+                desc: `来自 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')}`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveCharWalletByChatId(chatId, nextCharWallet);
+        safeTransfer.received = true;
+        safeTransfer.receivedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function refundTransferToCharWallet(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.refunded || safeTransfer.amount <= 0) return safeTransfer;
+        const charWallet = readCharWalletByChatId(chatId);
+        const amount = safeTransfer.amount;
+        const nextCharWallet = {
+            ...charWallet,
+            balance: Number((Number(charWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(charWallet.bills, {
+                merchant: '转账退回',
+                desc: reasonText || '转账退回',
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveCharWalletByChatId(chatId, nextCharWallet);
+        safeTransfer.refunded = true;
+        safeTransfer.refundedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function receiveTransferToUserWallet(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.received || safeTransfer.amount <= 0) return safeTransfer;
+        const currentUser = getCurrentLineUserForWallet();
+        if (!currentUser || !currentUser.id) return safeTransfer;
+        const userWallet = readLineWalletByUserId(currentUser.id);
+        const amount = safeTransfer.amount;
+        const nextUserWallet = {
+            ...userWallet,
+            balance: Number((Number(userWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(userWallet.bills, {
+                merchant: '转账收款',
+                desc: `来自 ${getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA'}`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveLineWalletByUserId(currentUser.id, nextUserWallet);
+        safeTransfer.received = true;
+        safeTransfer.receivedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function refundTransferBySender(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.senderType === 'char') {
+            return refundTransferToCharWallet(chatId, safeTransfer, reasonText);
+        }
+        return refundTransferToUserWallet(chatId, safeTransfer, reasonText);
+    }
+
+    function receiveTransferBySender(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.senderType === 'char') {
+            return receiveTransferToUserWallet(chatId, safeTransfer);
+        }
+        return receiveTransferToCharWallet(chatId, safeTransfer);
+    }
+
+    function processTransferExpiry(chatId) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return false;
+        const now = Date.now();
+        let changed = false;
+        for (let i = 0; i < history.length; i += 1) {
+            const msg = history[i];
+            if (!msg || !msg.transfer) continue;
+            const transfer = normalizeTransferPayload(msg.transfer);
+            if (transfer.status !== 'pending') continue;
+            if (now < transfer.expiresAt) continue;
+            transfer.status = 'expired';
+            const refundedTransfer = refundTransferBySender(chatId, transfer, '24小时未收款，自动退回');
+            history[i] = { ...msg, transfer: refundedTransfer };
+            changed = true;
+        }
+        if (changed) {
+            persistChatHistory(chatId, history);
+        }
+        return changed;
     }
 
     function closeStickerMenu() {
@@ -6685,6 +7101,39 @@ if (quoteMatch) {
 
     if (chatContent) {
         chatContent.addEventListener('click', (e) => {
+            const transferActionEl = e.target.closest('[data-transfer-action]');
+            if (transferActionEl && chatContent.contains(transferActionEl)) {
+                if (isMultiSelectMode) return;
+                const action = String(transferActionEl.getAttribute('data-transfer-action') || '').trim();
+                const msgId = String(transferActionEl.getAttribute('data-msg-id') || '').trim();
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+                if (!action || !msgId || !chatId) return;
+                const history = largeStore.get('chat_history_' + chatId, []);
+                if (!Array.isArray(history) || history.length === 0) return;
+                const targetIndex = history.findIndex((msg) => msg && msg.id === msgId && msg.transfer);
+                if (targetIndex < 0) return;
+                const targetMsg = history[targetIndex];
+                const transfer = normalizeTransferPayload(targetMsg.transfer);
+                if (transfer.status !== 'pending') return;
+
+                if (action === 'receive') {
+                    transfer.status = 'accepted';
+                    const receivedTransfer = receiveTransferBySender(chatId, transfer);
+                    history[targetIndex] = { ...targetMsg, transfer: receivedTransfer };
+                } else if (action === 'reject') {
+                    transfer.status = 'rejected';
+                    const refundedTransfer = refundTransferBySender(chatId, transfer, '对方拒绝收款，已退回');
+                    history[targetIndex] = { ...targetMsg, transfer: refundedTransfer };
+                } else {
+                    return;
+                }
+
+                persistChatHistory(chatId, history);
+                loadChatHistory(chatId);
+                refreshChatListPreviewFor(chatId);
+                return;
+            }
+
             const photoTarget = e.target.closest('.camera-photo-placeholder');
             if (photoTarget && chatContent.contains(photoTarget)) {
                 if (isMultiSelectMode) return;
@@ -6823,6 +7272,91 @@ if (quoteMatch) {
             }
             closeStickerMenu();
             cameraActionModal.style.display = 'flex';
+        });
+    }
+
+    if (transferActionBtn) {
+        transferActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            openTransferModal();
+        });
+    }
+
+    if (closeTransferModalBtn) {
+        closeTransferModalBtn.addEventListener('click', closeTransferModal);
+    }
+
+    if (cancelTransferModalBtn) {
+        cancelTransferModalBtn.addEventListener('click', closeTransferModal);
+    }
+
+    if (transferModal) {
+        transferModal.addEventListener('click', (e) => {
+            if (e.target === transferModal) {
+                closeTransferModal();
+            }
+        });
+    }
+
+    if (confirmTransferModalBtn) {
+        confirmTransferModalBtn.addEventListener('click', () => {
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const currentUser = getCurrentLineUserForWallet();
+            if (!chatId) return;
+            if (!currentUser || !currentUser.id) {
+                alert('请先在 LINE 首页设置 User');
+                return;
+            }
+            const amount = Number(String(transferAmountInput?.value || '').trim());
+            const note = String(transferNoteInput?.value || '').trim();
+            if (!Number.isFinite(amount) || amount <= 0) {
+                alert('请输入有效金额');
+                return;
+            }
+            const normalizedAmount = Number(amount.toFixed(2));
+            const targetName = getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA';
+            const userWallet = readLineWalletByUserId(currentUser.id);
+            if (Number(userWallet.balance || 0) < normalizedAmount) {
+                alert('余额不足');
+                return;
+            }
+            const nextUserWallet = {
+                ...userWallet,
+                balance: Number((Number(userWallet.balance || 0) - normalizedAmount).toFixed(2)),
+                bills: appendWalletBillItem(userWallet.bills, {
+                    merchant: '转账支出',
+                    desc: `向 ${targetName} 转账${note ? `（${note}）` : ''}`,
+                    amount: normalizedAmount,
+                    type: 'expense',
+                    timestamp: Date.now()
+                })
+            };
+            saveLineWalletByUserId(currentUser.id, nextUserWallet);
+
+            const transferPayload = normalizeTransferPayload({
+                id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+                amount: normalizedAmount,
+                note,
+                createdAt: Date.now(),
+                expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                senderType: 'user',
+                senderUserId: currentUser.id,
+                status: 'pending',
+                refunded: false,
+                received: false
+            });
+            const extra = {
+                ...(pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {}),
+                transfer: transferPayload
+            };
+            const transferText = `[转账] ¥${normalizedAmount.toFixed(2)}`;
+            const newMsg = saveMessage(chatId, 'user', transferText, extra);
+            appendMessageToUI('user', transferText, newMsg.time, chatId, newMsg.id, newMsg);
+            clearPendingQuote();
+            closeTransferModal();
         });
     }
 
@@ -7061,6 +7595,17 @@ if (quoteMatch) {
         ensurePhoneLockDataAsync(chatId).catch(() => {});
     }
 
+    if (!transferExpiryTicker) {
+        transferExpiryTicker = setInterval(() => {
+            const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            if (!currentChatId || !isChatRoomOpenFor(currentChatId)) return;
+            const changed = processTransferExpiry(currentChatId);
+            if (!changed) return;
+            loadChatHistory(currentChatId);
+            refreshChatListPreviewFor(currentChatId);
+        }, 30000);
+    }
+
     // 绑定事件委托，处理聊天列表点击（包括动态添加的项）
     if (chatList) {
         chatList.addEventListener('click', (e) => {
@@ -7083,6 +7628,7 @@ if (quoteMatch) {
             clearChatTheme();
             exitMultiSelectMode();
             closeStickerMenu();
+            closeTransferModal();
             clearPendingQuote();
         });
     }
