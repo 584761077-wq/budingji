@@ -4500,31 +4500,22 @@ async function requestMemoryDiarySummary(chatId, messages) {
     const summaryTimeTitle = buildSummaryTimeTitle(messages);
 
     const prompt = `
-你不是在写普通聊天摘要，而是在为角色长期记忆提炼“未来必须记住的信息”。
+作为${realName}，为了保证我们之间的点滴不被遗忘（绝对不能失忆！），你需要对这段聊天记录进行详细、精准的总结。
 
-请根据下面的聊天记录，只保留对未来互动真正重要的内容，重点提炼：
-- 双方关系的变化与推进
-- 重要事件、冲突、安慰、和好、承诺、约定
-- ${userName}或${realName}明确表现出的偏好、习惯、边界、雷点、称呼方式
-- 对后续互动有影响的情绪变化、在意点和依赖感
-- 会影响后续剧情和角色连续性的关键信息
+请以${realName}的第一人称视角，详细记录这段上下文中发生的所有重要细节。在记录时，必须直接称呼对方的名字（即 ${userName}）。
 
-请忽略：
-- 普通寒暄
-- 重复表达
-- 没有长期意义的碎片内容
-- 空泛的总结套话
+重点记录以下内容：
+1. 详细上下文：我们具体聊了什么话题，发生了什么事，做出了什么约定或承诺。
+2. 喜恶与习惯：${userName}表现出了什么新的偏好、习惯、雷点或明确的喜恶？（任何关于${userName}的喜恶细节必须精准详细记录，绝不能遗漏！）
+3. 关系与情感：我们的关系有什么进展？我对${userName}的情感有什么变化，或者我在意的地方和依赖感。
+4. 其他任何有助于你保持对${userName}完整记忆的重要细节。
 
 输出要求：
 第一行必须是：${summaryTimeTitle}
-第二行开始写正文。
-直接输出整理后的记忆内容，不要标题，不要分点。
-语言自然、简洁、具体。
-不要写成流水账，也不要写“双方聊到了”“这段对话中”。
-优先写清楚“发生了什么、关系怎么变化、以后该记住什么”。
-避免“感情升温”“聊天愉快”这类空话。
-正文控制在100-200字。
-如果没有值得保留的长期信息，只输出：无重要长期记忆
+第二行开始直接写正文。
+请用自然、真实、符合你人设的口吻来详细叙述，不要分点，不要带标题。
+必须围绕上下文给出精准详细的总结，只要有对话就必须记录下我们交流的核心内容。
+最重要的是详细且不失忆。
 
 参考资料：
 你的人设：${charPersona || '无'}
@@ -4564,6 +4555,7 @@ ${chatText}
 
 async function createMemoryDiaryEntry(chatId, messages) {
     const content = await requestMemoryDiarySummary(chatId, messages);
+    
     const diaries = getMemoryDiaries(chatId);
     diaries.push({
         id: crypto.randomUUID(),
@@ -4573,6 +4565,7 @@ async function createMemoryDiaryEntry(chatId, messages) {
     setMemoryDiaries(chatId, diaries);
     syncMemoryLongTerm(chatId);
     largeStore.put('chat_summary_' + chatId, content);
+    
     return content;
 }
 
@@ -5204,11 +5197,20 @@ function initChatRoomLogic() {
 
         const msgRow = document.createElement('div');
         const quote = extra && extra.quote ? extra.quote : null;
-        msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
-        if (quote) msgRow.classList.add('has-quote');
-        msgRow.dataset.id = id;
-        msgRow.dataset.time = String(timeStr || '');
-        msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
+        
+        if (role === 'system') {
+            msgRow.className = 'message-row system-message';
+            msgRow.dataset.id = id;
+            msgRow.dataset.time = String(timeStr || '');
+            msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
+            msgRow.innerHTML = `<div class="system-message-content">${escapeHtml(content)}</div>`;
+        } else {
+            msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
+            if (quote) msgRow.classList.add('has-quote');
+            msgRow.dataset.id = id;
+            msgRow.dataset.time = String(timeStr || '');
+            msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
+        }
         const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
         const isCameraPlaceholder = typeof content === 'string' && content.includes('camera-photo-placeholder');
         const transferData = extra && extra.transfer ? normalizeTransferPayload(extra.transfer) : null;
@@ -5279,20 +5281,22 @@ function initChatRoomLogic() {
             ? `<div class="message-special">${bubbleContent}</div>`
             : `<div class="${bubbleClasses}">${bubbleContent}</div>`;
 
-        msgRow.innerHTML = `
-            <div class="message-avatar">${avatarContent}</div>
-            <div class="message-container">
-                <div class="message-main">
-                    ${bubbleMarkup}
-                    ${translationHtml}
-                    ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
+        if (role !== 'system') {
+            msgRow.innerHTML = `
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-container">
+                    <div class="message-main">
+                        ${bubbleMarkup}
+                        ${translationHtml}
+                        ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
+                    </div>
+                    <div class="message-meta-info">
+                        ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
+                        <div class="meta-time">${timeStr}</div>
+                    </div>
                 </div>
-                <div class="message-meta-info">
-                    ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
-                    <div class="meta-time">${timeStr}</div>
-                </div>
-            </div>
-        `;
+            `;
+        }
         
         // 双语模式：点击气泡显示/隐藏翻译
         if (translationText) {
@@ -5538,7 +5542,7 @@ function initChatRoomLogic() {
     if (!Array.isArray(messages) || messages.length === 0) return '';
 
     const parts = messages.map((msg) => {
-        if (!msg || msg.role !== 'user') return '';
+        if (!msg || (msg.role !== 'user' && msg.role !== 'system')) return '';
 
         const blocks = [];
         const quote = msg.quote || (msg.extra && msg.extra.quote) || null;
@@ -5903,7 +5907,7 @@ function initChatRoomLogic() {
             const currentTurnMessages = lastAssistantIndex >= 0
                 ? fullHistory.slice(lastAssistantIndex + 1)
                 : fullHistory.slice();
-            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && msg.role === 'user');
+            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && (msg.role === 'user' || msg.role === 'system'));
             const currentTurn = currentTurnUserMessages.length > 0
                 ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
                 : null;
@@ -5989,7 +5993,7 @@ ${timeGapPrompt}
             const historyCandidates = lastAssistantIndex >= 0 ? fullHistory.slice(0, lastAssistantIndex + 1) : [];
             const contextHistory = historyCandidates.slice(Math.max(0, historyCandidates.length - limit));
             const contextText = contextHistory.map(msg => {
-                const speaker = msg.role === 'assistant' ? realName : userName;
+                const speaker = msg.role === 'assistant' ? realName : (msg.role === 'system' ? '系统/旁白' : userName);
                 return formatHistoryMessageForModel(msg, speaker);
             }).join('\n');
             const pendingIncomingTransfersPrompt = buildPendingIncomingTransfersPromptForChar(chatId);
@@ -6502,16 +6506,12 @@ if (quoteMatch) {
     const closeVoiceInputModalBtn = document.getElementById('close-voice-input-modal');
     const voiceInputContent = document.getElementById('voice-input-content');
     const saveVoiceInputBtn = document.getElementById('save-voice-input-btn');
-    const cameraActionBtn = document.getElementById('camera-action-btn');
+    const systemMessageBtn = document.getElementById('system-message-btn');
     const transferActionBtn = document.getElementById('transfer-action-btn');
-    const cameraActionModal = document.getElementById('camera-action-modal');
-    const closeCameraActionModalBtn = document.getElementById('close-camera-action-modal');
-    const cameraInputBtn = document.getElementById('camera-input-btn');
-    const cameraCaptureBtn = document.getElementById('camera-capture-btn');
-    const cameraInputModal = document.getElementById('camera-input-modal');
-    const closeCameraInputModalBtn = document.getElementById('close-camera-input-modal');
-    const cameraInputContent = document.getElementById('camera-input-content');
-    const saveCameraInputBtn = document.getElementById('save-camera-input-btn');
+    const systemMessageModal = document.getElementById('system-message-modal');
+    const closeSystemMessageModalBtn = document.getElementById('close-system-message-modal');
+    const systemMessageContent = document.getElementById('system-message-content');
+    const saveSystemMessageBtn = document.getElementById('save-system-message-btn');
     const photoContentModal = document.getElementById('photo-content-modal');
     const closePhotoContentModalBtn = document.getElementById('close-photo-content-modal');
     const photoContentText = document.getElementById('photo-content-text');
@@ -6897,15 +6897,9 @@ if (quoteMatch) {
         }
     }
 
-    function closeCameraActionModal() {
-        if (cameraActionModal) {
-            cameraActionModal.style.display = 'none';
-        }
-    }
-
-    function closeCameraInputModal() {
-        if (cameraInputModal) {
-            cameraInputModal.style.display = 'none';
+    function closeSystemMessageModal() {
+        if (systemMessageModal) {
+            systemMessageModal.style.display = 'none';
         }
     }
 
@@ -6960,18 +6954,13 @@ if (quoteMatch) {
         return Math.max(1, Math.min(60, byLength));
     }
 
-    function buildCameraPlaceholderHtml(text) {
-        const safeText = escapeHtml(text);
-        return `<div class="camera-photo-placeholder" data-photo-text="${safeText}"><div class="camera-photo-icon"></div><div class="camera-photo-label">照片</div></div>`;
-    }
-
-    function sendCameraMessage(text) {
+    function sendSystemMessage(text) {
         const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
-        const content = buildCameraPlaceholderHtml(text);
-        const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
-        const newMsg = saveMessage(chatId, 'user', content, extra);
-        appendMessageToUI('user', content, newMsg.time, chatId, newMsg.id, newMsg);
-        clearPendingQuote();
+        const newMsg = saveMessage(chatId, 'system', text, {});
+        appendMessageToUI('system', text, newMsg.time, chatId, newMsg.id, newMsg);
+        
+        // Trigger assistant reply because the char should read this message
+        triggerAssistantReply();
     }
 
     function getAvailableStickerCategories(chatId) {
@@ -7405,13 +7394,13 @@ if (quoteMatch) {
         });
     }
 
-    if (cameraActionBtn && cameraActionModal) {
-        cameraActionBtn.addEventListener('click', () => {
+    if (systemMessageBtn && systemMessageModal) {
+        systemMessageBtn.addEventListener('click', () => {
             if (menu) {
                 menu.style.display = 'none';
             }
             closeStickerMenu();
-            cameraActionModal.style.display = 'flex';
+            systemMessageModal.style.display = 'flex';
         });
     }
 
@@ -7541,38 +7530,17 @@ if (quoteMatch) {
         });
     }
 
-    if (closeCameraActionModalBtn) {
-        closeCameraActionModalBtn.addEventListener('click', () => {
-            closeCameraActionModal();
+    if (closeSystemMessageModalBtn) {
+        closeSystemMessageModalBtn.addEventListener('click', () => {
+            closeSystemMessageModal();
         });
     }
 
-    if (cameraActionModal) {
-        cameraActionModal.addEventListener('click', (e) => {
-            if (e.target === cameraActionModal) {
-                closeCameraActionModal();
+    if (systemMessageModal) {
+        systemMessageModal.addEventListener('click', (e) => {
+            if (e.target === systemMessageModal) {
+                closeSystemMessageModal();
             }
-        });
-    }
-
-    if (cameraInputBtn) {
-        cameraInputBtn.addEventListener('click', () => {
-            closeCameraActionModal();
-            if (cameraInputModal) {
-                cameraInputModal.style.display = 'flex';
-                setTimeout(() => {
-                    if (cameraInputContent) {
-                        cameraInputContent.focus();
-                    }
-                }, 0);
-            }
-        });
-    }
-
-    if (cameraCaptureBtn) {
-        cameraCaptureBtn.addEventListener('click', () => {
-            closeCameraActionModal();
-            sendCameraMessage('拍照内容');
         });
     }
 
@@ -7617,27 +7585,7 @@ if (quoteMatch) {
         });
     }
 
-    if (closeCameraInputModalBtn) {
-        closeCameraInputModalBtn.addEventListener('click', () => {
-            closeCameraInputModal();
-        });
-    }
 
-    if (voiceInputModal) {
-        voiceInputModal.addEventListener('click', (e) => {
-            if (e.target === voiceInputModal) {
-                closeVoiceInputModal();
-            }
-        });
-    }
-
-    if (cameraInputModal) {
-        cameraInputModal.addEventListener('click', (e) => {
-            if (e.target === cameraInputModal) {
-                closeCameraInputModal();
-            }
-        });
-    }
 
     if (photoContentModal) {
         photoContentModal.addEventListener('click', (e) => {
@@ -7681,18 +7629,18 @@ if (quoteMatch) {
         });
     }
 
-    if (saveCameraInputBtn) {
-        saveCameraInputBtn.addEventListener('click', () => {
-            const rawText = cameraInputContent ? cameraInputContent.value.trim() : '';
+    if (saveSystemMessageBtn) {
+        saveSystemMessageBtn.addEventListener('click', () => {
+            const rawText = systemMessageContent ? systemMessageContent.value.trim() : '';
             if (!rawText) {
-                alert('请输入照片内容');
+                alert('请输入旁白/系统消息内容');
                 return;
             }
-            sendCameraMessage(rawText);
-            if (cameraInputContent) {
-                cameraInputContent.value = '';
+            sendSystemMessage(rawText);
+            if (systemMessageContent) {
+                systemMessageContent.value = '';
             }
-            closeCameraInputModal();
+            closeSystemMessageModal();
         });
     }
 
