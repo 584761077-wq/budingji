@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
