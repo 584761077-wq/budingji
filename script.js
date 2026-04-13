@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.7';
+const APP_VERSION = '1.1.8';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -5728,6 +5728,17 @@ function initChatRoomLogic() {
         return {
             text: content || '无描述'
         };
+    }
+
+    function buildCameraPlaceholderHtml(rawText) {
+        const text = String(rawText || '').trim();
+        const safeText = escapeHtml(text || '无描述');
+        return `
+            <div class="camera-photo-placeholder" data-photo-text="${safeText}" title="点击查看图片内容">
+                <div class="camera-photo-icon"></div>
+                <div class="camera-photo-label">图片</div>
+            </div>
+        `;
     }
 
     function parseAssistantTransferMessage(rawText) {
