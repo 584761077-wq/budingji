@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -4149,10 +4149,26 @@ function initChatRoomLogic() {
     if (inputField && chatRoomFooter) {
         inputField.addEventListener('focus', () => {
             chatRoomFooter.classList.add('keyboard-open');
+            setTimeout(() => {
+                if (chatContent) chatContent.scrollTop = chatContent.scrollHeight;
+            }, 100);
         });
         inputField.addEventListener('blur', () => {
             chatRoomFooter.classList.remove('keyboard-open');
         });
+    }
+
+    // 修复 iOS PWA 唤起键盘后底部空白问题
+    if (window.visualViewport) {
+        const updateChatRoomLayout = () => {
+            if (chatRoom && chatRoom.style.display !== 'none') {
+                chatRoom.style.height = window.visualViewport.height + 'px';
+                chatRoom.style.top = window.visualViewport.offsetTop + 'px';
+                if (chatContent) chatContent.scrollTop = chatContent.scrollHeight;
+            }
+        };
+        window.visualViewport.addEventListener('resize', updateChatRoomLayout);
+        window.visualViewport.addEventListener('scroll', updateChatRoomLayout);
     }
 
     // 聊天状态管理
