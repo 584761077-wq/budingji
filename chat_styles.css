@@ -92,15 +92,33 @@
     width: 40px; /* Fixed width for alignment */
 }
 
-.chat-room-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1d1d1f;
+.chat-room-title-wrap {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     text-align: center;
-    width: 60%; /* Limit width to prevent overlap */
+    width: 62%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.chat-room-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-timezone-indicator {
+    font-size: 0.68rem;
+    color: #6e6e73;
+    line-height: 1.2;
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -446,6 +464,38 @@
     margin-bottom: 12px; /* Reduced margin */
     gap: 8px;
     width: 100%;
+}
+
+/* Specific alignments for special messages */
+.message-row:has(.message-special),
+.message-row:has(.sticker-bubble),
+.message-row:has(.chat-inline-local-image),
+.message-row:has(.chat-inline-sticker) {
+    align-items: flex-start;
+}
+
+.message-row:has(.message-special) .message-container,
+.message-row:has(.sticker-bubble) .message-container,
+.message-row:has(.chat-inline-local-image) .message-container,
+.message-row:has(.chat-inline-sticker) .message-container {
+    align-items: flex-start;
+}
+
+/* Ensure meta-info (time/read status) stays at bottom of bubble */
+.message-row:has(.message-special) .message-container,
+.message-row:has(.sticker-bubble) .message-container,
+.message-row:has(.chat-inline-local-image) .message-container,
+.message-row:has(.chat-inline-sticker) .message-container {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+.message-row.right:has(.message-special) .message-container,
+.message-row.right:has(.sticker-bubble) .message-container,
+.message-row.right:has(.chat-inline-local-image) .message-container,
+.message-row.right:has(.chat-inline-sticker) .message-container {
+    flex-direction: row-reverse;
 }
 
 /* System Message Styles */
@@ -1393,20 +1443,17 @@
 }
 
 .transfer-card {
-    width: 232px;
-    min-width: 232px;
-    max-width: 232px;
-    height: 126px;
-    min-height: 126px;
-    max-height: 126px;
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
     box-sizing: border-box;
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 18px;
+    padding: 16px 16px 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    justify-content: space-between;
-    border: 1px solid rgba(0, 0, 0, 0.14);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    text-align: left;
 }
 
 .transfer-card.is-operable {
@@ -1417,47 +1464,91 @@
     transform: scale(0.99);
 }
 
-.message-row.right .transfer-card {
-    background: #ffffff;
-    color: #1d1d1f;
-}
-
+.message-row.right .transfer-card,
 .message-row.left .transfer-card {
-    background: #1d1d1f;
-    color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.18);
+    background: #ffffff;
+    color: #111111;
+    border-color: rgba(0, 0, 0, 0.08);
 }
 
 .message-row.right .transfer-card.sender-char,
 .message-row.left .transfer-card.sender-char {
-    background: #e5e5ea;
-    color: #1d1d1f;
-    border-color: #d1d1d6;
+    background: #ffffff;
+    color: #111111;
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+.transfer-card-header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.transfer-card-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.transfer-card-icon svg {
+    width: 36px;
+    height: 36px;
+}
+
+.transfer-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .transfer-card-title {
-    font-size: 0.76rem;
-    opacity: 0.88;
+    font-size: 0.85rem;
+    color: #888888;
+    line-height: 1.2;
 }
 
 .transfer-card-amount {
-    font-size: 1.02rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.2;
+    color: #111111;
 }
 
 .transfer-card-note {
-    font-size: 0.78rem;
-    opacity: 0.85;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    color: #111111;
+    margin-top: 12px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.transfer-card-divider {
+    height: 1px;
+    background-color: rgba(0, 0, 0, 0.06);
+    margin: 14px 0 10px 0;
+    width: 100%;
+}
+
+.transfer-card-footer {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.transfer-card-brand {
+    font-size: 0.75rem;
+    color: #888888;
+    font-weight: 600;
 }
 
 .transfer-card-status {
-    font-size: 0.72rem;
-    opacity: 0.9;
+    font-size: 0.75rem;
+    color: #888888;
 }
 
 #transfer-decision-amount {

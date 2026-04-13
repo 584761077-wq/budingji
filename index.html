@@ -957,7 +957,10 @@
                             <button class="chat-back-btn" id="chat-room-back">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
                             </button>
-                            <span class="chat-room-name" id="chat-room-name">Chat Name</span>
+                            <div class="chat-room-title-wrap">
+                                <span class="chat-room-name" id="chat-room-name">Chat Name</span>
+                                <div class="chat-timezone-indicator" id="chat-timezone-indicator" style="display: none;"></div>
+                            </div>
                             <div class="header-right">
                                 <!-- 电话图标 -->
                                 <button class="header-icon-btn">
@@ -1566,6 +1569,32 @@
                                 <input type="checkbox" id="time-sync-toggle">
                                 <span class="slider round"></span>
                             </label>
+                        </div>
+                        <div class="memory-limit-row toggle-group">
+                            <label for="time-zone-sync-toggle">双方地点时区</label>
+                            <label class="switch">
+                                <input type="checkbox" id="time-zone-sync-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="time-zone-settings-body" id="time-zone-settings-body" style="display: none;">
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="user-city-input">我的城市</label>
+                                <input type="text" id="user-city-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：上海">
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="user-timezone-select">我的时区</label>
+                                <select id="user-timezone-select" class="candy-input memory-limit-input time-zone-select"></select>
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="char-city-input">TA 的城市</label>
+                                <input type="text" id="char-city-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：纽约">
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="char-timezone-select">TA 的时区</label>
+                                <select id="char-timezone-select" class="candy-input memory-limit-input time-zone-select"></select>
+                            </div>
+                            <div class="time-zone-preview" id="time-zone-preview">开启后将显示双方当前时间与时差。</div>
                         </div>
                     </div>
                 </div>

@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.6';
+const APP_VERSION = '1.1.7';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -2639,6 +2639,11 @@ ${persona || '无'}
         localStorage.removeItem(getSummaryLimitKey(normalized));
         localStorage.removeItem(getAutoSummaryEnabledKey(normalized));
         localStorage.removeItem(getTimeSyncEnabledKey(normalized));
+        localStorage.removeItem(getTimeZoneSyncEnabledKey(normalized));
+        localStorage.removeItem(getUserTimeZoneKey(normalized));
+        localStorage.removeItem(getCharTimeZoneKey(normalized));
+        localStorage.removeItem(getUserCityKey(normalized));
+        localStorage.removeItem(getCharCityKey(normalized));
         localStorage.removeItem(getSummaryCursorKey(normalized));
         localStorage.removeItem(getUnreadCountKey(normalized));
         localStorage.removeItem(getChatWallpaperStorageKey(normalized));
@@ -4282,6 +4287,26 @@ function getTimeSyncEnabledKey(chatId) {
     return `chat_time_sync_${chatId}`;
 }
 
+function getTimeZoneSyncEnabledKey(chatId) {
+    return `chat_time_zone_sync_${chatId}`;
+}
+
+function getUserTimeZoneKey(chatId) {
+    return `chat_user_time_zone_${chatId}`;
+}
+
+function getCharTimeZoneKey(chatId) {
+    return `chat_char_time_zone_${chatId}`;
+}
+
+function getUserCityKey(chatId) {
+    return `chat_user_city_${chatId}`;
+}
+
+function getCharCityKey(chatId) {
+    return `chat_char_city_${chatId}`;
+}
+
 function getSummaryCursorKey(chatId) {
     return `chat_summary_cursor_${chatId}`;
 }
@@ -4314,6 +4339,119 @@ function normalizeSummaryTimestamp(rawTs) {
     const value = Number(rawTs);
     if (!Number.isFinite(value)) return null;
     return value > 1e12 ? value : value * 1000;
+}
+
+function getDefaultTimeZone() {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+    } catch (_) {
+        return 'Asia/Shanghai';
+    }
+}
+
+function isValidTimeZone(tz) {
+    const zone = String(tz || '').trim();
+    if (!zone) return false;
+    try {
+        Intl.DateTimeFormat('zh-CN', { timeZone: zone }).format(new Date());
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+function normalizeTimeZone(tz, fallback) {
+    const safeFallback = isValidTimeZone(fallback) ? fallback : getDefaultTimeZone();
+    return isValidTimeZone(tz) ? String(tz).trim() : safeFallback;
+}
+
+function readTimeZoneConfig(chatId) {
+    const defaultTz = getDefaultTimeZone();
+    const userTimeZone = normalizeTimeZone(localStorage.getItem(getUserTimeZoneKey(chatId)), defaultTz);
+    const charTimeZone = normalizeTimeZone(localStorage.getItem(getCharTimeZoneKey(chatId)), defaultTz);
+    const userCity = String(localStorage.getItem(getUserCityKey(chatId)) || '').trim();
+    const charCity = String(localStorage.getItem(getCharCityKey(chatId)) || '').trim();
+    const enabled = localStorage.getItem(getTimeZoneSyncEnabledKey(chatId)) === 'true';
+    return { enabled, userTimeZone, charTimeZone, userCity, charCity };
+}
+
+function formatTimeInZone(timeZone, date = new Date()) {
+    const safeZone = normalizeTimeZone(timeZone, getDefaultTimeZone());
+    return new Intl.DateTimeFormat('zh-CN', {
+        timeZone: safeZone,
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(date);
+}
+
+function getTimeZoneOffsetMinutes(timeZone, date = new Date()) {
+    const safeZone = normalizeTimeZone(timeZone, getDefaultTimeZone());
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: safeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).formatToParts(date);
+    const get = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+    const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+    return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+function getPeriodLabelByHour(hour) {
+    if (hour >= 0 && hour < 5) return '深夜';
+    if (hour < 8) return '清晨';
+    if (hour < 12) return '上午';
+    if (hour < 14) return '中午';
+    if (hour < 18) return '下午';
+    if (hour < 22) return '晚上';
+    return '夜间';
+}
+
+function buildTimeZoneComputedData(chatId, date = new Date()) {
+    const cfg = readTimeZoneConfig(chatId);
+    const userOffset = getTimeZoneOffsetMinutes(cfg.userTimeZone, date);
+    const charOffset = getTimeZoneOffsetMinutes(cfg.charTimeZone, date);
+    const diffHours = (charOffset - userOffset) / 60;
+    const charTime = formatTimeInZone(cfg.charTimeZone, date);
+    const userTime = formatTimeInZone(cfg.userTimeZone, date);
+    const charHour = Number(new Intl.DateTimeFormat('en-US', {
+        timeZone: cfg.charTimeZone,
+        hour12: false,
+        hour: '2-digit'
+    }).format(date));
+    return {
+        ...cfg,
+        userTime,
+        charTime,
+        diffHours,
+        diffLabel: `${diffHours >= 0 ? '+' : ''}${diffHours}h`,
+        charPeriod: getPeriodLabelByHour(charHour)
+    };
+}
+
+function updateChatTimeZoneIndicator(chatId) {
+    const indicatorEl = document.getElementById('chat-timezone-indicator');
+    if (!indicatorEl) return;
+    const safeChatId = String(chatId || '').trim();
+    if (!safeChatId) {
+        indicatorEl.style.display = 'none';
+        indicatorEl.textContent = '';
+        return;
+    }
+    const data = buildTimeZoneComputedData(safeChatId);
+    if (!data.enabled) {
+        indicatorEl.style.display = 'none';
+        indicatorEl.textContent = '';
+        return;
+    }
+    const charLabel = data.charCity || 'TA';
+    indicatorEl.textContent = `${charLabel} ${data.charTime} (${data.diffLabel})`;
+    indicatorEl.style.display = 'block';
 }
 
 function formatSummaryDateTime(ts) {
@@ -4723,6 +4861,7 @@ function initChatRoomLogic() {
     const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
     const sendBtn = document.getElementById('trigger-ai-btn');
     const chatContent = document.querySelector('.chat-room-content');
+    const chatTimezoneIndicator = document.getElementById('chat-timezone-indicator');
     const replyPreview = document.getElementById('chat-reply-preview');
     const replyPreviewText = document.getElementById('chat-reply-preview-text');
     const replyPreviewClose = document.getElementById('chat-reply-preview-close');
@@ -5552,7 +5691,12 @@ function initChatRoomLogic() {
             blocks.push(`引用内容：${String(quote.text).trim()}`);
         }
 
-        blocks.push(formatTurnInputForModel(msg));
+        const turnText = formatTurnInputForModel(msg);
+        if (msg.role === 'system') {
+            blocks.push(`[系统/旁白消息]\n${turnText}`);
+        } else {
+            blocks.push(turnText);
+        }
 
         return blocks.filter(Boolean).join('\n');
     }).map((text) => String(text || '').trim()).filter(Boolean);
@@ -5957,6 +6101,18 @@ ${timeGapPrompt}
 `
                 : '';
 
+            const timeZoneData = buildTimeZoneComputedData(chatId, now);
+            const timeZonePrompt = timeZoneData.enabled
+                ? `
+[双方地点时区]
+${timeZoneData.userCity || userName}：${timeZoneData.userTime}（${timeZoneData.userTimeZone}）
+${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData.charTimeZone}）
+时差（TA-我）：${timeZoneData.diffLabel}
+你当前处于：${timeZoneData.charPeriod}
+请严格考虑双方时差来决定回复语气、问候和作息相关表达，不要无视深夜/清晨场景。
+`
+                : '';
+
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
             const allWbItems = largeStore.get('worldbook_items', []);
             const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
@@ -6013,8 +6169,9 @@ ${userPersona || '无'}
 **【当前现实信息】**
 ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
+${timeZonePrompt}
 
-**【可用附加功能】**（根据人设、场景需要自然使用）
+**【可用附加功能】**（根据人设、场景需要自然使用，禁止复读）
 ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
@@ -6029,12 +6186,12 @@ ${pendingIncomingTransfersPrompt}
 **【输出格式与排版要求】**
 1. 多条消息拆分：回复多条消息时必须用 [SPLIT] 严格分隔。禁止每轮条数一样。
 2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
-3. 贴图发送时机：像真人聊天一样，贴图的时机和位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
+3. 贴图发送时机：禁止每轮都发送贴图。并且贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
 **【扮演准则与禁止项】**
 1.** 绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
 2.** 设定铁律**：上述提供的信息必须严格遵守，禁止凭空添加新的设定或不存在的记忆。
-3.** 情绪动机**：读懂 ${userName} 的情绪，再基于人设、记忆、情绪给出反应；禁止 OOC。
+3.** 情绪动机**：读懂 ${userName} 这一轮回复的情绪，再基于人设、记忆、情绪给出反应；禁止 OOC。
 
 **【生动表达技巧】**
 1. **回复**：你的回复必须生活、真实，有人味、有烟火气，但一切建立在人设的基础上。
@@ -6049,7 +6206,7 @@ ${pendingIncomingTransfersPrompt}
 </think>
 消息1[SPLIT]消息2
 <mood_sprite mood="核心情绪" color="#RRGGBB">
-这里写你没发出去的真实内心可以短到一句话也可以长到一大段（吐槽/纠结/爱意/碎碎念）。
+这里写你没发出去的真实内心，可以短到一句话也可以长到一大段（吐槽/纠结/爱意/碎碎念）。
 ---
 绝对不能让对方知道的一个念头（直白/可爱/真实/，可使用颜文字）。
 </mood_sprite>
@@ -6612,8 +6769,15 @@ if (quoteMatch) {
         const statusLabel = getTransferStatusLabel(safeTransfer);
         const canOperate = canCurrentUserOperateTransfer(role, safeTransfer);
         const title = safeTransfer.senderType === 'char'
-            ? (role === 'assistant' ? '来自 TA 的转账' : 'TA 向你转账')
-            : (role === 'user' ? '转账给 TA' : '来自 User 的转账');
+            ? (role === 'assistant' ? '您已收到转账' : '您已发送转账')
+            : (role === 'user' ? '您已发送转账' : '您已收到转账');
+            
+        // LINE style icon
+        const iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="12" fill="#00B900"/>
+            <path d="M8 8L12 13M16 8L12 13M12 13V18M9 14H15M9 16H15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
+
         return `
             <div
                 class="transfer-card${safeTransfer.senderType === 'char' ? ' sender-char' : ''}${canOperate ? ' is-operable' : ''}"
@@ -6622,10 +6786,19 @@ if (quoteMatch) {
                 data-msg-id="${escapeHtml(msgId || '')}"
                 data-transfer-operable="${canOperate ? '1' : '0'}"
             >
-                <div class="transfer-card-title">${title}</div>
-                <div class="transfer-card-amount">¥${safeTransfer.amount.toFixed(2)}</div>
-                <div class="transfer-card-note">备注：${note}</div>
-                <div class="transfer-card-status">${statusLabel}</div>
+                <div class="transfer-card-header">
+                    <div class="transfer-card-icon">${iconSvg}</div>
+                    <div class="transfer-card-info">
+                        <div class="transfer-card-title">${title}</div>
+                        <div class="transfer-card-amount">¥ ${safeTransfer.amount.toFixed(2)}</div>
+                    </div>
+                </div>
+                ${note !== '无备注' ? `<div class="transfer-card-note">${note}</div>` : ''}
+                <div class="transfer-card-divider"></div>
+                <div class="transfer-card-footer">
+                    <div class="transfer-card-brand">LINE Pay</div>
+                    <div class="transfer-card-status">${statusLabel}${canOperate ? ' <span style="font-family: monospace; font-size: 14px; margin-left: 2px;">›</span>' : ''}</div>
+                </div>
             </div>
         `;
     }
@@ -6958,9 +7131,6 @@ if (quoteMatch) {
         const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
         const newMsg = saveMessage(chatId, 'system', text, {});
         appendMessageToUI('system', text, newMsg.time, chatId, newMsg.id, newMsg);
-        
-        // Trigger assistant reply because the char should read this message
-        triggerAssistantReply();
     }
 
     function getAvailableStickerCategories(chatId) {
@@ -7715,6 +7885,7 @@ if (quoteMatch) {
         applyChatTheme(chatId);
         
         chatRoom.style.display = 'flex';
+        updateChatTimeZoneIndicator(chatId);
         
         // 同步按钮状态
         updateSendButtonState(chatId);
@@ -7735,6 +7906,12 @@ if (quoteMatch) {
         }, 30000);
     }
 
+    setInterval(() => {
+        const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        if (!currentChatId || !isChatRoomOpenFor(currentChatId)) return;
+        updateChatTimeZoneIndicator(currentChatId);
+    }, 60000);
+
     // 绑定事件委托，处理聊天列表点击（包括动态添加的项）
     if (chatList) {
         chatList.addEventListener('click', (e) => {
@@ -7753,6 +7930,10 @@ if (quoteMatch) {
         backBtn.addEventListener('click', () => {
             if (chatRoom) {
                 chatRoom.style.display = 'none';
+            }
+            if (chatTimezoneIndicator) {
+                chatTimezoneIndicator.style.display = 'none';
+                chatTimezoneIndicator.textContent = '';
             }
             clearChatTheme();
             exitMultiSelectMode();
@@ -8618,18 +8799,104 @@ function initTimeSettingsLogic(chatRoomNameEl) {
     const closeBtn = document.getElementById('close-time-settings');
     const saveBtn = document.getElementById('save-time-settings');
     const syncToggle = document.getElementById('time-sync-toggle');
+    const timeZoneToggle = document.getElementById('time-zone-sync-toggle');
+    const timeZoneBody = document.getElementById('time-zone-settings-body');
+    const userCityInput = document.getElementById('user-city-input');
+    const charCityInput = document.getElementById('char-city-input');
+    const userTimeZoneSelect = document.getElementById('user-timezone-select');
+    const charTimeZoneSelect = document.getElementById('char-timezone-select');
+    const previewEl = document.getElementById('time-zone-preview');
 
     if (!timeSettingsBtn || !modal || !syncToggle) return;
 
+    const allTimeZones = (() => {
+        try {
+            if (typeof Intl.supportedValuesOf === 'function') {
+                return Intl.supportedValuesOf('timeZone');
+            }
+        } catch (_) {}
+        return [
+            'Asia/Shanghai',
+            'Asia/Tokyo',
+            'Asia/Seoul',
+            'Asia/Singapore',
+            'Europe/London',
+            'Europe/Paris',
+            'America/New_York',
+            'America/Los_Angeles',
+            'Australia/Sydney'
+        ];
+    })();
+
+    const ensureTimeZoneSelectOptions = () => {
+        if (!userTimeZoneSelect || !charTimeZoneSelect) return;
+        if (userTimeZoneSelect.options.length > 0 && charTimeZoneSelect.options.length > 0) return;
+        userTimeZoneSelect.innerHTML = '';
+        charTimeZoneSelect.innerHTML = '';
+        allTimeZones.forEach((tz) => {
+            const safeTz = String(tz || '').trim();
+            if (!safeTz) return;
+            const userOpt = document.createElement('option');
+            userOpt.value = safeTz;
+            userOpt.textContent = safeTz;
+            userTimeZoneSelect.appendChild(userOpt);
+
+            const charOpt = document.createElement('option');
+            charOpt.value = safeTz;
+            charOpt.textContent = safeTz;
+            charTimeZoneSelect.appendChild(charOpt);
+        });
+    };
+
+    const getCurrentChatId = () => chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+
+    const updateTimeZonePreview = () => {
+        if (!timeZoneBody || !previewEl || !timeZoneToggle || !userTimeZoneSelect || !charTimeZoneSelect) return;
+        timeZoneBody.style.display = timeZoneToggle.checked ? 'block' : 'none';
+        if (!timeZoneToggle.checked) {
+            previewEl.textContent = '开启后将显示双方当前时间与时差。';
+            return;
+        }
+
+        const userZone = normalizeTimeZone(userTimeZoneSelect.value, getDefaultTimeZone());
+        const charZone = normalizeTimeZone(charTimeZoneSelect.value, userZone);
+        const now = new Date();
+        const userTime = formatTimeInZone(userZone, now);
+        const charTime = formatTimeInZone(charZone, now);
+        const userOffset = getTimeZoneOffsetMinutes(userZone, now);
+        const charOffset = getTimeZoneOffsetMinutes(charZone, now);
+        const diffHours = (charOffset - userOffset) / 60;
+        const userCity = String((userCityInput && userCityInput.value) || '').trim() || '我';
+        const charCity = String((charCityInput && charCityInput.value) || '').trim() || 'TA';
+        const diffLabel = `${diffHours >= 0 ? '+' : ''}${diffHours}h`;
+        previewEl.textContent = `${userCity} ${userTime}（${userZone}）\n${charCity} ${charTime}（${charZone}）\n时差：${diffLabel}（TA-我）`;
+    };
+
     const syncFromStorage = () => {
-        const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+        const chatId = getCurrentChatId();
         syncToggle.checked = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
+        if (!timeZoneToggle || !userTimeZoneSelect || !charTimeZoneSelect) return;
+        ensureTimeZoneSelectOptions();
+        const cfg = readTimeZoneConfig(chatId);
+        timeZoneToggle.checked = cfg.enabled;
+        if (userCityInput) userCityInput.value = cfg.userCity;
+        if (charCityInput) charCityInput.value = cfg.charCity;
+        userTimeZoneSelect.value = cfg.userTimeZone;
+        charTimeZoneSelect.value = cfg.charTimeZone;
+        updateTimeZonePreview();
     };
 
     timeSettingsBtn.addEventListener('click', () => {
         syncFromStorage();
         openAppModal(modal);
     });
+
+    [timeZoneToggle, userCityInput, charCityInput, userTimeZoneSelect, charTimeZoneSelect]
+        .filter(Boolean)
+        .forEach((el) => {
+            el.addEventListener('change', updateTimeZonePreview);
+            el.addEventListener('input', updateTimeZonePreview);
+        });
 
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
@@ -8639,8 +8906,16 @@ function initTimeSettingsLogic(chatRoomNameEl) {
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            const chatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+            const chatId = getCurrentChatId();
             localStorage.setItem(getTimeSyncEnabledKey(chatId), syncToggle.checked ? 'true' : 'false');
+            if (timeZoneToggle && userTimeZoneSelect && charTimeZoneSelect) {
+                localStorage.setItem(getTimeZoneSyncEnabledKey(chatId), timeZoneToggle.checked ? 'true' : 'false');
+                localStorage.setItem(getUserTimeZoneKey(chatId), normalizeTimeZone(userTimeZoneSelect.value, getDefaultTimeZone()));
+                localStorage.setItem(getCharTimeZoneKey(chatId), normalizeTimeZone(charTimeZoneSelect.value, getDefaultTimeZone()));
+                localStorage.setItem(getUserCityKey(chatId), String((userCityInput && userCityInput.value) || '').trim());
+                localStorage.setItem(getCharCityKey(chatId), String((charCityInput && charCityInput.value) || '').trim());
+                updateChatTimeZoneIndicator(chatId);
+            }
             closeAppModal(modal);
         });
     }
