@@ -6195,7 +6195,7 @@ ${pendingIncomingTransfersPrompt}
 若为“无”，你禁止输出任何 [转账处理:...] 标签。
 
 **【输出格式与排版要求】**
-1. 多条消息拆分：回复消息时必须用 [SPLIT] 拆分信息。禁止每轮条数一样。
+1. 消息拆分：根据当前的场景、情绪决定回复条数，必须用 [SPLIT] 拆分为短句。禁止每轮回复条数一样。
 2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
 3. 贴图发送时机：禁止每轮都发送贴图。并且贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
@@ -7561,6 +7561,57 @@ if (quoteMatch) {
                     break;
                 }
             }
+            clearPendingQuote();
+        });
+    }
+
+    const cameraActionBtn = document.getElementById('camera-action-btn');
+    const cameraInputModal = document.getElementById('camera-input-modal');
+    const closeCameraInputModalBtn = document.getElementById('close-camera-input-modal');
+    const sendCameraPhotoBtn = document.getElementById('send-camera-photo-btn');
+    const cameraInputContent = document.getElementById('camera-input-content');
+
+    if (cameraActionBtn && cameraInputModal) {
+        cameraActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            cameraInputContent.value = '';
+            cameraInputModal.style.display = 'flex';
+            setTimeout(() => cameraInputContent.focus(), 0);
+        });
+    }
+
+    if (closeCameraInputModalBtn) {
+        closeCameraInputModalBtn.addEventListener('click', () => {
+            cameraInputModal.style.display = 'none';
+        });
+    }
+
+    if (cameraInputModal) {
+        cameraInputModal.addEventListener('click', (e) => {
+            if (e.target === cameraInputModal) {
+                cameraInputModal.style.display = 'none';
+            }
+        });
+    }
+
+    if (sendCameraPhotoBtn && cameraInputContent) {
+        sendCameraPhotoBtn.addEventListener('click', () => {
+            const content = cameraInputContent.value.trim();
+            if (!content) {
+                alert('照片内容不能为空');
+                return;
+            }
+            
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+            const photoHtml = buildCameraPlaceholderHtml(content);
+            const newMsg = saveMessage(chatId, 'user', photoHtml, extra);
+            appendMessageToUI('user', photoHtml, newMsg.time, chatId, newMsg.id, newMsg);
+            
+            cameraInputModal.style.display = 'none';
             clearPendingQuote();
         });
     }

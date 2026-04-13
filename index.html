@@ -998,6 +998,12 @@
                                         </div>
                                         <span class="menu-text">相册</span>
                                     </div>
+                                    <div class="menu-item" id="camera-action-btn">
+                                        <div class="menu-icon trae-browser-inspect-draggable">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                        </div>
+                                        <span class="menu-text">相机</span>
+                                    </div>
                                     <div class="menu-item" id="voice-action-btn">
                                         <div class="menu-icon">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><line x1="12" y1="18" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>
@@ -2170,6 +2176,27 @@
                 </div>
                 <div class="ins-modal-body">
                     <div class="photo-content-text" id="photo-content-text"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 相机输入内容弹窗 -->
+        <div class="ins-modal-overlay" id="camera-input-modal" style="display: none;">
+            <div class="ins-modal">
+                <div class="ins-modal-header">
+                    <h3>拍摄照片（占位）</h3>
+                    <button class="ins-modal-close" id="close-camera-input-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="ins-modal-body">
+                    <div class="ins-input-group">
+                        <label for="camera-input-content">照片内容描述</label>
+                        <textarea id="camera-input-content" class="edit-message-textarea camera-input-textarea" placeholder="描述你想要发送的照片内容..."></textarea>
+                    </div>
+                </div>
+                <div class="ins-modal-footer">
+                    <button class="ins-btn-primary" id="send-camera-photo-btn">发送</button>
                 </div>
             </div>
         </div>
