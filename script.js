@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -6201,7 +6201,9 @@ ${assistantStickerPromptText}
 **【待你处理的入账转账】**
 ${pendingIncomingTransfersPrompt}
 若为“无”，你禁止输出任何 [转账处理:...] 标签。
+`;
 
+            const formatInstructionPrompt = `
 **【输出格式与排版要求】**
 1. 消息拆分：根据当前的场景、情绪决定回复条数，必须用 [SPLIT] 拆分为短句。禁止每轮回复条数一样。
 2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
@@ -6249,9 +6251,9 @@ ${roundMessageText}
             const historyUserText = contextText ? `[历史上下文，仅作回复参考]\n${contextText}` : '';
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
-            const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景]\n${frontWbContent}` : '';
-            const middleWorldbookUserText = middleWbContent ? `[相关世界书/物品/场景]\n${middleWbContent}` : '';
-            const backWorldbookUserText = backWbContent ? `[重要世界书/剧情提醒/高优设定]\n${backWbContent}` : '';
+            const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景/重要功能设定]\n${frontWbContent}` : '';
+            const middleWorldbookUserText = middleWbContent ? `[相关世界书/物品/场景补充]\n${middleWbContent}` : '';
+            const backWorldbookUserText = backWbContent ? `[最高优世界书/剧情状态强制提醒]\n${backWbContent}` : '';
             const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
             const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
@@ -6304,9 +6306,9 @@ ${savedHerSchedule}
                 topSystemBlocks.push(frontWorldbookUserText);
             }
 
-            // 2. 中 (Middle)：放在历史记录之前
+            // 2. 中 (Middle)：为了防止多系统消息被丢弃，直接并入全局 System 设定，位置放在历史记录之前
             if (middleWorldbookUserText) {
-                historyMessages.push({ role: "system", content: middleWorldbookUserText });
+                topSystemBlocks.push(middleWorldbookUserText);
             }
 
             // 记忆与历史放入 History 区块
@@ -6317,26 +6319,26 @@ ${savedHerSchedule}
             if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
             if (herScheduleText) bottomMessages.push({ role: "system", content: herScheduleText });
 
-            // 3. 后 (Back)：放在所有历史记录和日程之后，紧贴最新对话，保证最高优先级
-            if (backWorldbookUserText) {
-                bottomMessages.push({ role: "system", content: backWorldbookUserText });
-            }
+            // 追加所有的格式指令到 System 的最后，保证绝对的服从度
+            let finalFormatPrompt = formatInstructionPrompt;
 
             try {
                 const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || 'null');
                 if (replyCountConfig && (replyCountConfig.min || replyCountConfig.max)) {
                     const min = replyCountConfig.min || replyCountConfig.max;
                     const max = replyCountConfig.max || replyCountConfig.min;
-                    topSystemBlocks.push(`\n**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`);
+                    finalFormatPrompt += `\n\n**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`;
                 }
             } catch (e) {}
 
             try {
                 const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
                 if (bilingualEnabled) {
-                    topSystemBlocks.push(`\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`);
+                    finalFormatPrompt += `\n\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`;
                 }
             } catch (e) {}
+
+            topSystemBlocks.push(finalFormatPrompt);
 
             // 4. 最终合并打包
             const messages = [
@@ -6346,10 +6348,17 @@ ${savedHerSchedule}
             ];
 
             // 5. 压入最新一条用户指令 (必须放最后，模型对最后一条消息的指令服从度最高)
+            let finalUserContent = userMessagePayload;
+            
+            // 3. 后 (Back)：最高优先级，为了防止系统消息被降权或丢弃，直接和用户的最新一句话缝合在一起
+            if (backWorldbookUserText) {
+                finalUserContent = `${backWorldbookUserText}\n\n${userMessagePayload}`;
+            }
+
             if (isBackground) {
                 messages.push({ role: "user", content: "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。" });
             } else {
-                messages.push({ role: "user", content: userMessagePayload });
+                messages.push({ role: "user", content: finalUserContent });
             }
 
             // 3. 调用 API
