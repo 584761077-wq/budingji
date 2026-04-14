@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.1.9';
+const APP_VERSION = '1.2.0';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -6127,10 +6127,20 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
             const allWbItems = largeStore.get('worldbook_items', []);
             const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
-            const wbContent = boundWorldbooks.map(item => {
+            
+            // 分类世界书：前(front)、中(middle)、后(back)
+            const frontWbs = boundWorldbooks.filter(wb => wb.depth === 'front' || !wb.depth);
+            const middleWbs = boundWorldbooks.filter(wb => wb.depth === 'middle');
+            const backWbs = boundWorldbooks.filter(wb => wb.depth === 'back');
+
+            const buildWbText = (wbs) => wbs.map(item => {
                 const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
                 return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
             }).join('\n');
+
+            const frontWbContent = buildWbText(frontWbs);
+            const middleWbContent = buildWbText(middleWbs);
+            const backWbContent = buildWbText(backWbs);
 
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const hasBoundAssistantStickers = assistantBoundStickers.length > 0;
@@ -6241,7 +6251,9 @@ ${roundMessageText}
             const historyUserText = contextText ? `[历史上下文，仅作回复参考]\n${contextText}` : '';
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
-            const worldbookUserText = wbContent ? `[世界书/背景]\n${wbContent}` : '';
+            const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景]\n${frontWbContent}` : '';
+            const middleWorldbookUserText = middleWbContent ? `[相关世界书/物品/场景]\n${middleWbContent}` : '';
+            const backWorldbookUserText = backWbContent ? `[重要世界书/剧情提醒/高优设定]\n${backWbContent}` : '';
             const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
             const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
@@ -6288,8 +6300,18 @@ ${savedHerSchedule}
             if (userPersonaText) topSystemBlocks.push(userPersonaText);
             if (timeUserText) topSystemBlocks.push(`[当前时间]\n${timeUserText}`);
 
+            // === 世界书深度处理 ===
+            // 1. 前 (Front)：紧贴系统设定，放在最前面
+            if (frontWorldbookUserText) {
+                topSystemBlocks.push(frontWorldbookUserText);
+            }
+
+            // 2. 中 (Middle)：放在历史记录之前
+            if (middleWorldbookUserText) {
+                historyMessages.push({ role: "system", content: middleWorldbookUserText });
+            }
+
             // 记忆与历史放入 History 区块
-            // 采用 system role 传递记忆和历史，可以避免模型将它们误认为是 User 的当次对话指令
             if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
             if (historyUserText) historyMessages.push({ role: "system", content: historyUserText });
 
@@ -6297,25 +6319,9 @@ ${savedHerSchedule}
             if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
             if (herScheduleText) bottomMessages.push({ role: "system", content: herScheduleText });
 
-            // 3. 世界书的动态插入逻辑 (预留未来的配置项，方便后期做 UI 让用户自选)
-            const wbInsertPosition = 'system_bottom'; // 可选值: system_top, system_bottom, before_history, before_latest
-            
-            if (worldbookUserText) {
-                switch (wbInsertPosition) {
-                    case 'system_top':
-                        topSystemBlocks.splice(1, 0, worldbookUserText); 
-                        break;
-                    case 'system_bottom':
-                    default:
-                        topSystemBlocks.push(worldbookUserText);
-                        break;
-                    case 'before_history':
-                        historyMessages.unshift({ role: "system", content: worldbookUserText });
-                        break;
-                    case 'before_latest':
-                        bottomMessages.unshift({ role: "system", content: worldbookUserText });
-                        break;
-                }
+            // 3. 后 (Back)：放在所有历史记录和日程之后，紧贴最新对话，保证最高优先级
+            if (backWorldbookUserText) {
+                bottomMessages.push({ role: "system", content: backWorldbookUserText });
             }
 
             try {
@@ -10524,6 +10530,7 @@ function initAddWorldBookItemLogic() {
     const categorySelect = document.getElementById('wb-item-category');
     const keywordsInput = document.getElementById('wb-item-keywords');
     const contentInput = document.getElementById('wb-item-content');
+    const depthSelect = document.getElementById('wb-item-depth');
 
     // 打开添加页面 (Add Mode)
     if (addBtn) {
@@ -10541,6 +10548,7 @@ function initAddWorldBookItemLogic() {
             categorySelect.value = '未分类';
             keywordsInput.value = '';
             contentInput.value = '';
+            depthSelect.value = 'front'; // 默认初始位置
             
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('active'), 10);
@@ -10562,6 +10570,7 @@ function initAddWorldBookItemLogic() {
             const category = categorySelect.value;
             const keywords = keywordsInput.value.trim();
             const content = contentInput.value.trim();
+            const depth = depthSelect.value || 'front';
 
             if (!name) {
                 alert('请输入条目名称');
@@ -10580,6 +10589,7 @@ function initAddWorldBookItemLogic() {
                         category,
                         keywords,
                         content,
+                        depth,
                         updatedAt: Date.now().toString()
                     };
                 }
@@ -10591,6 +10601,7 @@ function initAddWorldBookItemLogic() {
                     category,
                     keywords,
                     content,
+                    depth,
                     createdAt: Date.now().toString()
                 };
                 items.push(newItem);
@@ -10624,6 +10635,7 @@ function openWorldBookItem(id) {
     const categorySelect = document.getElementById('wb-item-category');
     const keywordsInput = document.getElementById('wb-item-keywords');
     const contentInput = document.getElementById('wb-item-content');
+    const depthSelect = document.getElementById('wb-item-depth');
 
     const items = largeStore.get('worldbook_items', []);
     const item = items.find(i => i.id === id);
@@ -10646,6 +10658,7 @@ function openWorldBookItem(id) {
         
         keywordsInput.value = item.keywords || '';
         contentInput.value = item.content || '';
+        depthSelect.value = item.depth || 'front';
 
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('active'), 10);

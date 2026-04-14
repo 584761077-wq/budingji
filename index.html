@@ -186,6 +186,20 @@
                         <label class="form-label">内容</label>
                         <textarea class="form-textarea" id="wb-item-content" placeholder="输入详细内容..."></textarea>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">插入位置 (深度)</label>
+                        <select class="form-select" id="wb-item-depth">
+                            <option value="front">前</option>
+                            <option value="middle">中</option>
+                            <option value="back">后</option>
+                        </select>
+                        <div style="font-size: 0.8rem; color: #8e8e93; margin-top: 8px; line-height: 1.4;">
+                            注：决定该词条内容在发送给 AI 时的插入位置。<br>
+                            • <b>前</b>：插入在所有提示词最前面（适合全局基础设定，如世界观）。<br>
+                            • <b>中</b>：插入在角色设定之后、聊天记录之前（适合当前场景或物品说明）。<br>
+                            • <b>后</b>：紧贴最新聊天记录发送（优先级最高，AI 最不容易忘，适合关键剧情或状态强制提醒）。
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budingji-v22';
+const CACHE_NAME = 'budingji-v23';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
