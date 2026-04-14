@@ -605,14 +605,14 @@ body {
 }
 
 .dock-glass {
-    height: 80px;
+    height: 90px;
     background: rgba(255, 255, 255, 0.35);
     backdrop-filter: blur(20px);
     border-radius: 24px;
     display: flex;
     justify-content: space-around;
     align-items: center;
-    padding: 10px;
+    padding: 15px 10px 10px 10px; /* 增加顶部内边距，让上半部分往上扩大 */
     box-shadow: 0 10px 30px rgba(0,0,0,0.05);
     border: 1px solid rgba(255,255,255,0.45);
 }
