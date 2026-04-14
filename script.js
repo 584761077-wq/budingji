@@ -1,7 +1,7 @@
 // ==========================================
 // 统一大文件/大文本存储 (IndexedDB) + 内存缓存
 // ==========================================
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 
 const largeStore = (() => {
     const dbName = 'budingji_large_store';
@@ -6181,8 +6181,6 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 
 **【你的人设】**
 ${charPersona || '无'}
-**【人设补充、世界设定】**
-${wbContent || '无'}
 **【你和${userName}之间的重要记忆】**
 ${longTermMemory || '无'}
 **【${userName}的信息】**
