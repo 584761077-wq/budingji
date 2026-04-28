@@ -38,46 +38,15 @@ const ThemeEngine = (() => {
         return dbPromise;
     }
 
-    // --- 数据压缩与解压 ---
-    // 简单的字符串字典压缩 (LZW) 以减小 CSS 体积
-    const LZW = {
-        compress: function (uncompressed) {
-            if (!uncompressed) return uncompressed;
-            let i, dictionary = {}, c, wc, w = "", result = [], dictSize = 256;
-            for (i = 0; i < 256; i += 1) { dictionary[String.fromCharCode(i)] = i; }
-            for (i = 0; i < uncompressed.length; i += 1) {
-                c = uncompressed.charAt(i);
-                wc = w + c;
-                if (dictionary.hasOwnProperty(wc)) { w = wc; }
-                else {
-                    result.push(String.fromCharCode(dictionary[w]));
-                    dictionary[wc] = dictSize++;
-                    w = String(c);
-                }
-            }
-            if (w !== "") { result.push(String.fromCharCode(dictionary[w])); }
-            return result.join("");
-        },
-        decompress: function (compressed) {
-            if (!compressed) return compressed;
-            let i, dictionary = [], w, result, k, entry = "", dictSize = 256;
-            for (i = 0; i < 256; i += 1) { dictionary[i] = String.fromCharCode(i); }
-            w = String.fromCharCode(compressed.charCodeAt(0));
-            result = w;
-            for (i = 1; i < compressed.length; i += 1) {
-                k = compressed.charCodeAt(i);
-                if (dictionary[k]) { entry = dictionary[k]; }
-                else {
-                    if (k === dictSize) { entry = w + w.charAt(0); }
-                    else { return null; }
-                }
-                result += entry;
-                dictionary[dictSize++] = w + entry.charAt(0);
-                w = entry;
-            }
-            return result;
+    // --- 原文保留 ---
+    // 主题 CSS 直接按原文保存，避免中文注释、换行和空白被破坏。
+    function normalizeThemeCss(theme) {
+        if (!theme || typeof theme !== 'object') return theme;
+        if (typeof theme.css !== 'string' && typeof theme.rawCss === 'string') {
+            theme.css = theme.rawCss;
         }
-    };
+        return theme;
+    }
 
     // --- 核心 API ---
 
@@ -89,7 +58,7 @@ const ThemeEngine = (() => {
             const req = tx.objectStore(STORE_THEMES).getAll();
             req.onsuccess = () => {
                 req.result.forEach(t => {
-                    t.css = LZW.decompress(t.cssCompressed) || t.css; // 解压
+                    normalizeThemeCss(t);
                     cache.themes.set(t.id, t);
                 });
                 resolve();
@@ -125,11 +94,10 @@ const ThemeEngine = (() => {
     async function saveTheme(theme) {
         if (!theme.id) theme.id = crypto.randomUUID();
         
-        // 压缩 CSS
+        // 直接保存原文，确保中文注释、换行、空格都不丢失
         const themeToSave = { ...theme };
-        if (themeToSave.css) {
-            themeToSave.cssCompressed = LZW.compress(themeToSave.css);
-            delete themeToSave.css; // 不存明文
+        if (typeof themeToSave.css === 'string') {
+            themeToSave.rawCss = themeToSave.css;
         }
 
         const db = await getDB();
@@ -137,7 +105,7 @@ const ThemeEngine = (() => {
             const tx = db.transaction(STORE_THEMES, 'readwrite');
             tx.objectStore(STORE_THEMES).put(themeToSave);
             tx.oncomplete = () => {
-                cache.themes.set(theme.id, theme);
+                cache.themes.set(theme.id, normalizeThemeCss(theme));
                 resolve(theme.id);
             };
             tx.onerror = () => reject(tx.error);
@@ -182,31 +150,42 @@ const ThemeEngine = (() => {
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_BINDINGS, 'readwrite');
             const store = tx.objectStore(STORE_BINDINGS);
+
+            const normalizedChatIds = Array.from(new Set((chatIds || []).map(id => String(id || '').trim()).filter(Boolean)));
             
             const reqAll = store.getAll();
             reqAll.onsuccess = () => {
                 const allBindings = reqAll.result;
+                const selectedSet = new Set(normalizedChatIds);
                 
                 // 1. 先从所有 chatId 中移除当前 themeId，确保旧绑定被清理
                 allBindings.forEach(b => {
-                    b.themeIds = (b.themeIds || []).filter(id => id !== themeId);
+                    const currentThemeIds = Array.isArray(b.themeIds) ? b.themeIds : [];
+                    b.themeIds = currentThemeIds.filter(id => id !== themeId);
                 });
                 
                 // 2. 将选中的 chatIds 绑定到这个 themeId
-                chatIds.forEach(chatId => {
+                normalizedChatIds.forEach(chatId => {
                     let b = allBindings.find(x => x.chatId === chatId);
                     if (!b) {
                         b = { chatId, themeIds: [] };
                         allBindings.push(b);
                     }
-                    // 【核心修改】：一个窗口只能绑定一个主题，直接覆盖 themeIds 数组
+                    // 一个窗口只能绑定一个主题
                     b.themeIds = [themeId];
                 });
 
-                // 3. 保存回库
+                // 3. 没有被选中的窗口，只保留其他主题绑定
+                allBindings.forEach(b => {
+                    if (!selectedSet.has(b.chatId) && Array.isArray(b.themeIds)) {
+                        b.themeIds = b.themeIds.filter(id => id !== themeId);
+                    }
+                });
+
+                // 4. 保存回库
                 allBindings.forEach(b => {
                     store.put(b);
-                    cache.bindings.set(b.chatId, b.themeIds);
+                    cache.bindings.set(b.chatId, Array.isArray(b.themeIds) ? b.themeIds : []);
                 });
             };
 
@@ -231,15 +210,38 @@ const ThemeEngine = (() => {
         return chatIds;
     }
 
+    function scopeThemeCss(css, scopeSelector) {
+        const input = String(css || '').trim();
+        if (!input) return '';
+
+        return input.replace(/(^|\})(\s*)([^@}{][^{}]*?)\s*\{/g, (match, brace, space, selector) => {
+            const scoped = selector
+                .split(',')
+                .map(part => `${scopeSelector} ${part.trim()}`)
+                .join(', ');
+            return `${brace}${space}${scoped} {`;
+        });
+    }
+
     // --- 动态 CSS 变量注入 ---
     function applyThemeToChatRoom(chatId) {
         const chatRoom = document.getElementById('chat-room');
         if (!chatRoom) return;
 
+        const safeChatId = String(chatId || '').trim();
+        if (safeChatId) {
+            chatRoom.dataset.themeChatId = safeChatId;
+        }
+
         const themes = getThemesForChat(chatId);
         if (themes.length === 0) {
             // 清除变量
             chatRoom.style.cssText = '';
+            const styleTag = document.getElementById('theme-engine-style');
+            if (styleTag) {
+                styleTag.textContent = '';
+                styleTag.dataset.hash = '';
+            }
             return;
         }
 
@@ -271,11 +273,14 @@ const ThemeEngine = (() => {
             styleTag.id = 'theme-engine-style';
             document.head.appendChild(styleTag);
         }
+
+        const scopeSelector = safeChatId ? `#chat-room[data-theme-chat-id="${safeChatId.replace(/"/g, '\\"')}"]` : '#chat-room';
+        const scopedCss = scopeThemeCss(combinedCss, scopeSelector);
         
         // 只有内容改变才重新渲染，避免重排
-        if (styleTag.dataset.hash !== combinedCss) {
-            styleTag.textContent = combinedCss;
-            styleTag.dataset.hash = combinedCss;
+        if (styleTag.dataset.hash !== scopedCss) {
+            styleTag.textContent = scopedCss;
+            styleTag.dataset.hash = scopedCss;
         }
     }
 

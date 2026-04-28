@@ -3832,7 +3832,7 @@ function initThemeApp() {
         if (!theme) return;
         activeThemeIdForEdit = themeId;
         if (detailTitle) detailTitle.textContent = theme.name;
-        if (cssPreview) cssPreview.value = String(theme.css || '').trim();
+        if (cssPreview) cssPreview.value = String(theme.css || '');
         if (categoryGrid) categoryGrid.style.display = 'none';
         if (detailView) detailView.style.display = 'flex';
     };
@@ -3859,7 +3859,7 @@ function initThemeApp() {
             return;
         }
         categoryGrid.innerHTML = themes.map((theme) => {
-            const css = String(theme.css || '').trim();
+            const css = String(theme.css || '');
             const snippet = css ? css.slice(0, 140) : '自定义颜色变量';
             return `
                 <div class="theme-folder-card" data-id="${escapeThemeHtml(theme.id)}">
@@ -3897,7 +3897,7 @@ function initThemeApp() {
     if (confirmAddBtn) {
         confirmAddBtn.addEventListener('click', async () => {
             const name = nameInput ? nameInput.value.trim() : '';
-            const css = cssInput ? cssInput.value.trim() : '';
+            const css = cssInput ? cssInput.value : '';
             
             // 提取变量
             let vars = {};
@@ -6219,16 +6219,24 @@ ${pendingIncomingTransfersPrompt}
 **世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
 **保持"活人感**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以和用户分享生活的趣事。
 
-现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复，每次回复必须严格按照以下格式和顺序输出：
+现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复。
 
-<think>
+你必须在正式回复前先进行“思维链”整理，但**不要把完整推理过程原样泄露给对方**。请先输出一个给自己看的、适合放在头像便签纸里的思考摘要，要求真实、切合人设、能帮助你防止 ooc，再输出最终回复。
+
+请严格按以下格式输出：
+
+<think_note>
 1. 我是谁？
-2. 对方这句话的潜台词是什么？
-3. 我此刻的真实情绪（开心/委屈/期待？）我的情绪是否符合我的人设"
-4. 基于人设，我内心最真实的想法...
+2. 对方这句话真正想表达什么？
+3. 我现在的真实情绪是什么？是否符合人设？
+4. 我内心最真实的判断/顾虑/在意点是什么？
 5. 我准备怎么回？要不要用功能？
-</think>
+</think_note>
+
+<reply>
 消息1[SPLIT]消息2
+</reply>
+
 <mood_sprite mood="核心情绪" color="#RRGGBB">
 这里写你没发出去的真实内心，可以短到一句话也可以长到一大段。（吐槽/纠结/爱意/碎碎念）。禁止ooc，违背人设。
 ---
