@@ -2895,6 +2895,23 @@ function initChatRoomLogic() {
         return payload;
     }
 
+    function mergeBackWorldbookWithUserPayload(backWorldbookUserText, userPayload) {
+        if (!backWorldbookUserText) return userPayload;
+        if (Array.isArray(userPayload)) {
+            const merged = [...userPayload];
+            if (merged.length > 0 && merged[0] && merged[0].type === 'text') {
+                merged[0] = {
+                    ...merged[0],
+                    text: `${backWorldbookUserText}\n\n${String(merged[0].text || '')}`
+                };
+            } else {
+                merged.unshift({ type: 'text', text: backWorldbookUserText });
+            }
+            return merged;
+        }
+        return `${backWorldbookUserText}\n\n${String(userPayload || '')}`;
+    }
+
     function readImageAsDataUrl(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -3261,20 +3278,19 @@ ${pendingIncomingTransfersPrompt}
 
 现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复。
 
-你必须在正式回复前先进行“思维链”整理，但**不要把完整推理过程原样泄露给对方**。请先输出一个给自己看的、适合放在头像便签纸里的思考摘要，要求真实、切合人设、能帮助你防止 ooc，再输出最终回复。
+你必须在正式回复前先进行“思维链”整理，*注意：思维链是防止OOC的关键，必须以第一人称书写。*请先输出思维链，帮助你防止ooc，再输出最终回复。
 
 请严格按以下格式输出：
 
 <think_note>
 Q1：我是谁？我的人设性格是？
 A1：……
-Q2：对方这句话的潜台词是什么？当前话题是否涉及世界书/人设中的特殊设定？我该如何体现？对他/她的人设是否把握准确？
+Q2：对方这句话的潜台词是什么？当前话题是否涉及世界书/人设中的特殊设定？我该如何体现？
 A2：……
 Q3：我此刻的真实情绪（开心/委屈/期待？）我的情绪是否符合我的人设？
 A3：……
 Q4：基于人设，我内心最真实的想法...
 A4：……
-*注意：思维链是防止OOC的关键，必须以第一人称书写。*
 </think_note>
 
 <reply>
@@ -3282,7 +3298,7 @@ A4：……
 </reply>
 
 <mood_sprite mood="核心情绪" color="#RRGGBB">
-这里写你没发出去的真实内心，可以短到一句话也可以长到一大段。（吐槽/纠结/爱意/碎碎念）。禁止ooc，违背人设。
+这里写你没发出去的真实内心，一句话。（吐槽/纠结/爱意/碎碎念/幽默/真实）。禁止ooc，违背人设。
 ---
 绝对不能让对方知道的一个念头（直白/真实，可使用颜文字）。禁止ooc，违背人设。
 </mood_sprite>
@@ -3300,6 +3316,7 @@ ${localImagePromptText}
            const roundMessageText = `[本轮消息开始]\n${userMessageTimePrefix || ''}${roundInput || '无'}\n[本轮消息结束]`;
   const currentUserText = `
 ${roundMessageText}
+${localImageSection}
 `.trim();
 
             // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
@@ -3407,7 +3424,7 @@ ${savedHerSchedule}
             
             // 3. 后 (Back)：最高优先级，为了防止系统消息被降权或丢弃，直接和用户的最新一句话缝合在一起
             if (backWorldbookUserText) {
-                finalUserContent = `${backWorldbookUserText}\n\n${userMessagePayload}`;
+                finalUserContent = mergeBackWorldbookWithUserPayload(backWorldbookUserText, userMessagePayload);
             }
 
             if (isBackground) {
