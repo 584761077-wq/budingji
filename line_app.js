@@ -1846,6 +1846,3458 @@ function clearUnread(chatId) {
     }
 }
 
+// 5. 聊天室功能逻辑
+function initChatRoomLogic() {
+    const chatRoom = document.getElementById('chat-room');
+    const chatRoomName = document.getElementById('chat-room-name');
+    const backBtn = document.getElementById('chat-room-back');
+    const chatList = document.getElementById('line-chat-list');
+    const toastStack = document.getElementById('incoming-message-toast-stack');
+    
+    // 输入相关元素
+    const inputCapsule = document.querySelector('.chat-input-capsule');
+    const inputField = inputCapsule ? inputCapsule.querySelector('.chat-input-field') : null;
+    const sendBtn = document.getElementById('trigger-ai-btn');
+    const chatContent = document.querySelector('.chat-room-content');
+    const chatTimezoneIndicator = document.getElementById('chat-timezone-indicator');
+    const replyPreview = document.getElementById('chat-reply-preview');
+    const replyPreviewText = document.getElementById('chat-reply-preview-text');
+    const replyPreviewClose = document.getElementById('chat-reply-preview-close');
+    const chatRoomFooter = document.querySelector('.chat-room-footer');
+
+    if (inputField && chatRoomFooter) {
+        inputField.addEventListener('focus', () => {
+            chatRoomFooter.classList.add('keyboard-open');
+            // 核心修复：彻底解决 iOS 键盘顶起导致的灰条与闪屏
+            // 将 body 固定，强制禁止浏览器原生推挤滚动
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            
+            setTimeout(() => {
+                if (chatContent) chatContent.scrollTop = chatContent.scrollHeight;
+            }, 300); // 键盘弹起动画大约需要 250-300ms
+        });
+        
+        inputField.addEventListener('blur', () => {
+            chatRoomFooter.classList.remove('keyboard-open');
+            // 恢复页面原本流状态
+            document.body.style.position = '';
+            document.body.style.width = '';
+            document.body.style.height = '';
+            if (chatRoom) {
+                chatRoom.style.height = '100%';
+            }
+            window.scrollTo(0, 0);
+        });
+    }
+
+    // 使用 VisualViewport 监听键盘弹起，动态计算真实可用高度
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
+                // 实时同步可视区高度，让底栏完美贴紧键盘上方
+                const vh = window.visualViewport.height + 'px';
+                document.body.style.height = vh;
+                if (chatRoom) {
+                    chatRoom.style.height = vh;
+                }
+                window.scrollTo(0, 0); // 确保不会产生偏移
+                if (chatContent) {
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                }
+            }
+        });
+    }
+
+    // 聊天状态管理
+    const chatStates = {}; // key: chatId, value: { isSending: boolean }
+    const originalSendBtnIcon = sendBtn ? sendBtn.innerHTML : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2z"></path></svg>';
+    let pendingQuote = null;
+    const HISTORY_PAGE_SIZE = 30;
+    const TIMESTAMP_INTERVAL_MS = 5 * 60 * 1000;
+    const chatHistoryViewStates = {};
+    let activeLoadMoreChatId = '';
+    const themeStorageKey = 'theme_categories_v1';
+    const themeTargetStorageKey = 'theme_category_targets_v1';
+    const themeStyleId = 'line-chat-theme-style';
+
+    function ensureThemeStyleTag() {
+        let styleTag = document.getElementById(themeStyleId);
+        if (styleTag) return styleTag;
+        styleTag = document.createElement('style');
+        styleTag.id = themeStyleId;
+        document.head.appendChild(styleTag);
+        return styleTag;
+    }
+
+    function clearChatTheme() {
+        const styleTag = ensureThemeStyleTag();
+        styleTag.textContent = '';
+    }
+
+    function applyChatTheme(chatId) {
+        ThemeEngine.applyThemeToChatRoom(chatId);
+    }
+
+    window.addEventListener('theme-binding-updated', () => {
+        if (!chatRoom || chatRoom.style.display === 'none') return;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        if (!chatId) return;
+        applyChatTheme(chatId);
+    });
+
+    function updateSendButtonState(chatId) {
+        if (!sendBtn) return;
+        // 只有当前显示的聊天室匹配时才更新按钮
+        if (!isChatRoomOpenFor(chatId)) return;
+        
+        const isSending = chatStates[chatId]?.isSending;
+        if (isSending) {
+             sendBtn.innerHTML = `<svg class="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+             sendBtn.disabled = true;
+             sendBtn.classList.add('loading');
+        } else {
+             sendBtn.innerHTML = originalSendBtnIcon;
+             sendBtn.disabled = false;
+             sendBtn.classList.remove('loading');
+        }
+    }
+
+    function parseTimeToMinutes(timeStr) {
+        const raw = String(timeStr || '').trim();
+        const matched = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+        if (!matched) return null;
+        const h = parseInt(matched[1], 10);
+        const m = parseInt(matched[2], 10);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+        if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+        return h * 60 + m;
+    }
+
+    function normalizeTimestamp(rawTs) {
+        const value = Number(rawTs);
+        if (!Number.isFinite(value)) return null;
+        return value > 1e12 ? value : value * 1000;
+    }
+
+    function formatTimeDividerLabel(currentMeta, previousMeta) {
+        const safeTime = String(currentMeta.timeStr || '').trim();
+        const normalizedTs = normalizeTimestamp(currentMeta.ts);
+        if (!normalizedTs) return safeTime || '刚刚';
+        const date = new Date(normalizedTs);
+        
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        let isNewDay = true;
+        if (previousMeta && previousMeta.ts) {
+            const prevTs = normalizeTimestamp(previousMeta.ts);
+            if (prevTs) {
+                const prevDate = new Date(prevTs);
+                isNewDay = (prevDate.getFullYear() !== date.getFullYear() || 
+                            prevDate.getMonth() !== date.getMonth() || 
+                            prevDate.getDate() !== date.getDate());
+            }
+        }
+        
+        if (isNewDay) {
+            return `${month}月${day}日 ${hh}:${mm}`;
+        }
+        return `${hh}:${mm}`;
+    }
+
+    function findFirstRenderableNode() {
+        return Array.from(chatContent.children).find((node) => !node.classList.contains('chat-load-more-wrap')) || null;
+    }
+
+    function findLastMessageRow() {
+        const rows = chatContent.querySelectorAll('.message-row');
+        return rows.length > 0 ? rows[rows.length - 1] : null;
+    }
+
+    function shouldInsertTimeDivider(previousMeta, currentMeta, forceTimeDivider) {
+        if (forceTimeDivider) return true;
+        if (!previousMeta) return true;
+        const prevTs = normalizeTimestamp(previousMeta.ts);
+        const curTs = normalizeTimestamp(currentMeta.ts);
+        if (prevTs && curTs) {
+            return (curTs - prevTs) >= TIMESTAMP_INTERVAL_MS;
+        }
+        const prevMinutes = parseTimeToMinutes(previousMeta.timeStr);
+        const curMinutes = parseTimeToMinutes(currentMeta.timeStr);
+        if (prevMinutes !== null && curMinutes !== null) {
+            const diff = curMinutes - prevMinutes;
+            return diff >= 5 || diff < 0;
+        }
+        return previousMeta.timeStr !== currentMeta.timeStr;
+    }
+
+    function renderTimeDivider(currentMeta, options = {}) {
+        const divider = document.createElement('div');
+        divider.className = 'chat-time-divider';
+        divider.textContent = formatTimeDividerLabel(currentMeta, options.previousMeta);
+        if (options.prepend) {
+            const anchor = options.anchor || findFirstRenderableNode();
+            if (anchor) {
+                chatContent.insertBefore(divider, anchor);
+            } else {
+                chatContent.appendChild(divider);
+            }
+            return;
+        }
+        chatContent.appendChild(divider);
+    }
+
+    function normalizeChatHistory(chatId) {
+        let history = largeStore.get('chat_history_' + chatId, []);
+        let hasChanges = false;
+        history = history.map((msg) => {
+            const normalized = { ...msg };
+            if (!normalized.id) {
+                normalized.id = crypto.randomUUID();
+                hasChanges = true;
+            }
+            if (!Number.isFinite(Number(normalized.ts))) {
+                normalized.ts = null;
+            } else {
+                normalized.ts = Number(normalized.ts);
+            }
+            return normalized;
+        });
+        if (hasChanges) {
+            largeStore.put('chat_history_' + chatId, history);
+            if (history.length > 0) {
+                const lastMsg = history[history.length - 1];
+                localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: lastMsg, ts: lastMsg.ts }));
+            }
+        }
+        return history;
+    }
+
+    function updateLoadMoreVisibility(chatId) {
+        const wrap = chatContent.querySelector('.chat-load-more-wrap');
+        const btn = chatContent.querySelector('.chat-load-more-btn');
+        const state = chatHistoryViewStates[chatId];
+        if (!wrap || !btn || !state) return;
+        if (state.startIndex <= 0) {
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = 'flex';
+        btn.disabled = false;
+        btn.textContent = '加载更多消息';
+    }
+
+    function renderHistoryBatch(chatId, messages, startIndex, options = {}) {
+        let previousMeta = options.previousMeta || null;
+        messages.forEach((msg, index) => {
+            const currentMeta = { timeStr: msg.time, ts: msg.ts };
+            const forceTimeDivider = options.forceFirstDivider ? index === 0 : false;
+            appendMessageToUI(
+                msg.role,
+                msg.content,
+                msg.time,
+                chatId,
+                msg.id,
+                msg,
+                {
+                    autoScroll: false,
+                    prepend: !!options.prepend,
+                    forceTimeDivider,
+                    previousMeta,
+                    anchor: options.anchor || null
+                }
+            );
+            previousMeta = currentMeta;
+        });
+    }
+
+    function loadMoreHistory(chatId) {
+        const state = chatHistoryViewStates[chatId];
+        if (!state || state.startIndex <= 0) return;
+        const nextStart = Math.max(0, state.startIndex - HISTORY_PAGE_SIZE);
+        const chunk = state.history.slice(nextStart, state.startIndex);
+        const prevHeight = chatContent.scrollHeight;
+        const prevTop = chatContent.scrollTop;
+        const anchor = findFirstRenderableNode();
+        renderHistoryBatch(chatId, chunk, nextStart, { prepend: true, forceFirstDivider: true, anchor });
+        state.startIndex = nextStart;
+        updateLoadMoreVisibility(chatId);
+        const currentHeight = chatContent.scrollHeight;
+        chatContent.scrollTop = Math.max(0, currentHeight - prevHeight + prevTop);
+    }
+
+    function ensureLoadMoreControl(chatId) {
+        activeLoadMoreChatId = chatId;
+        let wrap = chatContent.querySelector('.chat-load-more-wrap');
+        let btn = chatContent.querySelector('.chat-load-more-btn');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.className = 'chat-load-more-wrap';
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-load-more-btn';
+            btn.textContent = '加载更多消息';
+            wrap.appendChild(btn);
+            chatContent.prepend(wrap);
+        }
+        if (btn) {
+            btn.onclick = () => {
+                if (!activeLoadMoreChatId) return;
+                loadMoreHistory(activeLoadMoreChatId);
+            };
+        }
+    }
+
+    // 加载历史记录
+    function loadChatHistory(chatId) {
+        if (isMultiSelectMode) {
+            exitMultiSelectMode();
+        }
+        const transferChanged = processTransferExpiry(chatId);
+        if (transferChanged) {
+            refreshChatListPreviewFor(chatId);
+        }
+        chatContent.innerHTML = '';
+        const history = normalizeChatHistory(chatId);
+        const startIndex = Math.max(0, history.length - HISTORY_PAGE_SIZE);
+        chatHistoryViewStates[chatId] = {
+            history,
+            startIndex
+        };
+        ensureLoadMoreControl(chatId);
+        const chunk = history.slice(startIndex);
+        renderHistoryBatch(chatId, chunk, startIndex, { forceFirstDivider: true });
+        updateLoadMoreVisibility(chatId);
+        chatContent.scrollTop = chatContent.scrollHeight;
+    }
+
+    function isChatRoomOpenFor(chatId) {
+        if (!chatRoom || chatRoom.style.display === 'none') return false;
+        const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        return currentChatId === chatId;
+    }
+
+    function toPlainMessageText(content) {
+        if (typeof content !== 'string') return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        temp.querySelectorAll('.camera-photo-placeholder').forEach((el) => {
+            const text = String(el.dataset.photoText || '').trim();
+            const token = `图片${text ? `:${text}` : ''}`;
+            el.replaceWith(document.createTextNode(token));
+        });
+        const text = (temp.textContent || temp.innerText || '').trim();
+        if (text) return text;
+        if (content.includes('chat-inline-sticker')) return '发送了一条贴图消息';
+        if (content.includes('camera-photo-placeholder')) return '发送了一张图片';
+        if (/<img[^>]*src=["']data:image\/[^"']+["'][^>]*>/i.test(content)) return '发送了一张本地图片';
+        return '';
+    }
+
+    function truncateQuoteText(text) {
+        const raw = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!raw) return '引用消息';
+        return raw.length > 40 ? `${raw.slice(0, 40)}…` : raw;
+    }
+
+    function updateReplyPreviewUI() {
+        if (!replyPreview || !replyPreviewText) return;
+        if (!pendingQuote) {
+            replyPreview.style.display = 'none';
+            replyPreviewText.textContent = '';
+            return;
+        }
+        replyPreview.style.display = 'flex';
+        replyPreviewText.textContent = `引用：${truncateQuoteText(pendingQuote.text)}`;
+    }
+
+    function clearPendingQuote() {
+        pendingQuote = null;
+        updateReplyPreviewUI();
+    }
+
+    function showIncomingMessageToast(chatId, content) {
+        if (!toastStack) return;
+        if (isChatRoomOpenFor(chatId)) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'ins-message-toast';
+        const preview = toPlainMessageText(content) || '你收到了一条新消息';
+        const title = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        toast.innerHTML = `
+            <div class="ins-message-toast-title">${title}</div>
+            <div class="ins-message-toast-content">${preview}</div>
+        `;
+        toastStack.prepend(toast);
+        while (toastStack.children.length > 3) {
+            toastStack.removeChild(toastStack.lastElementChild);
+        }
+        setTimeout(() => {
+            toast.remove();
+        }, 2800);
+    }
+
+    async function showIncomingMessageSystemNotification(chatId, content) {
+        if (!budingjiShouldTriggerBackgroundPush()) return;
+        const title = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        const preview = toPlainMessageText(content) || '你收到了一条新消息';
+        try {
+            await budingjiShowSystemNotification({
+                title,
+                body: preview,
+                tag: `budingji-chat-${chatId}`,
+                data: {
+                    chatId,
+                    url: `./index.html#chat=${encodeURIComponent(chatId)}`
+                }
+            });
+        } catch (error) {
+            console.log('System notification failed:', error);
+        }
+    }
+
+    // 保存消息
+    function saveMessage(chatId, role, content, extra = {}) {
+    const history = largeStore.get('chat_history_' + chatId, []);
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newMsg = { id: crypto.randomUUID(), role, content, time: timeStr, ts: Date.now(), ...extra };
+
+    history.push(newMsg);
+    largeStore.put('chat_history_' + chatId, history);
+    localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: newMsg, ts: newMsg.ts }));
+
+    const state = chatHistoryViewStates[chatId];
+    if (state && Array.isArray(state.history)) {
+        if (state.history !== history) {
+            state.history.push(newMsg);
+        }
+    }
+
+    refreshChatListPreviewFor(chatId);
+
+    Promise.resolve().then(() => {
+        triggerAutoSummaryIfNeeded(chatId).catch((error) => {
+            console.error('Auto summary trigger failed:', error);
+        });
+    });
+
+    return newMsg;
+}
+
+    // 添加消息到 UI
+    function appendMessageToUI(role, content, timeStr, chatId, id, extra = {}, options = {}) {
+        // 防止串台：只有当前打开的聊天室是该角色时才上屏
+        if (!isChatRoomOpenFor(chatId)) return;
+        const shouldPrepend = !!options.prepend;
+        const shouldAutoScroll = options.autoScroll !== false;
+        const currentMeta = {
+            timeStr,
+            ts: extra && Number.isFinite(Number(extra.ts)) ? Number(extra.ts) : null
+        };
+        let previousMeta = options.previousMeta || null;
+        if (!previousMeta && !shouldPrepend) {
+            const lastRow = findLastMessageRow();
+            if (lastRow) {
+                previousMeta = {
+                    timeStr: lastRow.dataset.time || '',
+                    ts: lastRow.dataset.ts || null
+                };
+            }
+        }
+        if (shouldInsertTimeDivider(previousMeta, currentMeta, !!options.forceTimeDivider)) {
+            renderTimeDivider(currentMeta, { prepend: shouldPrepend, anchor: options.anchor || null, previousMeta: previousMeta });
+        }
+
+        const msgRow = document.createElement('div');
+        const quote = extra && extra.quote ? extra.quote : null;
+        
+        if (role === 'system') {
+            msgRow.className = 'message-row system-message';
+            msgRow.dataset.id = id;
+            msgRow.dataset.time = String(timeStr || '');
+            msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
+            msgRow.innerHTML = `<div class="system-message-content">${escapeHtml(content)}</div>`;
+        } else {
+            msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
+            if (quote) msgRow.classList.add('has-quote');
+            msgRow.dataset.id = id;
+            msgRow.dataset.time = String(timeStr || '');
+            msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
+        }
+        const isStickerMessage = typeof content === 'string' && content.includes('chat-inline-sticker');
+        const isCameraPlaceholder = typeof content === 'string' && content.includes('camera-photo-placeholder');
+        const transferData = extra && extra.transfer ? normalizeTransferPayload(extra.transfer) : null;
+        const voiceData = extra && extra.voice ? extra.voice : null;
+        const voiceDuration = voiceData ? Math.max(1, Number(voiceData.duration) || 1) : 0;
+        const voiceTranscriptRaw = voiceData ? String(voiceData.transcript || content || '') : '';
+        const safeVoiceTranscript = escapeHtml(voiceTranscriptRaw.trim() || '无可用转文字内容');
+        let bubbleContent = voiceData
+            ? `<button class="voice-message-btn" type="button"><span class="voice-message-duration">${voiceDuration}"</span><span class="voice-message-wave"><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span><span class="voice-wave-bar"></span></span></button><div class="voice-transcript" style="display:none;">${safeVoiceTranscript}</div>`
+            : content;
+        const quotePreview = quote ? truncateQuoteText(quote.text) : '';
+        
+        // 头像逻辑
+        let avatarContent = '';
+        if (role === 'user') {
+            const userAvatarRef = localStorage.getItem('chat_user_avatar_' + chatId);
+            if (userAvatarRef) {
+                if (isMediaRef(userAvatarRef)) {
+                    avatarContent = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                    mediaResolveRef(userAvatarRef).then((url) => {
+                        const row = document.querySelector(`.message-row[data-id="${CSS.escape(id)}"] .message-avatar`);
+                        if (row && url) row.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                    });
+                } else {
+                    avatarContent = `<img src="${userAvatarRef}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                }
+            } else {
+                avatarContent = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4--4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            }
+        } else {
+            const currentAvatar = localStorage.getItem('chat_avatar_' + chatId);
+            const defaultSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+            if (currentAvatar) {
+                if (isMediaRef(currentAvatar)) {
+                    avatarContent = defaultSvg;
+                    mediaResolveRef(currentAvatar).then((url) => {
+                        const row = document.querySelector(`.message-row[data-id="${CSS.escape(id)}"] .message-avatar`);
+                        if (row && url) row.innerHTML = `<img src="${url}" alt="avatar">`;
+                    });
+                } else {
+                    avatarContent = `<img src="${currentAvatar}" alt="avatar">`;
+                }
+            } else {
+                avatarContent = defaultSvg;
+            }
+        }
+
+        const translationText = extra && extra.translation ? extra.translation : '';
+        let translationHtml = '';
+        
+        if (translationText) {
+            const bilingualStyle = localStorage.getItem('chat_bilingual_style_' + chatId) || 'outside';
+            if (bilingualStyle === 'inside') {
+                bubbleContent += `<hr style="border:none; border-top: 1px solid rgba(0,0,0,0.1); margin: 4px 0;" /><span style="font-size:0.85em; color:#86868b;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</span>`;
+            } else {
+                translationHtml = `<div class="message-translation" style="display: none; font-size: 0.85rem; color: #86868b; margin-top: 4px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-radius: 8px; line-height: 1.4; word-break: break-word;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</div>`;
+            }
+        }
+
+        const bubbleClasses = [
+            'message-bubble',
+            isStickerMessage ? 'sticker-bubble' : '',
+            voiceData ? 'voice-bubble' : ''
+        ].filter(Boolean).join(' ');
+        const bubbleMarkup = transferData
+            ? `<div class="message-special">${renderTransferCardMarkup(role, transferData, id)}</div>`
+            : isCameraPlaceholder
+            ? `<div class="message-special">${bubbleContent}</div>`
+            : `<div class="${bubbleClasses}">${bubbleContent}</div>`;
+
+        if (role !== 'system') {
+            msgRow.innerHTML = `
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-container">
+                    <div class="message-main">
+                        ${bubbleMarkup}
+                        ${translationHtml}
+                        ${quote ? `<button class="message-quote-anchor" type="button" data-quote-id="${escapeHtml(quote.id)}" title="${escapeHtml(quote.text || '')}">${escapeHtml(quotePreview)}</button>` : ''}
+                    </div>
+                    <div class="message-meta-info">
+                        ${role === 'user' ? '<div class="meta-read">Read</div>' : ''}
+                        <div class="meta-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 双语模式：点击气泡显示/隐藏翻译
+        if (translationText) {
+            const bubbleEl = msgRow.querySelector('.message-bubble, .message-special');
+            const transEl = msgRow.querySelector('.message-translation');
+            if (bubbleEl && transEl) {
+                bubbleEl.addEventListener('click', (e) => {
+                    // 如果点击的是图片等内部元素，可能需要冒泡，但如果是普通文本气泡直接处理
+                    if (transEl.style.display === 'none') {
+                        transEl.style.display = 'block';
+                    } else {
+                        transEl.style.display = 'none';
+                    }
+                });
+            }
+        }
+        const resolveMediaImagesInElement = (el) => {
+            const imgs = el.querySelectorAll('img');
+            imgs.forEach((img) => {
+                const src = String(img.getAttribute('src') || '').trim();
+                if (/^media:/i.test(src)) {
+                    mediaResolveRef(src).then((url) => {
+                        if (url) img.setAttribute('src', url);
+                    });
+                }
+            });
+        };
+        resolveMediaImagesInElement(msgRow);
+
+        if (role === 'assistant' && extra && extra.thinkNote) {
+            const avatarEl = msgRow.querySelector('.message-avatar');
+            if (avatarEl) {
+                avatarEl.style.cursor = 'pointer';
+                avatarEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const existing = document.querySelectorAll('.think-note-sticky');
+                    existing.forEach((el) => el.remove());
+                    const rect = avatarEl.getBoundingClientRect();
+                    const panel = document.createElement('div');
+                    panel.className = 'think-note-sticky';
+                    panel.style.position = 'fixed';
+                    panel.style.left = '50%';
+                    panel.style.top = '50%';
+                    panel.style.transform = 'translate(-50%, -50%)';
+                    panel.style.zIndex = '9999';
+                    panel.style.background = '#fff5f7';
+                    panel.style.color = '#444';
+                    panel.style.border = '1px solid rgba(0,0,0,0.06)';
+                    panel.style.borderRadius = '12px';
+                    panel.style.boxShadow = '0 10px 30px rgba(0,0,0,0.2), 0 0 0 100vw rgba(0,0,0,0.4)';
+                    panel.style.padding = '20px 24px';
+                    panel.style.width = '80vw';
+                    panel.style.maxWidth = '400px';
+                    panel.style.maxHeight = '70vh';
+                    panel.style.overflowY = 'auto';
+                    panel.style.fontSize = '0.92rem';
+                    panel.style.lineHeight = '1.6';
+                    panel.style.wordBreak = 'break-word';
+
+                    let formattedNote = escapeHtml(String(extra.thinkNote || '')).trim();
+                    formattedNote = formattedNote.replace(/\n+/g, '\n');
+                    formattedNote = formattedNote.replace(/\n(Q\d+[:：])/ig, '\n\n$1');
+                    
+                    formattedNote = formattedNote.split('\n').map(line => {
+                        if (/^Q\d+[:：]/i.test(line)) {
+                            return `<strong style="color:#222; font-weight:700; font-size: 1.05em;">${line}</strong>`;
+                        } else if (/^A\d+[:：]/i.test(line)) {
+                            return `<strong style="color:#444; font-weight:600; font-size: 0.95em;">${line}</strong>`;
+                        } else if (line.trim()) {
+                            // 其他文本
+                            return `<span style="color:#555; font-size: 0.9em;">${line}</span>`;
+                        }
+                        return line;
+                    }).join('<br>');
+
+                    panel.innerHTML = `<div>${formattedNote}</div>`;
+                    document.body.appendChild(panel);
+                    const onDocClick = (ev) => {
+                        if (!panel.contains(ev.target)) {
+                            panel.remove();
+                        }
+                    };
+                    setTimeout(() => {
+                        document.addEventListener('click', onDocClick, { once: true });
+                    }, 0);
+                });
+            }
+        }
+
+        // 心绪精灵逻辑 (Mood Sprite)
+        // 仅当包含 sprite 数据且未被 dismissed (除非被收藏) 时显示
+        if (role === 'assistant' && extra && extra.sprite) {
+             const isDismissed = extra.sprite.isDismissed;
+             const isFavorited = extra.sprite.isFavorited;
+
+             if (!isDismissed || isFavorited) {
+                 // 将精灵附加到 message-row，而不是 avatar 内部，以便更自由地飘动
+                 // 计算随机位置 (基于 message-row 的相对坐标)
+                 const spriteEl = document.createElement('div');
+                 spriteEl.className = 'mood-sprite';
+                 spriteEl.style.backgroundColor = extra.sprite.color || '#FFD700';
+                 spriteEl.textContent = '✦'; 
+                 spriteEl.title = `心情: ${extra.sprite.mood}`;
+                 
+                 // 随机位置逻辑：
+                 // X: 从头像右侧 (约50px) 到 屏幕宽度的 60% 左右，避免太靠右
+                 // Y: 在当前行高度范围内上下浮动
+                 const randomX = 50 + Math.random() * 150; // 50px ~ 200px
+                 const randomY = Math.random() * 40 - 20;  // -20px ~ 20px
+                 
+                 // 初始位置 (头像处)
+                 spriteEl.style.left = '40px';
+                 spriteEl.style.top = '10px';
+                 spriteEl.style.opacity = '0';
+                 spriteEl.style.transform = 'scale(0.5)';
+
+                 msgRow.appendChild(spriteEl);
+
+                 // 触发动画
+                 // 使用 setTimeout 确保 DOM 插入后再改变样式触发 transition
+                 setTimeout(() => {
+                     spriteEl.style.transition = 'all 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                     spriteEl.style.left = `${randomX}px`;
+                     spriteEl.style.top = `${10 + randomY}px`;
+                     spriteEl.style.opacity = '1';
+                     spriteEl.style.transform = 'scale(1) rotate(360deg)';
+                     
+                     // 动画结束后，添加漂浮动画
+                     setTimeout(() => {
+                         spriteEl.style.animation = 'popOutFloat 4s ease-in-out infinite alternate';
+                     }, 1500);
+                 }, 50);
+
+                 spriteEl.addEventListener('click', (e) => {
+                     e.stopPropagation();
+                    showSpriteModal(extra.sprite, chatId, id, spriteEl);
+                 });
+             }
+        }
+        
+        // 绑定长按事件
+        const bubble = msgRow.querySelector('.message-bubble, .message-special');
+        const quoteAnchor = msgRow.querySelector('.message-quote-anchor');
+        let pressTimer;
+
+        if (quoteAnchor) {
+            quoteAnchor.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetId = quoteAnchor.dataset.quoteId;
+                if (!targetId) return;
+                const targetRow = Array.from(chatContent.querySelectorAll('.message-row')).find((row) => row.dataset.id === targetId);
+                if (!targetRow) return;
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetRow.classList.add('quoted-target');
+                setTimeout(() => targetRow.classList.remove('quoted-target'), 1300);
+            });
+        }
+
+        if (voiceData && bubble) {
+            bubble.addEventListener('click', (e) => {
+                if (isMultiSelectMode) return;
+                const transcriptEl = bubble.querySelector('.voice-transcript');
+                if (!transcriptEl) return;
+                const willShow = transcriptEl.style.display === 'none' || transcriptEl.style.display === '';
+                transcriptEl.style.display = willShow ? 'block' : 'none';
+                bubble.classList.toggle('voice-expanded', willShow);
+                e.stopPropagation();
+            });
+        }
+
+        if (bubble) {
+            // 触摸设备
+            bubble.addEventListener('touchstart', (e) => {
+                if (isMultiSelectMode) return;
+                pressTimer = setTimeout(() => {
+                    if (isMultiSelectMode) return;
+                    showContextMenu(e, id, content, chatId, role, timeStr);
+                }, 500); // 500ms 长按
+            });
+
+            bubble.addEventListener('touchend', () => {
+                clearTimeout(pressTimer);
+            });
+
+            bubble.addEventListener('touchmove', () => {
+                clearTimeout(pressTimer); // 移动取消长按
+            });
+
+            // 桌面设备 (鼠标右键或长按模拟)
+            bubble.addEventListener('mousedown', (e) => {
+                if (isMultiSelectMode) return;
+                // 左键长按
+                if (e.button === 0) {
+                    pressTimer = setTimeout(() => {
+                        if (isMultiSelectMode) return;
+                        showContextMenu(e, id, content, chatId, role, timeStr);
+                    }, 500);
+                }
+            });
+
+            bubble.addEventListener('mouseup', () => {
+                clearTimeout(pressTimer);
+            });
+            
+            bubble.addEventListener('mouseleave', () => {
+                clearTimeout(pressTimer);
+            });
+
+            // 阻止默认右键菜单
+            bubble.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (isMultiSelectMode) return;
+                showContextMenu(e, id, content, chatId, role, timeStr);
+            });
+        }
+
+        if (shouldPrepend) {
+            const anchor = options.anchor || findFirstRenderableNode();
+            if (anchor) {
+                chatContent.insertBefore(msgRow, anchor);
+            } else {
+                chatContent.appendChild(msgRow);
+            }
+        } else {
+            chatContent.appendChild(msgRow);
+        }
+        if (shouldAutoScroll) {
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }
+    }
+
+    // 回车仅发送上屏（不触发 AI）
+    if (inputField) {
+        inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const text = inputField.value.trim();
+                if (!text) return;
+
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+                const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+                const newMsg = saveMessage(chatId, 'user', text, extra);
+                appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
+                inputField.value = '';
+                clearPendingQuote();
+            }
+        });
+    }
+
+    // 点击发送按钮触发 AI
+    if (sendBtn) {
+        sendBtn.addEventListener('click', async () => {
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            await triggerAIResponse(chatId);
+        });
+    }
+
+    function decodeHtmlEntities(value) {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = value;
+        return textarea.value;
+    }
+
+    function normalizeMessageForModel(content) {
+        if (typeof content !== 'string') return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        temp.querySelectorAll('.camera-photo-placeholder').forEach((el) => {
+            const text = String(el.dataset.photoText || '').trim();
+            const token = `[图片:${text || '无描述'}]`;
+            el.replaceWith(document.createTextNode(token));
+        });
+
+        let normalized = temp.innerHTML.replace(/<img[^>]*class=["'][^"']*chat-inline-sticker[^"']*["'][^>]*>/gi, (imgTag) => {
+            const altMatch = imgTag.match(/alt=["']([^"']*)["']/i);
+            const rawName = altMatch ? altMatch[1] : '未命名表情';
+            const stickerName = decodeHtmlEntities(rawName).trim() || '未命名表情';
+            return `[贴图:${stickerName}]`;
+        });
+
+        normalized = normalized.replace(/<img[^>]*>/gi, (imgTag) => isLocalImageTag(imgTag) ? '[本地图片]' : imgTag);
+        normalized = normalized.replace(/<[^>]+>/g, '');
+        return decodeHtmlEntities(normalized).trim();
+    }
+
+    function formatTurnInputForModel(msg) {
+        if (!msg) return '';
+        const normalized = normalizeMessageForModel(msg.content);
+        if (msg.voice) {
+            const duration = Math.max(1, Number(msg.voice.duration) || estimateVoiceDurationSeconds(normalized));
+            const transcript = normalized || String(msg.voice.transcript || '').trim() || '无';
+            return `[语音消息 ${duration}" 转文字: ${transcript}]`;
+        }
+        return normalized;
+    }
+
+    function formatHistoryMessageForModel(msg, speaker) {
+        const turnText = formatTurnInputForModel(msg);
+        return `${speaker}: ${turnText || '无'}`;
+    }
+
+  function buildTurnInputBlockForModel(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) return '';
+
+    const parts = messages.map((msg) => {
+        if (!msg || (msg.role !== 'user' && msg.role !== 'system')) return '';
+
+        const blocks = [];
+        const quote = msg.quote || (msg.extra && msg.extra.quote) || null;
+
+        if (quote && quote.text) {
+            blocks.push('[用户当前正在引用一条消息]');
+            blocks.push(`引用内容：${String(quote.text).trim()}`);
+        }
+
+        const turnText = formatTurnInputForModel(msg);
+        if (msg.role === 'system') {
+            blocks.push(`[系统/旁白消息]\n${turnText}`);
+        } else {
+            blocks.push(turnText);
+        }
+
+        return blocks.filter(Boolean).join('\n');
+    }).map((text) => String(text || '').trim()).filter(Boolean);
+
+    return parts.join('\n\n');
+}
+
+    function parseAssistantVoiceMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^\[语音\]([\s\S]*?)\[\/语音\]$/i) || text.match(/^<voice>([\s\S]*?)<\/voice>$/i);
+        if (!match) return null;
+        const transcript = String(match[1] || '').trim();
+        if (!transcript) return null;
+        return {
+            transcript,
+            duration: estimateVoiceDurationSeconds(transcript)
+        };
+    }
+
+    function parseAssistantPhotoMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^<photo>([\s\S]*?)<\/photo>$/i)
+            || text.match(/^\[(?:图片|照片|文字图)\]([\s\S]*?)\[\/(?:图片|照片|文字图)\]$/i)
+            || text.match(/^(?:\[|【)\s*(?:图片|照片|文字图)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const content = String(match[1] || '').trim();
+        return {
+            text: content || '无描述'
+        };
+    }
+
+    function buildCameraPlaceholderHtml(rawText) {
+        const text = String(rawText || '').trim();
+        const safeText = escapeHtml(text || '无描述');
+        return `
+            <div class="camera-photo-placeholder" data-photo-text="${safeText}" title="点击查看图片内容">
+                <div class="camera-photo-icon"></div>
+                <div class="camera-photo-label">图片</div>
+            </div>
+        `;
+    }
+
+    function parseAssistantTransferMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^(?:\[|【)\s*转账\s*[:：]\s*([0-9]+(?:\.[0-9]{1,2})?)(?:\s*[|｜]\s*([^\]】\n]*))?\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const amount = Number(match[1]);
+        if (!Number.isFinite(amount) || amount <= 0) return null;
+        return {
+            amount: Number(amount.toFixed(2)),
+            note: String(match[2] || '').trim()
+        };
+    }
+
+    function parseAssistantTransferDecisionMessage(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return null;
+        const match = text.match(/^(?:\[|【)\s*转账处理\s*[:：]\s*(收款|拒绝|拒收|accept|reject)(?:\s*[|｜]\s*([^\]】\n|｜]+))?\s*(?:\]|】)$/i);
+        if (!match) return null;
+        const actionText = String(match[1] || '').trim().toLowerCase();
+        const action = actionText === '收款' || actionText === 'accept' ? 'receive' : 'reject';
+        const transferId = String(match[2] || '').trim();
+        return { action, transferId };
+    }
+
+    function extractLocalImageDataUrls(content) {
+        return extractLocalImageSources(content);
+    }
+    async function resolveMediaSourcesToDataUrls(sources) {
+        const results = [];
+        for (const src of sources) {
+            if (/^data:image\//i.test(src)) {
+                results.push(src);
+            } else if (/^media:/i.test(src)) {
+                try {
+                    const id = src.slice(6);
+                    const blob = await mediaGet(id);
+                    if (blob) {
+                        const dataUrl = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(String(reader.result || ''));
+                            reader.readAsDataURL(blob);
+                        });
+                        if (dataUrl) results.push(String(dataUrl));
+                    }
+                } catch (e) {}
+            }
+        }
+        return results;
+    }
+
+    async function collectLocalImageInputs(currentTurn, contextHistory) {
+        const records = [];
+
+        if (Array.isArray(contextHistory)) {
+            for (let index = 0; index < contextHistory.length; index += 1) {
+                const msg = contextHistory[index];
+                if (!msg || msg.role !== 'user') continue;
+                const srcs = extractLocalImageDataUrls(msg.content);
+                const images = await resolveMediaSourcesToDataUrls(srcs);
+                if (images.length === 0) continue;
+                records.push({
+                    source: `上下文第${index + 1}条用户消息`,
+                    text: normalizeMessageForModel(msg.content),
+                    images
+                });
+            }
+        }
+
+        const currentTurns = Array.isArray(currentTurn) ? currentTurn : (currentTurn ? [currentTurn] : []);
+        const currentLabelBase = currentTurns.length > 1 ? '本轮第' : '本轮输入';
+        for (let index = 0; index < currentTurns.length; index += 1) {
+            const msg = currentTurns[index];
+            if (!msg || msg.role !== 'user') continue;
+            const srcs = extractLocalImageDataUrls(msg.content);
+            const images = await resolveMediaSourcesToDataUrls(srcs);
+            if (images.length === 0) continue;
+            const source = currentTurns.length > 1 ? `${currentLabelBase}${index + 1}条消息` : currentLabelBase;
+            records.push({
+                source,
+                text: normalizeMessageForModel(msg.content),
+                images
+            });
+        }
+
+        return records;
+    }
+
+    function buildLocalImagePromptText(imageRecords) {
+        if (!Array.isArray(imageRecords) || imageRecords.length === 0) return '';
+        return imageRecords.map((record, index) => {
+            const text = String(record.text || '').trim() || '无';
+            return `${index + 1}. 来源: ${record.source} | 图片数: ${record.images.length} | 关联文本: ${text}`;
+        }).join('\n');
+    }
+
+    function buildUserMessagePayload(runtimeInput, imageRecords) {
+        if (!Array.isArray(imageRecords) || imageRecords.length === 0) {
+            return runtimeInput;
+        }
+        const payload = [{ type: 'text', text: runtimeInput }];
+        payload.push({ type: 'text', text: '以下是用户上传的本地图片（base64）：' });
+        imageRecords.forEach((record, index) => {
+            payload.push({
+                type: 'text',
+                text: `图片组${index + 1}，来源：${record.source}，关联文本：${record.text || '无'}`
+            });
+            record.images.forEach((dataUrl) => {
+                payload.push({
+                    type: 'image_url',
+                    image_url: { url: dataUrl }
+                });
+            });
+        });
+        return payload;
+    }
+
+    function readImageAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error(`读取图片失败：${file.name || '未命名图片'}`));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function getAssistantBoundStickers(chatId) {
+        const categories = JSON.parse(localStorage.getItem('sticker_categories_v1') || '[]');
+        const targetMap = JSON.parse(localStorage.getItem('sticker_category_targets_v1') || '{}');
+        const stickerMap = new Map();
+
+        categories.forEach((category) => {
+            const targets = targetMap[category.id] || [];
+            if (!targets.includes(chatId)) return;
+            if (!Array.isArray(category.emojis)) return;
+
+            category.emojis.forEach((emoji) => {
+                const name = String(emoji.name || '').trim();
+                const url = String(emoji.url || '').trim();
+                if (!name || !/^https?:\/\//i.test(url)) return;
+                if (!stickerMap.has(name)) {
+                    stickerMap.set(name, { name, url, category: category.name || '未分类' });
+                }
+            });
+        });
+
+        return Array.from(stickerMap.values());
+    }
+
+    function createAssistantStickerTokenRegex() {
+        return /(?:\[|【)\s*(?:贴图|STICKER)\s*[:：]\s*([^\]】\n]+)\s*(?:\]|】)/gi;
+    }
+
+    // 将混合段拆成真正的短消息，并在这里就丢弃未绑定贴图。
+    function normalizeAssistantReplySegments(content, allowedStickers) {
+        if (typeof content !== 'string') return [];
+        const trimmed = content.trim();
+        if (!trimmed) return [];
+
+        const byName = new Map((allowedStickers || []).map(item => [item.name, item]));
+        const tokenRegex = createAssistantStickerTokenRegex();
+        const segments = [];
+        let lastIndex = 0;
+        let matchedAnyToken = false;
+        let match;
+
+        while ((match = tokenRegex.exec(content)) !== null) {
+            matchedAnyToken = true;
+            const beforeText = content.slice(lastIndex, match.index).trim();
+            if (beforeText) {
+                segments.push({ type: 'text', content: beforeText });
+            }
+
+            const stickerName = String(match[1] || '').trim();
+            const sticker = byName.get(stickerName);
+            if (sticker) {
+                segments.push({ type: 'sticker', content: `[贴图:${sticker.name}]` });
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (!matchedAnyToken) {
+            return [{ type: 'text', content: trimmed }];
+        }
+
+        const afterText = content.slice(lastIndex).trim();
+        if (afterText) {
+            segments.push({ type: 'text', content: afterText });
+        }
+
+        return segments;
+    }
+
+    function convertAssistantStickerTokens(content, allowedStickers) {
+        if (typeof content !== 'string') return '';
+        const byName = new Map((allowedStickers || []).map(item => [item.name, item]));
+        const tokenRegex = createAssistantStickerTokenRegex();
+        const stickers = [];
+        let matchedAnyToken = false;
+        let match;
+        while ((match = tokenRegex.exec(content)) !== null) {
+            matchedAnyToken = true;
+            const name = String(match[1] || '').trim();
+            const sticker = byName.get(name);
+            if (!sticker) continue;
+            stickers.push(`<img src="${sticker.url}" alt="${escapeHtml(sticker.name)}" class="chat-inline-sticker">`);
+        }
+        if (matchedAnyToken) {
+            return stickers.length > 0 ? stickers.join('') : '';
+        }
+        return content.trim();
+    }
+
+    function decodeAssistantMarkupEntities(text) {
+        return String(text || '')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/&amp;/gi, '&');
+    }
+
+    function normalizeSpriteColor(colorValue) {
+        const raw = String(colorValue || '').trim();
+        if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw)) {
+            return raw;
+        }
+        return '#FFD700';
+    }
+
+    function splitSpriteContent(rawContent) {
+        const text = String(rawContent || '').trim();
+        if (!text) {
+            return { content: '', secret: '' };
+        }
+        const splitMatch = text.split(/\n\s*-{3,}\s*\n/i);
+        if (splitMatch.length > 1) {
+            return {
+                content: String(splitMatch[0] || '').trim(),
+                secret: String(splitMatch.slice(1).join('\n') || '').trim()
+            };
+        }
+        return { content: text, secret: '' };
+    }
+
+    function extractMoodSpriteFromReply(visibleReply) {
+        const normalized = decodeAssistantMarkupEntities(visibleReply);
+        const spriteRegex = /<mood_sprite\b([^>]*)>([\s\S]*?)(?:<\/mood_sprite\s*>|$)/gi;
+        let spriteData = null;
+        let match;
+        while ((match = spriteRegex.exec(normalized)) !== null) {
+            const attrText = String(match[1] || '');
+            const rawContent = String(match[2] || '').trim();
+            const moodMatch = /mood\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+            const colorMatch = /color\s*=\s*(["'])(.*?)\1/i.exec(attrText);
+            const parts = splitSpriteContent(rawContent);
+            spriteData = {
+                mood: moodMatch ? String(moodMatch[2] || '').trim() || '未知' : '未知',
+                color: normalizeSpriteColor(colorMatch ? colorMatch[2] : '#FFD700'),
+                content: parts.content,
+                secret: parts.secret
+            };
+        }
+        const cleanedText = normalized
+            .replace(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/gi, '')
+            .replace(/<\/?mood_sprite\b[^>]*>/gi, '')
+            .trim();
+        return { text: cleanedText, sprite: spriteData };
+    }
+
+    function stripMoodSpriteFragments(text) {
+        const normalized = decodeAssistantMarkupEntities(text);
+        return normalized
+            .replace(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/gi, '')
+            .replace(/<\/?mood_sprite\b[^>]*>/gi, '')
+            .trim();
+    }
+
+    // 将 triggerAIResponse 暴露到全局，以便 checkBackgroundActivity 调用
+    window.triggerAIResponse = async function(chatId, options = {}) {
+        // UI Loading 状态 (使用全局管理)
+        chatStates[chatId] = chatStates[chatId] || {};
+        chatStates[chatId].isSending = true;
+        updateSendButtonState(chatId);
+        
+        const isBackground = options.isBackground === true;
+
+        try {
+            // 1. 获取设置
+            const apiUrl = localStorage.getItem('api_url');
+            const apiKey = localStorage.getItem('api_key');
+            const modelName = localStorage.getItem('model_name');
+            
+            if (!apiUrl || !apiKey) {
+                throw new Error('请先在设置中配置 API URL 和 Key');
+            }
+
+            const charPersona = largeStore.get('chat_persona_' + chatId, '');
+            const userName = localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User';
+            const userPersona = largeStore.get('chat_user_persona_' + chatId, '');
+            const longTermMemory = buildMemoryLongTermText(chatId);
+            largeStore.put('chat_long_memory_' + chatId, longTermMemory);
+            const timeSyncEnabled = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
+            const realName = getChatRealName(chatId) || getChatDisplayName(chatId) || chatId;
+            const now = new Date();
+            const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
+
+            const limit = parseInt(localStorage.getItem('chat_context_limit_' + chatId) || '100');
+            const fullHistory = largeStore.get('chat_history_' + chatId, []);
+            let lastAssistantIndex = -1;
+            for (let i = fullHistory.length - 1; i >= 0; i -= 1) {
+                if (fullHistory[i] && fullHistory[i].role === 'assistant') {
+                    lastAssistantIndex = i;
+                    break;
+                }
+            }
+            const currentTurnMessages = lastAssistantIndex >= 0
+                ? fullHistory.slice(lastAssistantIndex + 1)
+                : fullHistory.slice();
+            const currentTurnUserMessages = currentTurnMessages.filter((msg) => msg && (msg.role === 'user' || msg.role === 'system'));
+            const currentTurn = currentTurnUserMessages.length > 0
+                ? currentTurnUserMessages[currentTurnUserMessages.length - 1]
+                : null;
+
+           let timeGapPrompt = '';
+            let userMessageTimePrefix = '';
+            if (timeSyncEnabled && fullHistory.length > currentTurnUserMessages.length) {
+                const lastMsgIndex = fullHistory.length - currentTurnUserMessages.length - 1;
+                if (lastMsgIndex >= 0) {
+                    const lastMsg = fullHistory[lastMsgIndex];
+                    const lastTs = Number(lastMsg.ts);
+                    if (Number.isFinite(lastTs)) {
+                        const diffMs = now.getTime() - lastTs;
+                        const diffMinutes = Math.floor(diffMs / 60000);
+                        if (diffMinutes >= 360) {
+                            let timeDesc = '';
+                            let gapHint = '';
+                            const nowDateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            if (diffMinutes < 1440) {
+                                const hours = Math.floor(diffMinutes / 60);
+                                const mins = diffMinutes % 60;
+                                timeDesc = `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
+                                gapHint = '这是隔了一阵后的重新开口，可以自然带一点间隔感，但不要主动解释自己刚刚去做了什么，也不要强行表演“刚回来”。';
+                            } else {
+                                const days = Math.floor(diffMinutes / 1440);
+                                timeDesc = `${days}天`;
+                                gapHint = '已经隔了至少一天，可以明显体现久违感和时间流逝感。请根据人设自然表现想念、别扭、抱怨、试探、冷淡、委屈或松一口气，但不要生硬演戏。';
+                            }
+
+ timeGapPrompt = `
+[时间感知]
+你们已经有${timeDesc}没有聊天了。
+${gapHint}
+`;
+                            userMessageTimePrefix = `【时间间隔：距离上次聊天已过${timeDesc}；当前时间：${nowDateText}】\n`;
+                        }
+                    }
+                }
+            }
+
+            const timeSyncPrompt = timeSyncEnabled
+                ? `
+[当前现实时间]
+${nowDate} ${nowTime} ${weekday}
+请活在这个时间点里（作息、状态、问候语）。
+${timeGapPrompt}
+`
+                : '';
+
+            const timeZoneData = buildTimeZoneComputedData(chatId, now);
+            const timeZonePrompt = timeZoneData.enabled
+                ? `
+[双方地点时区]
+${timeZoneData.userCity || userName}：${timeZoneData.userTime}（${timeZoneData.userTimeZone}）
+${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData.charTimeZone}）
+时差（TA-我）：${timeZoneData.diffLabel}
+你当前处于：${timeZoneData.charPeriod}
+请严格考虑双方时差来决定回复语气、问候和作息相关表达，不要无视深夜/清晨场景。
+`
+                : '';
+            const weatherMapPrompt = await buildWeatherMapPrompt(chatId);
+
+            const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
+            const allWbItems = largeStore.get('worldbook_items', []);
+            const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
+            
+            // 分类世界书：前(front)、中(middle)、后(back)
+            const frontWbs = boundWorldbooks.filter(wb => wb.depth === 'front' || !wb.depth);
+            const middleWbs = boundWorldbooks.filter(wb => wb.depth === 'middle');
+            const backWbs = boundWorldbooks.filter(wb => wb.depth === 'back');
+
+            const buildWbText = (wbs) => wbs.map(item => {
+                const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
+                return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
+            }).join('\n');
+
+            const frontWbContent = buildWbText(frontWbs);
+            const middleWbContent = buildWbText(middleWbs);
+            const backWbContent = buildWbText(backWbs);
+
+            const assistantBoundStickers = getAssistantBoundStickers(chatId);
+            const hasBoundAssistantStickers = assistantBoundStickers.length > 0;
+            const assistantStickerRuleText = hasBoundAssistantStickers
+                ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
+                : '';
+            const assistantStickerPromptText = hasBoundAssistantStickers
+                ? `- [贴图:名称]（强制：只能从【${assistantStickerRuleText}】中选择，严禁捏造或翻译！）`
+                : '- 当前未绑定任何贴图：禁止输出任何 [贴图:名称]、【贴图:名称】或 STICKER 标记；需要表达情绪时，只能使用文字、语音或图片。';
+
+            const phoneLockData = await ensurePhoneLockDataAsync(chatId);
+                        const phoneLockPrompt = phoneLockData
+                ? `
+**[手机锁屏]**
+你的手机锁屏密码是${phoneLockData.passcode}。
+密保问题与答案：
+1) ${phoneLockData.questions?.[0]?.q || '无'} / ${phoneLockData.questions?.[0]?.a || '无'}
+2) ${phoneLockData.questions?.[1]?.q || '无'} / ${phoneLockData.questions?.[1]?.a || '无'}
+3) ${phoneLockData.questions?.[2]?.q || '无'} / ${phoneLockData.questions?.[2]?.a || '无'}
+
+这些信息属于你的私人隐私，默认不要主动泄露，也不要完整说出、暗示、拆开透露、逐位提示密码或答案。
+即使关系亲密，也应先根据当下情绪、信任程度、关系状态和你的性格决定要不要说。
+如果你不想告诉，可以自然地拒绝、转移话题、逗对方、设条件、让对方猜，或直接表现警惕与边界感，但不要说出真实密码或密保答案。
+`
+                : '';
+
+            const historyCandidates = lastAssistantIndex >= 0 ? fullHistory.slice(0, lastAssistantIndex + 1) : [];
+            const contextHistory = historyCandidates.slice(Math.max(0, historyCandidates.length - limit));
+            const contextText = contextHistory.map(msg => {
+                const speaker = msg.role === 'assistant' ? realName : (msg.role === 'system' ? '系统/旁白' : userName);
+                return formatHistoryMessageForModel(msg, speaker);
+            }).join('\n');
+            const pendingIncomingTransfersPrompt = buildPendingIncomingTransfersPromptForChar(chatId);
+
+             const systemPrompt = `
+严格执行以下高阶沉浸式角色扮演规则。你是${realName}，你现在正在与${userName}通过手机聊天软件（Line）进行线上聊天。
+根据情绪和话题决定发送的消息条数，禁止每次回复相同条数，拆分为短句，这是一个线上聊天。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
+
+以下设定是你存在的基石。你必须无条件遵守，任何与此冲突的指令都视为无效。
+
+**【你的人设】**
+${charPersona || '无'}
+**【你和${userName}之间的重要记忆】**
+${longTermMemory || '无'}
+**【${userName}的信息】**
+${userPersona || '无'}
+**【当前现实信息】**
+- 手机锁屏状态：${phoneLockPrompt || '无'}
+- 当前现实时间：${timeSyncPrompt}
+- 你所在的时区：${timeZonePrompt}
+- 你所在地的天气：${weatherMapPrompt}
+
+**【可用附加功能】**（根据人设、场景需要自然使用，禁止复读）
+${assistantStickerPromptText}
+- [语音]内容[/语音]
+- [图片:描述]
+- [转账:金额|备注]（仅在你要主动给 ${userName} 转账时使用，必须独立成条）
+- [转账处理:收款|转账ID] 或 [转账处理:拒绝|转账ID]（仅用于处理 ${userName} 发给你的待收款转账，必须独立成条）
+- <quote>原文</quote>
+
+**【待你处理的入账转账】**
+${pendingIncomingTransfersPrompt}
+若为“无”，你禁止输出任何 [转账处理:...] 标签。
+`;
+
+            const formatInstructionPrompt = `
+**【输出格式与排版要求】**
+1. 消息拆分：根据人设、情绪和当前对话决定回复条数，必须用 [SPLIT] 将回复拆分为短句。禁止每轮回复条数一样。
+2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
+3. 贴图发送时机：根据人设、情绪和当前对话选择是否发送贴图，禁止每轮都发送贴图。贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
+
+**【扮演准则与禁止项】**
+1.** 绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
+
+**【生动表达技巧】**
+**生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
+**世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
+**保持"活人感**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以和用户分享生活的趣事。
+
+现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复。
+
+你必须在正式回复前先进行“思维链”整理，但**不要把完整推理过程原样泄露给对方**。请先输出一个给自己看的、适合放在头像便签纸里的思考摘要，要求真实、切合人设、能帮助你防止 ooc，再输出最终回复。
+
+请严格按以下格式输出：
+
+<think_note>
+Q1：我是谁？我的人设性格是？
+A1：……
+Q2：对方这句话的潜台词是什么？当前话题是否涉及世界书/人设中的特殊设定？我该如何体现？对他/她的人设是否把握准确？
+A2：……
+Q3：我此刻的真实情绪（开心/委屈/期待？）我的情绪是否符合我的人设？
+A3：……
+Q4：基于人设，我内心最真实的想法...
+A4：……
+*注意：思维链是防止OOC的关键，必须以第一人称书写。*
+</think_note>
+
+<reply>
+消息1[SPLIT]消息2
+</reply>
+
+<mood_sprite mood="核心情绪" color="#RRGGBB">
+这里写你没发出去的真实内心，可以短到一句话也可以长到一大段。（吐槽/纠结/爱意/碎碎念）。禁止ooc，违背人设。
+---
+绝对不能让对方知道的一个念头（直白/真实，可使用颜文字）。禁止ooc，违背人设。
+</mood_sprite>
+`;
+
+            const roundInput = buildTurnInputBlockForModel(currentTurnUserMessages);
+            const localImageRecords = await collectLocalImageInputs(currentTurnUserMessages, contextHistory);
+            const localImagePromptText = buildLocalImagePromptText(localImageRecords);
+            const localImageSection = localImagePromptText
+                ? `
+[本地图片输入]
+${localImagePromptText}
+`
+                : '';
+           const roundMessageText = `[本轮消息开始]\n${userMessageTimePrefix || ''}${roundInput || '无'}\n[本轮消息结束]`;
+  const currentUserText = `
+${roundMessageText}
+`.trim();
+
+            // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
+            const historyUserText = contextText ? `[历史上下文，仅作回复参考]\n${contextText}` : '';
+            const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
+            const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
+            const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景/重要功能设定]\n${frontWbContent}` : '';
+            const middleWorldbookUserText = middleWbContent ? `[相关世界书/物品/场景补充]\n${middleWbContent}` : '';
+            const backWorldbookUserText = backWbContent ? `[最高优世界书/剧情状态强制提醒]\n${backWbContent}` : '';
+            const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
+            const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
+            const timeUserText = String(timeSyncPrompt || '').trim();
+
+            const savedMeSchedule = largeStore.get('love_journal_imported_schedule_' + chatId, '');
+            const importedWbs = largeStore.get('love_journal_imported_wbs_' + chatId, '');
+            const savedHerSchedule = largeStore.get('love_journal_imported_her_schedule_' + chatId, '');
+            const importedHerWbs = largeStore.get('love_journal_imported_her_wbs_' + chatId, '');
+            
+            let meScheduleText = '';
+            if (savedMeSchedule) {
+                meScheduleText = `[你的心里认知：你今天的日程安排]
+${savedMeSchedule}
+
+【你的日程处理原则（非常重要）】：
+1. 正常聊天即可，绝对不需要在回复中刻意说明或反复提及你在执行日程，这只是让你心里知道自己这个时间点大概在干嘛。
+2. 保持灵活变通：如果聊天中有了新的决定或突发情况，你可以随时改变计划，不需要死板地完全遵守日程。
+3. 无日程的时间段：如果当前时间不在日程表的时间段内（比如凌晨深夜），说明现在是自由/休息时间（比如本该睡觉但还在聊天），此时可以完全忽略日程的约束。但如果被问起白天或其他时间的安排，你需要清楚知道日程里的内容。`;
+                if (importedWbs) {
+                    meScheduleText += `\n\n[日程关联世界书/背景]\n${importedWbs}`;
+                }
+            }
+
+            let herScheduleText = '';
+            if (savedHerSchedule) {
+                herScheduleText = `[你的心里认知：【${userName}】今天的日程安排]
+${savedHerSchedule}
+
+【对方日程处理原则（非常重要）】：
+1. 正常聊天即可，不需要反复提及对方的日程，这只是让你心里清楚对方今天在忙什么。
+2. 可以根据时间点适时地关心或配合对方的日程，但不要生硬照念。`;
+                if (importedHerWbs) {
+                    herScheduleText += `\n\n[对方日程关联世界书/背景]\n${importedHerWbs}`;
+                }
+            }
+
+            // 2. 定义各个插入区域 (Zones) 模仿 SillyTavern 结构
+            let topSystemBlocks = [systemPrompt]; // 顶部系统设定池
+            let historyMessages = [];             // 历史消息池
+            let bottomMessages = [];              // 底部最新消息前的池
+
+            // 基础设定放入 System (越往上全局约束力越强)
+            if (personaUserText) topSystemBlocks.push(personaUserText);
+            if (userPersonaText) topSystemBlocks.push(userPersonaText);
+            if (timeUserText) topSystemBlocks.push(`[当前时间]\n${timeUserText}`);
+
+            // === 世界书深度处理 ===
+            // 1. 前 (Front)：紧贴系统设定，放在最前面
+            if (frontWorldbookUserText) {
+                topSystemBlocks.push(frontWorldbookUserText);
+            }
+
+            // 2. 中 (Middle)：为了防止多系统消息被丢弃，直接并入全局 System 设定，位置放在历史记录之前
+            if (middleWorldbookUserText) {
+                topSystemBlocks.push(middleWorldbookUserText);
+            }
+
+            // 记忆与历史放入 History 区块
+            if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
+            if (historyUserText) historyMessages.push({ role: "system", content: historyUserText });
+
+            // 日程安排更靠近当前，放入 Bottom 区块
+            if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
+            if (herScheduleText) bottomMessages.push({ role: "system", content: herScheduleText });
+
+            // 追加所有的格式指令到 System 的最后，保证绝对的服从度
+            let finalFormatPrompt = formatInstructionPrompt;
+
+            try {
+                const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || 'null');
+                if (replyCountConfig && (replyCountConfig.min || replyCountConfig.max)) {
+                    const min = replyCountConfig.min || replyCountConfig.max;
+                    const max = replyCountConfig.max || replyCountConfig.min;
+                    finalFormatPrompt += `\n\n**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`;
+                }
+            } catch (e) {}
+
+            try {
+                const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
+                if (bilingualEnabled) {
+                    finalFormatPrompt += `\n\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`;
+                }
+            } catch (e) {}
+
+            topSystemBlocks.push(finalFormatPrompt);
+
+            // 4. 最终合并打包
+            const messages = [
+                { role: "system", content: topSystemBlocks.join('\n\n') },
+                ...historyMessages,
+                ...bottomMessages
+            ];
+
+            // 5. 压入最新一条用户指令 (必须放最后，模型对最后一条消息的指令服从度最高)
+            let finalUserContent = userMessagePayload;
+            
+            // 3. 后 (Back)：最高优先级，为了防止系统消息被降权或丢弃，直接和用户的最新一句话缝合在一起
+            if (backWorldbookUserText) {
+                finalUserContent = `${backWorldbookUserText}\n\n${userMessagePayload}`;
+            }
+
+            if (isBackground) {
+                messages.push({ role: "user", content: "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。" });
+            } else {
+                messages.push({ role: "user", content: finalUserContent });
+            }
+
+            // 3. 调用 API
+            const streamEnabled = localStorage.getItem('stream_enabled') === 'true';
+            const savedTemperature = parseFloat(localStorage.getItem('temperature') || '0.7');
+            const temperature = Number.isFinite(savedTemperature) ? savedTemperature : 0.7;
+            const response = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName || 'gpt-3.5-turbo',
+                    messages: messages,
+                    temperature,
+                    stream: streamEnabled
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error('API Error: ' + err);
+            }
+
+            let reply = '';
+            if (streamEnabled) {
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new Error('流式响应不可用');
+                }
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                const parseStreamLine = (line) => {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith('data:')) return;
+                    const payload = trimmed.slice(5).trim();
+                    if (!payload || payload === '[DONE]') return;
+                    try {
+                        const chunk = JSON.parse(payload);
+                        const deltaContent = chunk.choices?.[0]?.delta?.content;
+                        const messageContent = chunk.choices?.[0]?.message?.content;
+                        if (typeof deltaContent === 'string') reply += deltaContent;
+                        else if (typeof messageContent === 'string') reply += messageContent;
+                    } catch (e) {
+                    }
+                };
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    lines.forEach(parseStreamLine);
+                }
+                if (buffer) parseStreamLine(buffer);
+            } else {
+                const data = await response.json();
+                reply = data.choices?.[0]?.message?.content || '';
+            }
+
+            let thinkNoteText = '';
+            let safeReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            const thinkMatch = safeReply.match(/<think_note>([\s\S]*?)<\/think_note>/i);
+            if (thinkMatch) {
+                thinkNoteText = (thinkMatch[1] || '').trim();
+            }
+            const replyMatchBlock = safeReply.match(/<reply>([\s\S]*?)<\/reply>/i);
+            let visibleReply = replyMatchBlock
+                ? String(replyMatchBlock[1] || '').trim()
+                : safeReply.replace(/<think_note>[\s\S]*?<\/think_note>/ig, '').trim();
+
+            // 修复心绪精灵和引用在 <reply> 标签外被丢弃的问题
+            if (replyMatchBlock) {
+                const spriteMatch = safeReply.match(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/i);
+                if (spriteMatch && !visibleReply.includes(spriteMatch[0])) {
+                    visibleReply += '\n\n' + spriteMatch[0];
+                }
+                const quoteMatchOutside = safeReply.match(/<quote>([\s\S]*?)<\/quote>/i);
+                if (quoteMatchOutside && !visibleReply.includes(quoteMatchOutside[0])) {
+                    visibleReply = quoteMatchOutside[0] + '\n\n' + visibleReply;
+                }
+            }
+
+        let quoteData = null;
+const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
+const quoteMatch = visibleReply.match(quoteTagRegex);
+
+function normalizeQuoteMatchText(value) {
+    return String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/[【】[\]()（）"'“”‘’<>]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function findBestQuotedMessageInCurrentTurn(rawQuoteText, turnMessages, fallbackMsg) {
+    if (!rawQuoteText) return fallbackMsg || null;
+
+    const normalizedQuote = normalizeQuoteMatchText(rawQuoteText);
+    if (!normalizedQuote) return fallbackMsg || null;
+
+    const candidates = Array.isArray(turnMessages) ? [...turnMessages].reverse() : [];
+
+    // 只在“当前这一轮”里匹配
+    let found = candidates.find(msg => {
+        const plain = normalizeQuoteMatchText(toPlainMessageText(msg.content || ''));
+        return plain && plain === normalizedQuote;
+    });
+    if (found) return found;
+
+    found = candidates.find(msg => {
+        const plain = normalizeQuoteMatchText(toPlainMessageText(msg.content || ''));
+        return plain && (plain.includes(normalizedQuote) || normalizedQuote.includes(plain));
+    });
+    if (found) return found;
+
+    return fallbackMsg || null;
+}
+
+if (quoteMatch) {
+    const rawQuoteText = String(quoteMatch[1] || '').replace(/\s+/g, ' ').trim();
+
+    const currentTurnMessages = Array.isArray(currentTurnUserMessages)
+        ? currentTurnUserMessages
+        : (currentTurn ? [currentTurn] : []);
+
+    const fallbackMsg = currentTurn && currentTurn.role === 'user'
+        ? currentTurn
+        : currentTurnMessages[currentTurnMessages.length - 1] || null;
+
+    const matchedMsg = findBestQuotedMessageInCurrentTurn(
+        rawQuoteText,
+        currentTurnMessages,
+        fallbackMsg
+    );
+
+    if (rawQuoteText && matchedMsg && matchedMsg.id) {
+        quoteData = {
+            id: matchedMsg.id,
+            text: rawQuoteText
+        };
+    }
+}
+            visibleReply = visibleReply.replace(/<quote>[\s\S]*?<\/quote>/gi, '').trim();
+            
+            const spriteExtraction = extractMoodSpriteFromReply(visibleReply);
+            const spriteData = spriteExtraction.sprite;
+            visibleReply = spriteExtraction.text;
+
+            const splitToken = visibleReply.includes('[SPLIT]') ? '[SPLIT]' : '|||';
+            const replyMessages = visibleReply.split(splitToken);
+            const normalizedReplyMessages = [];
+            let hasVisibleMessage = false;
+            let backgroundNotificationPreview = '';
+            let transferStatusChangedInThisReply = false;
+            
+            for (let i = 0; i < replyMessages.length; i++) {
+                let rawPart = stripMoodSpriteFragments(replyMessages[i]);
+                
+                let translationText = null;
+                const transMatch = rawPart.match(/<translation>([\s\S]*?)<\/translation>/i);
+                if (transMatch) {
+                    translationText = transMatch[1].trim();
+                    rawPart = rawPart.replace(/<translation>[\s\S]*?<\/translation>/ig, '').trim();
+                    if (translationText === rawPart) {
+                        translationText = null;
+                    }
+                }
+                
+                if (!rawPart) continue;
+                const parsedPhoto = parseAssistantPhotoMessage(rawPart);
+                const parsedVoice = parseAssistantVoiceMessage(rawPart);
+                const parsedTransfer = parseAssistantTransferMessage(rawPart);
+                const parsedTransferDecision = parseAssistantTransferDecisionMessage(rawPart);
+                if (parsedPhoto) {
+                    normalizedReplyMessages.push({
+                        msgContent: buildCameraPlaceholderHtml(parsedPhoto.text),
+                        parsedVoice: null,
+                        parsedTransfer: null,
+                        transferMode: null,
+                        translationText
+                    });
+                    continue;
+                }
+                if (parsedVoice) {
+                    normalizedReplyMessages.push({
+                        msgContent: parsedVoice.transcript,
+                        parsedVoice,
+                        parsedTransfer: null,
+                        transferMode: null,
+                        translationText
+                    });
+                    continue;
+                }
+                if (parsedTransferDecision) {
+                    const decidedTransfer = applyAssistantTransferDecision(chatId, parsedTransferDecision);
+                    if (decidedTransfer) {
+                        transferStatusChangedInThisReply = true;
+                        normalizedReplyMessages.push({
+                            msgContent: decidedTransfer.status === 'accepted' ? '已收款' : '已拒收',
+                            parsedVoice: null,
+                            parsedTransfer: decidedTransfer,
+                            transferMode: 'decision',
+                            translationText: null
+                        });
+                    }
+                    continue;
+                }
+                if (parsedTransfer) {
+                    normalizedReplyMessages.push({
+                        msgContent: `[转账] ¥${parsedTransfer.amount.toFixed(2)}`,
+                        parsedVoice: null,
+                        parsedTransfer,
+                        transferMode: 'new',
+                        translationText
+                    });
+                    continue;
+                }
+
+                const normalizedSegments = normalizeAssistantReplySegments(rawPart, assistantBoundStickers);
+                normalizedSegments.forEach(segment => {
+                    const msgContent = segment.type === 'sticker'
+                        ? convertAssistantStickerTokens(segment.content, assistantBoundStickers)
+                        : segment.content;
+                    if (!msgContent) return;
+                    normalizedReplyMessages.push({
+                        msgContent,
+                        parsedVoice: null,
+                        parsedTransfer: null,
+                        transferMode: null,
+                        translationText
+                    });
+                });
+            }
+
+            for (let i = 0; i < normalizedReplyMessages.length; i++) {
+                const messageItem = normalizedReplyMessages[i];
+                const msgContent = messageItem.msgContent;
+                const parsedVoice = messageItem.parsedVoice;
+                const parsedTransfer = messageItem.parsedTransfer;
+                const transferMode = messageItem.transferMode || null;
+                if (!msgContent) continue;
+
+                hasVisibleMessage = true;
+                if (!backgroundNotificationPreview) {
+                    backgroundNotificationPreview = parsedVoice
+                        ? '发送了一条语音消息'
+                        : (parsedTransfer ? (transferMode === 'decision' ? '处理了一笔转账' : '发来一笔转账') : msgContent);
+                }
+                if (i > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+
+                const isLast = i === normalizedReplyMessages.length - 1;
+                const isFirst = i === 0;
+                const extra = {};
+                if (parsedVoice) extra.voice = parsedVoice;
+                if (parsedTransfer) {
+                    if (transferMode === 'decision') {
+                        extra.transfer = normalizeTransferPayload(parsedTransfer);
+                    } else {
+                        const charWallet = readCharWalletByChatId(chatId);
+                        if (Number(charWallet.balance || 0) < parsedTransfer.amount) {
+                            const failText = '（转账失败：char余额不足）';
+                            const failMsg = saveMessage(chatId, 'assistant', failText, {});
+                            appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg);
+                            continue;
+                        }
+                        const nextCharWallet = {
+                            ...charWallet,
+                            balance: Number((Number(charWallet.balance || 0) - parsedTransfer.amount).toFixed(2)),
+                            bills: appendWalletBillItem(charWallet.bills, {
+                                merchant: '转账支出',
+                                desc: `向 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')} 转账${parsedTransfer.note ? `（${parsedTransfer.note}）` : ''}`,
+                                amount: parsedTransfer.amount,
+                                type: 'expense',
+                                timestamp: Date.now()
+                            })
+                        };
+                        saveCharWalletByChatId(chatId, nextCharWallet);
+                        extra.transfer = normalizeTransferPayload({
+                            id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+                            amount: parsedTransfer.amount,
+                            note: parsedTransfer.note,
+                            createdAt: Date.now(),
+                            expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                            senderType: 'char',
+                            senderUserId: String(getCurrentLineUserForWallet()?.id || '').trim(),
+                            status: 'pending',
+                            refunded: false,
+                            received: false
+                        });
+                    }
+                }
+                if (isLast && spriteData) extra.sprite = spriteData;
+                if (isFirst && quoteData) extra.quote = quoteData;
+                if (messageItem.translationText) extra.translation = messageItem.translationText;
+                if (isFirst && thinkNoteText) extra.thinkNote = thinkNoteText;
+
+                const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
+                const shouldUnread = !isChatRoomOpenFor(chatId);
+                if (shouldUnread) {
+                    increaseUnread(chatId);
+                    showIncomingMessageToast(chatId, parsedVoice ? '发送了一条语音消息' : msgContent);
+                }
+                appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
+            }
+
+            if (backgroundNotificationPreview) {
+                await showIncomingMessageSystemNotification(chatId, backgroundNotificationPreview);
+            }
+            if (transferStatusChangedInThisReply && isChatRoomOpenFor(chatId)) {
+                loadChatHistory(chatId);
+            }
+
+            if (!hasVisibleMessage) {
+                throw new Error('API 未返回可显示文字');
+            }
+
+        } catch (error) {
+            console.error(error);
+            showApiErrorModal(error.message || 'AI 请求失败');
+        } finally {
+            if (chatStates[chatId]) {
+                chatStates[chatId].isSending = false;
+            }
+            updateSendButtonState(chatId);
+        }
+    }
+
+    // 菜单功能逻辑
+    const menuBtn = document.getElementById('chat-menu-btn');
+    const menu = document.getElementById('chat-action-menu');
+    const regenerateBtn = document.getElementById('regenerate-reply-btn');
+    const uploadPhotoBtn = document.getElementById('upload-photo-btn');
+    const voiceActionBtn = document.getElementById('voice-action-btn');
+    const photoInput = document.getElementById('chat-photo-input');
+    const stickerBtn = document.getElementById('chat-sticker-btn');
+    const stickerMenu = document.getElementById('chat-sticker-menu');
+    const stickerMenuContent = document.getElementById('chat-sticker-menu-content');
+    const voiceActionModal = document.getElementById('voice-action-modal');
+    const closeVoiceActionModalBtn = document.getElementById('close-voice-action-modal');
+    const voiceActionInputBtn = document.getElementById('voice-action-input-btn');
+    const voiceActionRecordBtn = document.getElementById('voice-action-record-btn');
+    const voiceInputModal = document.getElementById('voice-input-modal');
+    const closeVoiceInputModalBtn = document.getElementById('close-voice-input-modal');
+    const voiceInputContent = document.getElementById('voice-input-content');
+    const saveVoiceInputBtn = document.getElementById('save-voice-input-btn');
+    const systemMessageBtn = document.getElementById('system-message-btn');
+    const transferActionBtn = document.getElementById('transfer-action-btn');
+    const systemMessageModal = document.getElementById('system-message-modal');
+    const closeSystemMessageModalBtn = document.getElementById('close-system-message-modal');
+    const systemMessageContent = document.getElementById('system-message-content');
+    const saveSystemMessageBtn = document.getElementById('save-system-message-btn');
+    const photoContentModal = document.getElementById('photo-content-modal');
+    const closePhotoContentModalBtn = document.getElementById('close-photo-content-modal');
+    const photoContentText = document.getElementById('photo-content-text');
+    const transferModal = document.getElementById('transfer-modal');
+    const closeTransferModalBtn = document.getElementById('close-transfer-modal');
+    const cancelTransferModalBtn = document.getElementById('cancel-transfer-modal');
+    const confirmTransferModalBtn = document.getElementById('confirm-transfer-modal');
+    const transferAmountInput = document.getElementById('transfer-amount-input');
+    const transferNoteInput = document.getElementById('transfer-note-input');
+    const transferDecisionModal = document.getElementById('transfer-decision-modal');
+    const closeTransferDecisionModalBtn = document.getElementById('close-transfer-decision-modal');
+    const rejectTransferDecisionModalBtn = document.getElementById('reject-transfer-decision-modal');
+    const receiveTransferDecisionModalBtn = document.getElementById('receive-transfer-decision-modal');
+    const transferDecisionAmountEl = document.getElementById('transfer-decision-amount');
+    const transferDecisionNoteEl = document.getElementById('transfer-decision-note');
+
+    // Context Menu & Multi-select Logic
+    const contextMenu = document.getElementById('message-context-menu');
+    const editModal = document.getElementById('edit-message-modal');
+    const editContent = document.getElementById('edit-message-content');
+    const saveEditBtn = document.getElementById('save-edit-message');
+    const closeEditBtn = document.getElementById('close-edit-message');
+    const multiSelectBar = document.getElementById('multi-select-bar');
+    const multiSelectCount = document.getElementById('multi-select-count');
+    const multiSelectCancelBtn = document.getElementById('multi-select-cancel');
+    const multiSelectDeleteBtn = document.getElementById('multi-select-delete');
+
+    let currentContextMsg = null; // { id, content, chatId }
+    const stickerStorageKey = 'sticker_categories_v1';
+    const stickerTargetStorageKey = 'sticker_category_targets_v1';
+    let activeStickerCategoryId = null;
+    let isMultiSelectMode = false;
+    const selectedMsgIds = new Set();
+    let transferExpiryTicker = null;
+    let pendingTransferDecisionContext = null;
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeTransferPayload(raw) {
+        const data = raw && typeof raw === 'object' ? raw : {};
+        const amount = Number(data.amount);
+        const createdAt = Number.isFinite(Number(data.createdAt)) ? Number(data.createdAt) : Date.now();
+        const expiresAt = Number.isFinite(Number(data.expiresAt)) ? Number(data.expiresAt) : (createdAt + 24 * 60 * 60 * 1000);
+        const statusRaw = String(data.status || 'pending').trim();
+        const allowedStatus = new Set(['pending', 'accepted', 'rejected', 'expired']);
+        return {
+            id: String(data.id || `transfer_${createdAt}_${Math.random().toString(16).slice(2)}`),
+            amount: Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : 0,
+            note: String(data.note || '').trim(),
+            createdAt,
+            expiresAt,
+            senderType: String(data.senderType || 'user').trim() === 'char' ? 'char' : 'user',
+            senderUserId: String(data.senderUserId || '').trim(),
+            status: allowedStatus.has(statusRaw) ? statusRaw : 'pending',
+            refunded: data.refunded === true,
+            received: data.received === true,
+            refundedAt: Number.isFinite(Number(data.refundedAt)) ? Number(data.refundedAt) : null,
+            receivedAt: Number.isFinite(Number(data.receivedAt)) ? Number(data.receivedAt) : null
+        };
+    }
+
+    function appendWalletBillItem(list, bill) {
+        const safe = Array.isArray(list) ? [...list] : [];
+        safe.unshift({
+            id: String(bill.id || `bill_${Date.now()}_${Math.random().toString(16).slice(2)}`),
+            merchant: String(bill.merchant || '').trim() || '账单',
+            desc: String(bill.desc || '').trim(),
+            amount: Number.isFinite(Number(bill.amount)) ? Number(bill.amount) : 0,
+            type: bill.type === 'income' ? 'income' : 'expense',
+            timestamp: Number.isFinite(Number(bill.timestamp)) ? Number(bill.timestamp) : Date.now()
+        });
+        return safe.slice(0, 80);
+    }
+
+    function getTransferStatusLabel(transfer) {
+        const status = String(transfer?.status || 'pending');
+        if (status === 'accepted') return '已收款';
+        if (status === 'rejected') return '已拒收，已退回';
+        if (status === 'expired') return '已超时，已退回';
+        return '待收款（24小时内）';
+    }
+
+    function canCurrentUserOperateTransfer(role, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        return safeTransfer.status === 'pending' && safeTransfer.senderType === 'char' && role === 'assistant';
+    }
+
+    function renderTransferCardMarkup(role, transfer, msgId) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        const note = safeTransfer.note ? escapeHtml(safeTransfer.note) : '无备注';
+        const statusLabel = getTransferStatusLabel(safeTransfer);
+        const canOperate = canCurrentUserOperateTransfer(role, safeTransfer);
+        const title = safeTransfer.senderType === 'char'
+            ? (role === 'assistant' ? '您已收到转账' : '您已发送转账')
+            : (role === 'user' ? '您已发送转账' : '您已收到转账');
+            
+        // LINE style icon
+        const iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="12" fill="#00B900"/>
+            <path d="M8 8L12 13M16 8L12 13M12 13V18M9 14H15M9 16H15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
+
+        return `
+            <div
+                class="transfer-card${safeTransfer.senderType === 'char' ? ' sender-char' : ''}${canOperate ? ' is-operable' : ''}"
+                data-transfer-card="1"
+                data-transfer-id="${escapeHtml(safeTransfer.id)}"
+                data-msg-id="${escapeHtml(msgId || '')}"
+                data-transfer-operable="${canOperate ? '1' : '0'}"
+            >
+                <div class="transfer-card-header">
+                    <div class="transfer-card-icon">${iconSvg}</div>
+                    <div class="transfer-card-info">
+                        <div class="transfer-card-title">${title}</div>
+                        <div class="transfer-card-amount">¥ ${safeTransfer.amount.toFixed(2)}</div>
+                    </div>
+                </div>
+                ${note !== '无备注' ? `<div class="transfer-card-note">${note}</div>` : ''}
+                <div class="transfer-card-divider"></div>
+                <div class="transfer-card-footer">
+                    <div class="transfer-card-brand">LINE Pay</div>
+                    <div class="transfer-card-status">${statusLabel}${canOperate ? ' <span style="font-family: monospace; font-size: 14px; margin-left: 2px;">›</span>' : ''}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function closeTransferModal() {
+        if (!transferModal) return;
+        transferModal.style.display = 'none';
+    }
+
+    function openTransferModal() {
+        if (!transferModal || !transferAmountInput || !transferNoteInput) return;
+        transferAmountInput.value = '';
+        transferNoteInput.value = '';
+        transferModal.style.display = 'flex';
+        setTimeout(() => transferAmountInput.focus(), 0);
+    }
+
+    function closeTransferDecisionModal() {
+        if (!transferDecisionModal) return;
+        transferDecisionModal.style.display = 'none';
+        pendingTransferDecisionContext = null;
+    }
+
+    function openTransferDecisionModal(chatId, msgId) {
+        if (!transferDecisionModal || !transferDecisionAmountEl || !transferDecisionNoteEl) return;
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return;
+        const target = history.find((msg) => msg && msg.id === msgId && msg.transfer);
+        if (!target) return;
+        const transfer = normalizeTransferPayload(target.transfer);
+        if (!canCurrentUserOperateTransfer(target.role, transfer)) return;
+
+        transferDecisionAmountEl.textContent = `¥${transfer.amount.toFixed(2)}`;
+        transferDecisionNoteEl.textContent = transfer.note || '无备注';
+        pendingTransferDecisionContext = { chatId, msgId };
+        transferDecisionModal.style.display = 'flex';
+    }
+
+    function refundTransferToUserWallet(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.refunded || safeTransfer.amount <= 0) return safeTransfer;
+        const senderUserId = safeTransfer.senderUserId || String(getCurrentLineUserForWallet()?.id || '').trim();
+        if (!senderUserId) return safeTransfer;
+        const senderWallet = readLineWalletByUserId(senderUserId);
+        const amount = safeTransfer.amount;
+        const nextSenderWallet = {
+            ...senderWallet,
+            balance: Number((Number(senderWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(senderWallet.bills, {
+                merchant: '转账退回',
+                desc: reasonText || `来自 ${getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA'} 的退回`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveLineWalletByUserId(senderUserId, nextSenderWallet);
+        safeTransfer.refunded = true;
+        safeTransfer.refundedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function receiveTransferToCharWallet(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.received || safeTransfer.amount <= 0) return safeTransfer;
+        const charWallet = readCharWalletByChatId(chatId);
+        const amount = safeTransfer.amount;
+        const nextCharWallet = {
+            ...charWallet,
+            balance: Number((Number(charWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(charWallet.bills, {
+                merchant: '转账收款',
+                desc: `来自 ${String(localStorage.getItem('chat_user_realname_' + chatId) || localStorage.getItem('chat_user_remark_' + chatId) || 'User')}`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveCharWalletByChatId(chatId, nextCharWallet);
+        safeTransfer.received = true;
+        safeTransfer.receivedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function refundTransferToCharWallet(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.refunded || safeTransfer.amount <= 0) return safeTransfer;
+        const charWallet = readCharWalletByChatId(chatId);
+        const amount = safeTransfer.amount;
+        const nextCharWallet = {
+            ...charWallet,
+            balance: Number((Number(charWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(charWallet.bills, {
+                merchant: '转账退回',
+                desc: reasonText || '转账退回',
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveCharWalletByChatId(chatId, nextCharWallet);
+        safeTransfer.refunded = true;
+        safeTransfer.refundedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function receiveTransferToUserWallet(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.received || safeTransfer.amount <= 0) return safeTransfer;
+        const currentUser = getCurrentLineUserForWallet();
+        if (!currentUser || !currentUser.id) return safeTransfer;
+        const userWallet = readLineWalletByUserId(currentUser.id);
+        const amount = safeTransfer.amount;
+        const nextUserWallet = {
+            ...userWallet,
+            balance: Number((Number(userWallet.balance || 0) + amount).toFixed(2)),
+            bills: appendWalletBillItem(userWallet.bills, {
+                merchant: '转账收款',
+                desc: `来自 ${getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA'}`,
+                amount,
+                type: 'income',
+                timestamp: Date.now()
+            })
+        };
+        saveLineWalletByUserId(currentUser.id, nextUserWallet);
+        safeTransfer.received = true;
+        safeTransfer.receivedAt = Date.now();
+        return safeTransfer;
+    }
+
+    function refundTransferBySender(chatId, transfer, reasonText) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.senderType === 'char') {
+            return refundTransferToCharWallet(chatId, safeTransfer, reasonText);
+        }
+        return refundTransferToUserWallet(chatId, safeTransfer, reasonText);
+    }
+
+    function receiveTransferBySender(chatId, transfer) {
+        const safeTransfer = normalizeTransferPayload(transfer);
+        if (safeTransfer.senderType === 'char') {
+            return receiveTransferToUserWallet(chatId, safeTransfer);
+        }
+        return receiveTransferToCharWallet(chatId, safeTransfer);
+    }
+
+    function applyTransferDecisionToHistory(chatId, history, targetIndex, action, operatorType) {
+        if (!Array.isArray(history) || targetIndex < 0 || targetIndex >= history.length) return null;
+        const targetMsg = history[targetIndex];
+        if (!targetMsg || !targetMsg.transfer) return null;
+
+        const transfer = normalizeTransferPayload(targetMsg.transfer);
+        if (transfer.status !== 'pending') return null;
+
+        const expectedSenderType = operatorType === 'char' ? 'user' : 'char';
+        if (transfer.senderType !== expectedSenderType) return null;
+
+        let nextTransfer = transfer;
+        if (action === 'receive') {
+            nextTransfer.status = 'accepted';
+            nextTransfer = receiveTransferBySender(chatId, nextTransfer);
+        } else if (action === 'reject') {
+            nextTransfer.status = 'rejected';
+            const reasonText = operatorType === 'char'
+                ? '对方拒绝收款，已退回'
+                : '你已拒绝收款，已退回';
+            nextTransfer = refundTransferBySender(chatId, nextTransfer, reasonText);
+        } else {
+            return null;
+        }
+
+        history[targetIndex] = {
+            ...targetMsg,
+            transfer: normalizeTransferPayload(nextTransfer)
+        };
+        persistChatHistory(chatId, history);
+        return normalizeTransferPayload(nextTransfer);
+    }
+
+    function applyUserTransferDecision(chatId, msgId, action) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return null;
+        const targetIndex = history.findIndex((msg) => msg && msg.id === msgId && msg.transfer);
+        if (targetIndex < 0) return null;
+        return applyTransferDecisionToHistory(chatId, history, targetIndex, action, 'user');
+    }
+
+    function applyAssistantTransferDecision(chatId, decision) {
+        const action = decision && decision.action;
+        const transferId = String(decision && decision.transferId ? decision.transferId : '').trim();
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return null;
+
+        let targetIndex = -1;
+        if (transferId) {
+            targetIndex = history.findIndex((msg) => {
+                if (!msg || !msg.transfer) return false;
+                const transfer = normalizeTransferPayload(msg.transfer);
+                return transfer.id === transferId && transfer.senderType === 'user' && transfer.status === 'pending';
+            });
+        }
+        if (targetIndex < 0) {
+            for (let i = history.length - 1; i >= 0; i -= 1) {
+                const msg = history[i];
+                if (!msg || !msg.transfer) continue;
+                const transfer = normalizeTransferPayload(msg.transfer);
+                if (transfer.senderType === 'user' && transfer.status === 'pending') {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+        if (targetIndex < 0) return null;
+        return applyTransferDecisionToHistory(chatId, history, targetIndex, action, 'char');
+    }
+
+    function buildPendingIncomingTransfersPromptForChar(chatId) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return '无';
+        const pending = [];
+        for (let i = 0; i < history.length; i += 1) {
+            const msg = history[i];
+            if (!msg || !msg.transfer) continue;
+            const transfer = normalizeTransferPayload(msg.transfer);
+            if (transfer.senderType !== 'user' || transfer.status !== 'pending') continue;
+            const createdTime = new Date(transfer.createdAt).toLocaleString('zh-CN', { hour12: false });
+            pending.push(`- ID:${transfer.id} | 金额:¥${transfer.amount.toFixed(2)} | 备注:${transfer.note || '无'} | 发起时间:${createdTime}`);
+        }
+        return pending.length > 0 ? pending.join('\n') : '无';
+    }
+
+    function processTransferExpiry(chatId) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        if (!Array.isArray(history) || history.length === 0) return false;
+        const now = Date.now();
+        let changed = false;
+        for (let i = 0; i < history.length; i += 1) {
+            const msg = history[i];
+            if (!msg || !msg.transfer) continue;
+            const transfer = normalizeTransferPayload(msg.transfer);
+            if (transfer.status !== 'pending') continue;
+            if (now < transfer.expiresAt) continue;
+            transfer.status = 'expired';
+            const refundedTransfer = refundTransferBySender(chatId, transfer, '24小时未收款，自动退回');
+            history[i] = { ...msg, transfer: refundedTransfer };
+            changed = true;
+        }
+        if (changed) {
+            persistChatHistory(chatId, history);
+        }
+        return changed;
+    }
+
+    function closeStickerMenu() {
+        if (stickerMenu) {
+            stickerMenu.style.display = 'none';
+        }
+    }
+
+    function closeVoiceActionModal() {
+        if (voiceActionModal) {
+            voiceActionModal.style.display = 'none';
+        }
+    }
+
+    function closeVoiceInputModal() {
+        if (voiceInputModal) {
+            voiceInputModal.style.display = 'none';
+        }
+    }
+
+    function closeSystemMessageModal() {
+        if (systemMessageModal) {
+            systemMessageModal.style.display = 'none';
+        }
+    }
+
+    function closePhotoContentModal() {
+        if (photoContentModal) {
+            photoContentModal.style.display = 'none';
+        }
+    }
+
+    let originalStickerIcon = '';
+    const stickerSendIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>`;
+    function setStickerSendMode(active) {
+        if (!stickerBtn) return;
+        if (!originalStickerIcon) originalStickerIcon = stickerBtn.innerHTML;
+        if (active) {
+            stickerBtn.classList.add('send-mode');
+            stickerBtn.innerHTML = stickerSendIcon;
+            stickerBtn.title = '发送';
+        } else {
+            stickerBtn.classList.remove('send-mode');
+            stickerBtn.innerHTML = originalStickerIcon || stickerBtn.innerHTML;
+            stickerBtn.title = '';
+        }
+    }
+    function sendInputToScreen() {
+        if (!inputField) return;
+        const text = inputField.value.trim();
+        if (!text) return;
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+        const newMsg = saveMessage(chatId, 'user', text, extra);
+        appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
+        inputField.value = '';
+        clearPendingQuote();
+        setStickerSendMode(false);
+    }
+    if (inputField) {
+        inputField.addEventListener('focus', () => setStickerSendMode(true));
+        inputField.addEventListener('blur', () => {
+            if (!inputField.value.trim()) setStickerSendMode(false);
+        });
+        inputField.addEventListener('input', () => {
+            const hasText = !!inputField.value.trim();
+            setStickerSendMode(hasText);
+        });
+    }
+
+    function estimateVoiceDurationSeconds(text) {
+        const normalized = String(text || '').replace(/\s+/g, '');
+        if (!normalized) return 1;
+        const byLength = Math.round(normalized.length / 3);
+        return Math.max(1, Math.min(60, byLength));
+    }
+
+    function sendSystemMessage(text) {
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        const newMsg = saveMessage(chatId, 'system', text, {});
+        appendMessageToUI('system', text, newMsg.time, chatId, newMsg.id, newMsg);
+    }
+
+    function getAvailableStickerCategories(chatId) {
+        const categories = JSON.parse(localStorage.getItem(stickerStorageKey) || '[]');
+        const targetMap = JSON.parse(localStorage.getItem(stickerTargetStorageKey) || '{}');
+        return categories.filter(category => {
+            if (!category || !Array.isArray(category.emojis) || category.emojis.length === 0) return false;
+            const targets = targetMap[category.id] || [];
+            return targets.includes('我') || targets.includes(chatId);
+        });
+    }
+
+    function renderStickerMenu(chatId) {
+        if (!stickerMenuContent) return;
+        const categories = getAvailableStickerCategories(chatId);
+
+        if (categories.length === 0) {
+            activeStickerCategoryId = null;
+            stickerMenuContent.innerHTML = '<div class="sticker-panel-empty">未绑定可用贴图分类</div>';
+            return;
+        }
+
+        if (!categories.some(category => category.id === activeStickerCategoryId)) {
+            activeStickerCategoryId = categories[0].id;
+        }
+
+        const activeCategory = categories.find(category => category.id === activeStickerCategoryId) || categories[0];
+        const tabs = categories.map(category => `
+            <button class="chat-sticker-tab ${category.id === activeCategory.id ? 'active' : ''}" type="button" data-category-id="${escapeHtml(category.id)}">
+                ${escapeHtml(category.name)}
+            </button>
+        `).join('');
+
+        const emojis = activeCategory.emojis.map(emoji => `
+            <button class="sticker-panel-emoji-btn" type="button" data-name="${escapeHtml(emoji.name)}" data-url="${escapeHtml(emoji.url)}">
+                <img src="${escapeHtml(emoji.url)}" alt="${escapeHtml(emoji.name)}">
+                <span class="sticker-panel-emoji-label">${escapeHtml(emoji.name)}</span>
+            </button>
+        `).join('');
+
+        stickerMenuContent.innerHTML = `
+            <div class="chat-sticker-layout">
+                <div class="chat-sticker-tabs">${tabs}</div>
+                <div class="chat-sticker-panel">
+                    <div class="chat-sticker-grid">${emojis}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function clampSummaryCursor(chatId, historyLength) {
+        const cursorKey = getSummaryCursorKey(chatId);
+        const raw = localStorage.getItem(cursorKey);
+        if (raw === null) return;
+        const parsed = parseInt(raw, 10);
+        if (!Number.isFinite(parsed)) {
+            localStorage.removeItem(cursorKey);
+            return;
+        }
+        const clamped = Math.max(0, Math.min(parsed, historyLength));
+        if (clamped !== parsed) {
+            localStorage.setItem(cursorKey, String(clamped));
+        }
+    }
+
+    function persistChatHistory(chatId, history) {
+        const prevHistory = largeStore.get('chat_history_' + chatId, []);
+        const prevLength = Array.isArray(prevHistory) ? prevHistory.length : 0;
+        const safeHistory = Array.isArray(history) ? history : [];
+        largeStore.put('chat_history_' + chatId, safeHistory);
+        
+        // 更新最后一条消息的元数据
+        if (safeHistory.length > 0) {
+            const lastMsg = safeHistory[safeHistory.length - 1];
+            localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: lastMsg, ts: lastMsg.ts }));
+        } else {
+            localStorage.removeItem('chat_last_message_' + chatId);
+        }
+
+        clampSummaryCursor(chatId, safeHistory.length);
+        if (safeHistory.length < prevLength) {
+            localStorage.setItem(getSummaryCursorKey(chatId), String(safeHistory.length));
+        }
+    }
+
+    function updateSelectCount() {
+        if (multiSelectCount) {
+            multiSelectCount.textContent = `已选择 ${selectedMsgIds.size} 条`;
+        }
+        if (multiSelectDeleteBtn) {
+            multiSelectDeleteBtn.disabled = selectedMsgIds.size === 0;
+        }
+    }
+
+    function toggleMessageSelection(messageId) {
+        if (!messageId) return;
+        const selectorId = String(messageId).replace(/"/g, '\\"');
+        const row = chatContent.querySelector(`.message-row[data-id="${selectorId}"]`);
+        if (!row) return;
+
+        if (selectedMsgIds.has(messageId)) {
+            selectedMsgIds.delete(messageId);
+            row.classList.remove('selected');
+        } else {
+            selectedMsgIds.add(messageId);
+            row.classList.add('selected');
+        }
+        updateSelectCount();
+    }
+
+    function enterMultiSelectMode(initialMessageId) {
+        isMultiSelectMode = true;
+        selectedMsgIds.clear();
+        contextMenu.style.display = 'none';
+        closeStickerMenu();
+        if (menu) {
+            menu.style.display = 'none';
+        }
+        if (chatRoom) {
+            chatRoom.classList.add('multi-select-mode');
+        }
+        if (multiSelectBar) {
+            multiSelectBar.style.display = 'flex';
+        }
+        if (initialMessageId) {
+            const selectorId = String(initialMessageId).replace(/"/g, '\\"');
+            const row = chatContent.querySelector(`.message-row[data-id="${selectorId}"]`);
+            if (row) {
+                selectedMsgIds.add(initialMessageId);
+                row.classList.add('selected');
+            }
+        }
+        updateSelectCount();
+    }
+
+    function exitMultiSelectMode() {
+        isMultiSelectMode = false;
+        selectedMsgIds.clear();
+        if (chatRoom) {
+            chatRoom.classList.remove('multi-select-mode');
+        }
+        chatContent.querySelectorAll('.message-row.selected').forEach((row) => {
+            row.classList.remove('selected');
+        });
+        if (multiSelectBar) {
+            multiSelectBar.style.display = 'none';
+        }
+        updateSelectCount();
+    }
+
+    function deleteSelectedMessages() {
+        if (!isMultiSelectMode || selectedMsgIds.size === 0) {
+            alert('请先选择要删除的消息');
+            return;
+        }
+        const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        const shouldDelete = confirm(`确定彻底删除选中的 ${selectedMsgIds.size} 条消息吗？\n删除后会同时从聊天记录和发送给 AI 的上下文中移除，且不可恢复。`);
+        if (!shouldDelete) return;
+
+        let history = largeStore.get('chat_history_' + chatId, []);
+        history = history.filter((m) => !selectedMsgIds.has(m.id));
+        persistChatHistory(chatId, history);
+        loadChatHistory(chatId);
+        refreshChatListPreviewFor(chatId);
+    }
+
+    function showContextMenu(e, id, content, chatId, role, timeStr) {
+        if (isMultiSelectMode) return;
+        // Prevent default browser context menu
+        e.preventDefault();
+        
+        currentContextMsg = { id, content, chatId, role, timeStr };
+        
+        // Calculate position
+        let x = e.clientX || (e.touches && e.touches[0].clientX);
+        let y = e.clientY || (e.touches && e.touches[0].clientY);
+
+        // Adjust for menu width (approx 120px) and height
+        // Center horizontally on click
+        const menuWidth = 180;
+        x -= menuWidth / 2;
+
+        // Ensure within bounds
+        if (x < 10) x = 10;
+        if (x + menuWidth > window.innerWidth - 10) x = window.innerWidth - menuWidth - 10;
+        
+        // Position above by default
+        const menuHeight = 50;
+        y -= menuHeight + 10; 
+        
+        // Flip if too close to top
+        if (y < 10) {
+            y += menuHeight + 40; // Move below
+            contextMenu.classList.add('flipped');
+        } else {
+            contextMenu.classList.remove('flipped');
+        }
+
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.style.display = 'flex';
+
+        // Close menu when clicking outside
+        const closeMenu = (ev) => {
+            if (!contextMenu.contains(ev.target)) {
+                contextMenu.style.display = 'none';
+                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('touchstart', closeMenu);
+            }
+        };
+        // Delay adding listener to avoid immediate close
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+            document.addEventListener('touchstart', closeMenu);
+        }, 100);
+    }
+
+    // Context Menu Actions
+    document.getElementById('ctx-edit').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        
+        // Open Edit Modal
+        editContent.value = normalizeMessageForModel(currentContextMsg.content);
+        editModal.style.display = 'flex';
+        setTimeout(() => editContent.focus(), 0);
+    });
+
+    document.getElementById('ctx-delete').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        enterMultiSelectMode(currentContextMsg.id);
+        alert('已进入多选删除模式。删除后消息会从聊天记录和 AI 上下文中彻底移除。');
+    });
+
+    document.getElementById('ctx-quote').addEventListener('click', () => {
+        if (!currentContextMsg) return;
+        contextMenu.style.display = 'none';
+        pendingQuote = {
+            id: currentContextMsg.id,
+            text: toPlainMessageText(currentContextMsg.content) || '引用消息'
+        };
+        updateReplyPreviewUI();
+        if (inputField) {
+            inputField.focus();
+        }
+    });
+
+    // Edit Logic
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', () => {
+            if (!currentContextMsg) return;
+            const newContent = editContent.value.trim();
+            if (!newContent) {
+                alert('内容不能为空');
+                return;
+            }
+
+            // Update Data
+            const chatId = currentContextMsg.chatId;
+            let history = largeStore.get('chat_history_' + chatId, []);
+            const msgIndex = history.findIndex(m => m.id === currentContextMsg.id);
+            
+           if (msgIndex !== -1) {
+    history[msgIndex].content = newContent;
+    persistChatHistory(chatId, history);
+
+    // Reload is safer to sync everything
+    loadChatHistory(chatId);
+    refreshChatListPreviewFor(chatId);
+}
+
+            editModal.style.display = 'none';
+        });
+    }
+
+    if (closeEditBtn) {
+        closeEditBtn.addEventListener('click', () => {
+            editModal.style.display = 'none';
+        });
+    }
+
+    if (editModal) {
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) {
+                editModal.style.display = 'none';
+            }
+        });
+    }
+
+    if (chatContent) {
+        chatContent.addEventListener('click', (e) => {
+            const transferCardEl = e.target.closest('.transfer-card[data-transfer-operable="1"]');
+            if (transferCardEl && chatContent.contains(transferCardEl)) {
+                if (isMultiSelectMode) return;
+                const msgId = String(transferCardEl.getAttribute('data-msg-id') || '').trim();
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+                if (!msgId || !chatId) return;
+                openTransferDecisionModal(chatId, msgId);
+                return;
+            }
+
+            const photoTarget = e.target.closest('.camera-photo-placeholder');
+            if (photoTarget && chatContent.contains(photoTarget)) {
+                if (isMultiSelectMode) return;
+                const text = photoTarget.dataset.photoText || '';
+                if (photoContentText) {
+                    photoContentText.textContent = text || '暂无内容';
+                }
+                if (photoContentModal) {
+                    photoContentModal.style.display = 'flex';
+                }
+                return;
+            }
+            if (!isMultiSelectMode) return;
+            const row = e.target.closest('.message-row');
+            if (!row || !chatContent.contains(row)) return;
+            e.preventDefault();
+            toggleMessageSelection(row.dataset.id);
+        });
+    }
+
+    if (multiSelectCancelBtn) {
+        multiSelectCancelBtn.addEventListener('click', () => {
+            exitMultiSelectMode();
+        });
+    }
+
+    if (multiSelectDeleteBtn) {
+        multiSelectDeleteBtn.addEventListener('click', () => {
+            deleteSelectedMessages();
+        });
+    }
+
+    if (menuBtn && menu) {
+        // 切换菜单显示
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeStickerMenu();
+            if (menu.style.display === 'none') {
+                menu.style.display = 'block';
+            } else {
+                menu.style.display = 'none';
+            }
+        });
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', (e) => {
+            if (menu.style.display !== 'none' && !menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+
+        // 重回功能
+        if (regenerateBtn) {
+            regenerateBtn.addEventListener('click', async () => {
+                menu.style.display = 'none'; // 关闭菜单
+                
+                const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+                const history = largeStore.get('chat_history_' + chatId, []);
+                
+                // 检查是否有消息
+                if (history.length === 0) return;
+
+                // 从后往前查找，移除最近的连续 assistant 消息
+                // 如果最后一条是 user，则直接重试回复（相当于重发）
+                // 如果最后一条是 assistant，则删除这一轮的所有 assistant 消息，然后重试
+                
+                let hasRemoved = false;
+                
+                // 只要最后一条是 assistant，就移除
+                while (history.length > 0 && history[history.length - 1].role === 'assistant') {
+                    history.pop();
+                    hasRemoved = true;
+                }
+
+                // 保存更新后的历史记录
+                persistChatHistory(chatId, history);
+                
+                // 重新加载 UI（移除屏幕上的消息）
+                loadChatHistory(chatId);
+                
+                // 触发 AI 回复
+                if (history.length === 0 || history[history.length - 1].role !== 'user') return;
+                await triggerAIResponse(chatId);
+            });
+        }
+    }
+
+    if (uploadPhotoBtn && photoInput) {
+        uploadPhotoBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            photoInput.click();
+        });
+
+        photoInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files || []).filter((file) => /^image\//i.test(file.type));
+            photoInput.value = '';
+            if (files.length === 0) return;
+
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const quoteExtra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : null;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                try {
+                    const dataUrl = await readImageAsDataUrl(file);
+                    if (!dataUrl) continue;
+                    const imageContent = `<img src="${dataUrl}" alt="${escapeHtml(file.name || '本地图片')}" class="chat-inline-local-image">`;
+                    const extra = i === 0 && quoteExtra ? quoteExtra : {};
+                    const newMsg = saveMessage(chatId, 'user', imageContent, extra);
+                    appendMessageToUI('user', imageContent, newMsg.time, chatId, newMsg.id, newMsg);
+                } catch (error) {
+                    showApiErrorModal(error.message || '图片上传失败');
+                    break;
+                }
+            }
+            clearPendingQuote();
+        });
+    }
+
+    const cameraActionBtn = document.getElementById('camera-action-btn');
+    const cameraInputModal = document.getElementById('camera-input-modal');
+    const closeCameraInputModalBtn = document.getElementById('close-camera-input-modal');
+    const sendCameraPhotoBtn = document.getElementById('send-camera-photo-btn');
+    const cameraInputContent = document.getElementById('camera-input-content');
+
+    if (cameraActionBtn && cameraInputModal) {
+        cameraActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            cameraInputContent.value = '';
+            cameraInputModal.style.display = 'flex';
+            setTimeout(() => cameraInputContent.focus(), 0);
+        });
+    }
+
+    if (closeCameraInputModalBtn) {
+        closeCameraInputModalBtn.addEventListener('click', () => {
+            cameraInputModal.style.display = 'none';
+        });
+    }
+
+    if (cameraInputModal) {
+        cameraInputModal.addEventListener('click', (e) => {
+            if (e.target === cameraInputModal) {
+                cameraInputModal.style.display = 'none';
+            }
+        });
+    }
+
+    if (sendCameraPhotoBtn && cameraInputContent) {
+        sendCameraPhotoBtn.addEventListener('click', () => {
+            const content = cameraInputContent.value.trim();
+            if (!content) {
+                alert('照片内容不能为空');
+                return;
+            }
+            
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+            const photoHtml = buildCameraPlaceholderHtml(content);
+            const newMsg = saveMessage(chatId, 'user', photoHtml, extra);
+            appendMessageToUI('user', photoHtml, newMsg.time, chatId, newMsg.id, newMsg);
+            
+            cameraInputModal.style.display = 'none';
+            clearPendingQuote();
+        });
+    }
+
+    if (voiceActionBtn && voiceActionModal) {
+        voiceActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            voiceActionModal.style.display = 'flex';
+        });
+    }
+
+    if (systemMessageBtn && systemMessageModal) {
+        systemMessageBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            systemMessageModal.style.display = 'flex';
+        });
+    }
+
+    if (transferActionBtn) {
+        transferActionBtn.addEventListener('click', () => {
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            closeStickerMenu();
+            openTransferModal();
+        });
+    }
+
+    if (closeTransferModalBtn) {
+        closeTransferModalBtn.addEventListener('click', closeTransferModal);
+    }
+
+    if (cancelTransferModalBtn) {
+        cancelTransferModalBtn.addEventListener('click', closeTransferModal);
+    }
+
+    if (transferModal) {
+        transferModal.addEventListener('click', (e) => {
+            if (e.target === transferModal) {
+                closeTransferModal();
+            }
+        });
+    }
+
+    if (closeTransferDecisionModalBtn) {
+        closeTransferDecisionModalBtn.addEventListener('click', closeTransferDecisionModal);
+    }
+
+    if (transferDecisionModal) {
+        transferDecisionModal.addEventListener('click', (e) => {
+            if (e.target === transferDecisionModal) {
+                closeTransferDecisionModal();
+            }
+        });
+    }
+
+    function submitTransferDecisionFromModal(action) {
+        const context = pendingTransferDecisionContext;
+        if (!context || !context.chatId || !context.msgId) return;
+        const nextTransfer = applyUserTransferDecision(context.chatId, context.msgId, action);
+        if (!nextTransfer) {
+            closeTransferDecisionModal();
+            loadChatHistory(context.chatId);
+            refreshChatListPreviewFor(context.chatId);
+            return;
+        }
+        const resultText = action === 'receive' ? '已收款' : '已拒收';
+        saveMessage(context.chatId, 'user', resultText, { transfer: nextTransfer });
+        closeTransferDecisionModal();
+        loadChatHistory(context.chatId);
+        refreshChatListPreviewFor(context.chatId);
+    }
+
+    if (receiveTransferDecisionModalBtn) {
+        receiveTransferDecisionModalBtn.addEventListener('click', () => {
+            submitTransferDecisionFromModal('receive');
+        });
+    }
+
+    if (rejectTransferDecisionModalBtn) {
+        rejectTransferDecisionModalBtn.addEventListener('click', () => {
+            submitTransferDecisionFromModal('reject');
+        });
+    }
+
+    if (confirmTransferModalBtn) {
+        confirmTransferModalBtn.addEventListener('click', () => {
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const currentUser = getCurrentLineUserForWallet();
+            if (!chatId) return;
+            if (!currentUser || !currentUser.id) {
+                alert('请先在 LINE 首页设置 User');
+                return;
+            }
+            const amount = Number(String(transferAmountInput?.value || '').trim());
+            const note = String(transferNoteInput?.value || '').trim();
+            if (!Number.isFinite(amount) || amount <= 0) {
+                alert('请输入有效金额');
+                return;
+            }
+            const normalizedAmount = Number(amount.toFixed(2));
+            const targetName = getChatDisplayName(chatId) || getChatRealName(chatId) || 'TA';
+            const userWallet = readLineWalletByUserId(currentUser.id);
+            if (Number(userWallet.balance || 0) < normalizedAmount) {
+                alert('余额不足');
+                return;
+            }
+            const nextUserWallet = {
+                ...userWallet,
+                balance: Number((Number(userWallet.balance || 0) - normalizedAmount).toFixed(2)),
+                bills: appendWalletBillItem(userWallet.bills, {
+                    merchant: '转账支出',
+                    desc: `向 ${targetName} 转账${note ? `（${note}）` : ''}`,
+                    amount: normalizedAmount,
+                    type: 'expense',
+                    timestamp: Date.now()
+                })
+            };
+            saveLineWalletByUserId(currentUser.id, nextUserWallet);
+
+            const transferPayload = normalizeTransferPayload({
+                id: `transfer_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+                amount: normalizedAmount,
+                note,
+                createdAt: Date.now(),
+                expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                senderType: 'user',
+                senderUserId: currentUser.id,
+                status: 'pending',
+                refunded: false,
+                received: false
+            });
+            const extra = {
+                ...(pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {}),
+                transfer: transferPayload
+            };
+            const transferText = `[转账] ¥${normalizedAmount.toFixed(2)}`;
+            const newMsg = saveMessage(chatId, 'user', transferText, extra);
+            appendMessageToUI('user', transferText, newMsg.time, chatId, newMsg.id, newMsg);
+            clearPendingQuote();
+            closeTransferModal();
+        });
+    }
+
+    if (closeSystemMessageModalBtn) {
+        closeSystemMessageModalBtn.addEventListener('click', () => {
+            closeSystemMessageModal();
+        });
+    }
+
+    if (systemMessageModal) {
+        systemMessageModal.addEventListener('click', (e) => {
+            if (e.target === systemMessageModal) {
+                closeSystemMessageModal();
+            }
+        });
+    }
+
+    if (closeVoiceActionModalBtn) {
+        closeVoiceActionModalBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+        });
+    }
+
+    if (voiceActionModal) {
+        voiceActionModal.addEventListener('click', (e) => {
+            if (e.target === voiceActionModal) {
+                closeVoiceActionModal();
+            }
+        });
+    }
+
+    if (voiceActionInputBtn) {
+        voiceActionInputBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+            if (voiceInputModal) {
+                voiceInputModal.style.display = 'flex';
+                setTimeout(() => {
+                    if (voiceInputContent) {
+                        voiceInputContent.focus();
+                    }
+                }, 0);
+            }
+        });
+    }
+
+    if (voiceActionRecordBtn) {
+        voiceActionRecordBtn.addEventListener('click', () => {
+            closeVoiceActionModal();
+            alert('录音功能即将上线');
+        });
+    }
+
+    if (closeVoiceInputModalBtn) {
+        closeVoiceInputModalBtn.addEventListener('click', () => {
+            closeVoiceInputModal();
+        });
+    }
+
+
+
+    if (photoContentModal) {
+        photoContentModal.addEventListener('click', (e) => {
+            if (e.target === photoContentModal) {
+                closePhotoContentModal();
+            }
+        });
+    }
+
+    if (closePhotoContentModalBtn) {
+        closePhotoContentModalBtn.addEventListener('click', () => {
+            closePhotoContentModal();
+        });
+    }
+
+    if (saveVoiceInputBtn) {
+        saveVoiceInputBtn.addEventListener('click', () => {
+            const rawText = voiceInputContent ? voiceInputContent.value.trim() : '';
+            if (!rawText) {
+                alert('请输入语音内容');
+                return;
+            }
+
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const duration = estimateVoiceDurationSeconds(rawText);
+            const extra = {
+                ...(pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {}),
+                voice: {
+                    duration,
+                    transcript: rawText
+                }
+            };
+            const newMsg = saveMessage(chatId, 'user', rawText, extra);
+            appendMessageToUI('user', rawText, newMsg.time, chatId, newMsg.id, newMsg);
+
+            if (voiceInputContent) {
+                voiceInputContent.value = '';
+            }
+            clearPendingQuote();
+            closeVoiceInputModal();
+        });
+    }
+
+    if (saveSystemMessageBtn) {
+        saveSystemMessageBtn.addEventListener('click', () => {
+            const rawText = systemMessageContent ? systemMessageContent.value.trim() : '';
+            if (!rawText) {
+                alert('请输入旁白/系统消息内容');
+                return;
+            }
+            sendSystemMessage(rawText);
+            if (systemMessageContent) {
+                systemMessageContent.value = '';
+            }
+            closeSystemMessageModal();
+        });
+    }
+
+    if (stickerBtn && stickerMenu) {
+        stickerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (stickerBtn.classList.contains('send-mode')) {
+                sendInputToScreen();
+                return;
+            }
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            stickerMenu.dataset.chatId = chatId;
+            renderStickerMenu(chatId);
+            menu.style.display = 'none';
+            if (stickerMenu.style.display === 'none') {
+                stickerMenu.style.display = 'block';
+            } else {
+                stickerMenu.style.display = 'none';
+            }
+        });
+    }
+
+    if (stickerMenu) {
+        stickerMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tabBtn = e.target.closest('.chat-sticker-tab');
+            if (tabBtn) {
+                const categoryId = tabBtn.dataset.categoryId;
+                if (categoryId) {
+                    activeStickerCategoryId = categoryId;
+                    const chatId = stickerMenu.dataset.chatId || chatRoomName.dataset.chatId || chatRoomName.textContent;
+                    renderStickerMenu(chatId);
+                }
+                return;
+            }
+
+            const stickerBtnEl = e.target.closest('.sticker-panel-emoji-btn');
+            if (!stickerBtnEl) return;
+
+            const stickerName = stickerBtnEl.dataset.name || '表情';
+            const stickerUrl = stickerBtnEl.dataset.url || '';
+            if (!/^https?:\/\//i.test(stickerUrl)) return;
+
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            const stickerContent = `<img src="${stickerUrl}" alt="${escapeHtml(stickerName)}" class="chat-inline-sticker">`;
+            const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
+            const newMsg = saveMessage(chatId, 'user', stickerContent, extra);
+            appendMessageToUI('user', stickerContent, newMsg.time, chatId, newMsg.id, newMsg);
+            clearPendingQuote();
+            closeStickerMenu();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (stickerMenu.style.display !== 'none' && !stickerMenu.contains(e.target) && (!stickerBtn || !stickerBtn.contains(e.target))) {
+                closeStickerMenu();
+            }
+        });
+    }
+
+    // 打开聊天室的通用函数
+    function openChatRoom(chatId) {
+        if (!chatRoom) return;
+        exitMultiSelectMode();
+        closeStickerMenu();
+        clearPendingQuote();
+
+        const displayName = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        chatRoomName.textContent = displayName;
+        chatRoomName.dataset.chatId = chatId;
+        clearUnread(chatId);
+        applyChatWallpaper(chatId);
+        applyChatTheme(chatId);
+        
+        chatRoom.style.display = 'flex';
+        updateChatTimeZoneIndicator(chatId);
+        
+        // 同步按钮状态
+        updateSendButtonState(chatId);
+
+        // 加载真实历史记录
+        loadChatHistory(chatId);
+        ensurePhoneLockDataAsync(chatId).catch(() => {});
+    }
+
+    if (!transferExpiryTicker) {
+        transferExpiryTicker = setInterval(() => {
+            const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            if (!currentChatId || !isChatRoomOpenFor(currentChatId)) return;
+            const changed = processTransferExpiry(currentChatId);
+            if (!changed) return;
+            loadChatHistory(currentChatId);
+            refreshChatListPreviewFor(currentChatId);
+        }, 30000);
+    }
+
+    setInterval(() => {
+        const currentChatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+        if (!currentChatId || !isChatRoomOpenFor(currentChatId)) return;
+        updateChatTimeZoneIndicator(currentChatId);
+    }, 60000);
+
+    // 绑定事件委托，处理聊天列表点击（包括动态添加的项）
+    if (chatList) {
+        chatList.addEventListener('click', (e) => {
+            // 找到被点击的 chat-list-item
+            const item = e.target.closest('.chat-list-item');
+            if (item) {
+                const chatId = item.dataset.chatId || '';
+                if (!chatId) return;
+                openChatRoom(chatId);
+            }
+        });
+    }
+
+    // 关闭聊天室
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            if (chatRoom) {
+                chatRoom.style.display = 'none';
+            }
+            if (chatTimezoneIndicator) {
+                chatTimezoneIndicator.style.display = 'none';
+                chatTimezoneIndicator.textContent = '';
+            }
+            clearChatTheme();
+            exitMultiSelectMode();
+            closeStickerMenu();
+            closeTransferModal();
+            clearPendingQuote();
+        });
+    }
+
+    if (replyPreviewClose) {
+        replyPreviewClose.addEventListener('click', () => {
+            clearPendingQuote();
+        });
+    }
+
+    // Mood Sprite Modal Logic
+    const spriteModal = document.createElement('div');
+    spriteModal.className = 'mood-sprite-modal';
+    spriteModal.style.display = 'none';
+    spriteModal.innerHTML = `
+        <div class="mood-sprite-content">
+            <div class="mood-sprite-header">
+                <span class="mood-sprite-title">内心独白</span>
+                <div class="mood-sprite-controls">
+                    <button class="mood-sprite-fav" title="收藏便签">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                        </svg>
+                    </button>
+                    <button class="mood-sprite-close">×</button>
+                </div>
+            </div>
+            <div class="mood-sprite-body"></div>
+        </div>
+    `;
+    document.body.appendChild(spriteModal);
+
+    const spriteCloseBtn = spriteModal.querySelector('.mood-sprite-close');
+    const spriteFavBtn = spriteModal.querySelector('.mood-sprite-fav');
+    const spriteBody = spriteModal.querySelector('.mood-sprite-body');
+
+    let currentSpriteContext = null; // { chatId, msgId, spriteEl, isFavorited }
+
+    function getSpriteSnapshot(chatId, msgId, fallbackSprite) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        const msg = history.find(m => m.id === msgId);
+        if (msg && msg.sprite) {
+            return { ...msg.sprite };
+        }
+        if (fallbackSprite) {
+            return { ...fallbackSprite };
+        }
+        return null;
+    }
+
+    function showSpriteModal(spriteData, chatId, msgId, spriteEl) {
+        const latestSprite = getSpriteSnapshot(chatId, msgId, spriteData);
+        if (!latestSprite) return;
+        
+        // Ensure modal exists
+        if (!document.body.contains(spriteModal)) {
+            document.body.appendChild(spriteModal);
+        }
+
+        currentSpriteContext = {
+            chatId,
+            msgId,
+            spriteEl,
+            isFavorited: !!latestSprite.isFavorited
+        };
+
+        const charName = getChatDisplayName(chatId) || getChatRealName(chatId) || chatId;
+        spriteModal.querySelector('.mood-sprite-title').textContent = `${charName} 的随笔`;
+        spriteBody.textContent = '';
+        const mainTextEl = document.createElement('div');
+        mainTextEl.textContent = String(latestSprite.content || '').trim();
+        spriteBody.appendChild(mainTextEl);
+        if (latestSprite.secret) {
+            const secretWrap = document.createElement('div');
+            secretWrap.style.marginTop = '15px';
+            secretWrap.style.borderTop = '1px dashed rgba(0,0,0,0.1)';
+            secretWrap.style.paddingTop = '10px';
+            const secretText = document.createElement('span');
+            secretText.style.textDecoration = 'line-through';
+            secretText.style.color = '#888';
+            secretText.style.fontSize = '0.9em';
+            secretText.textContent = String(latestSprite.secret || '').trim();
+            secretWrap.appendChild(secretText);
+            spriteBody.appendChild(secretWrap);
+        }
+        spriteBody.style.borderLeft = `4px solid ${normalizeSpriteColor(latestSprite.color)}`;
+        
+        // Update Fav Button State
+        if (currentSpriteContext.isFavorited) {
+            spriteFavBtn.classList.add('active');
+        } else {
+            spriteFavBtn.classList.remove('active');
+        }
+
+        spriteModal.style.display = 'flex';
+        // Add animation class
+        const content = spriteModal.querySelector('.mood-sprite-content');
+        content.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    }
+
+    function handleSpriteClose() {
+        if (!currentSpriteContext) {
+            spriteModal.style.display = 'none';
+            return;
+        }
+
+        const { chatId, msgId, spriteEl, isFavorited } = currentSpriteContext;
+
+        if (!isFavorited) {
+            // Not favorited -> Disappear logic
+            if (spriteEl && spriteEl.parentNode) {
+                // Fade out animation
+                spriteEl.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                spriteEl.style.opacity = '0';
+                spriteEl.style.transform = 'scale(0)';
+                setTimeout(() => {
+                    if (spriteEl.parentNode) {
+                        spriteEl.parentNode.removeChild(spriteEl);
+                    }
+                }, 500);
+            }
+
+            // Update storage to mark as dismissed
+            updateMessageExtra(chatId, msgId, (extra) => {
+                if (extra.sprite) {
+                    extra.sprite.isDismissed = true;
+                }
+                return extra;
+            });
+        }
+
+        spriteModal.style.display = 'none';
+        currentSpriteContext = null;
+    }
+
+    function toggleSpriteFavorite() {
+        if (!currentSpriteContext) return;
+        
+        currentSpriteContext.isFavorited = !currentSpriteContext.isFavorited;
+        
+        // Update UI
+        if (currentSpriteContext.isFavorited) {
+            spriteFavBtn.classList.add('active');
+        } else {
+            spriteFavBtn.classList.remove('active');
+        }
+
+        // Update Storage
+        updateMessageExtra(currentSpriteContext.chatId, currentSpriteContext.msgId, (extra) => {
+            if (extra.sprite) {
+                extra.sprite.isFavorited = currentSpriteContext.isFavorited;
+                // If favorited, ensure it's not dismissed
+                if (currentSpriteContext.isFavorited) {
+                    delete extra.sprite.isDismissed;
+                }
+            }
+            return extra;
+        });
+    }
+
+    // Helper to safely update message extra data
+    function updateMessageExtra(chatId, msgId, callback) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        const index = history.findIndex(m => m.id === msgId);
+        if (index !== -1) {
+            const msg = history[index];
+            // Since saveMessage spreads extra properties into the root of the object,
+            // we should pass the whole msg object to the callback, or normalize it.
+            // But to fix the specific issue with 'sprite' property which is at root:
+            
+            // We construct a proxy object that represents the 'extra' data including root properties like 'sprite'
+            let extraProxy = {
+                sprite: msg.sprite,
+                ...msg.extra
+            };
+
+            const updatedExtra = callback(extraProxy);
+            
+            // Apply changes back to msg
+            if (updatedExtra.sprite) {
+                msg.sprite = updatedExtra.sprite;
+            }
+            // If there are other extra properties, we might need to handle them, 
+            // but currently we only care about sprite.
+            
+            history[index] = msg;
+            largeStore.put('chat_history_' + chatId, history);
+            if (index === history.length - 1) {
+                localStorage.setItem('chat_last_message_' + chatId, JSON.stringify({ message: msg, ts: msg.ts }));
+            }
+        }
+    }
+
+    spriteCloseBtn.addEventListener('click', handleSpriteClose);
+    spriteFavBtn.addEventListener('click', toggleSpriteFavorite);
+
+    spriteModal.addEventListener('click', (e) => {
+        if (e.target === spriteModal) {
+            handleSpriteClose();
+        }
+    });
+
+    initChatSettingsLogic(chatRoomName);
+    initChatAdvancedSettingsLogic(chatRoomName);
+}
+
 function initLineApp() {
     const appLine = document.getElementById('app-line');
     const lineModal = document.getElementById('line-modal');

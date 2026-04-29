@@ -1252,6 +1252,14 @@ ${recentHistory || '无'}
     return matched ? matched.name : '日常支出';
   }
 
+  function isAutoTransferLikeBill(bill) {
+    if (!bill || typeof bill !== 'object') return false;
+    const id = String(bill.id || '').trim();
+    if (!id.startsWith('bill_auto_')) return false;
+    const text = `${String(bill.merchant || '').trim()} ${String(bill.desc || '').trim()}`;
+    return /(转账|收款|退款|退回|报销|返现|转入)/i.test(text);
+  }
+
   function inferBillsFromChatHistory(chatId) {
     if (!chatId) return [];
     const history = largeStore.get('chat_history_' + chatId, []);
@@ -1261,6 +1269,7 @@ ${recentHistory || '无'}
 
     const bills = [];
     history.slice(-60).forEach((msg, index) => {
+      if (msg?.transfer) return;
       const content = String(msg?.content || '').replace(/\s+/g, ' ').trim();
       if (!content) return;
       const hasSpend = spendLike.test(content);
@@ -1322,6 +1331,7 @@ ${recentHistory || '无'}
     if (walletAutoBillToggle) walletAutoBillToggle.checked = settings.autoBill;
 
     let walletData = readWalletData(currentChatId);
+    walletData.bills = (Array.isArray(walletData.bills) ? walletData.bills : []).filter((bill) => !isAutoTransferLikeBill(bill));
     walletData.familyCards = (Array.isArray(walletData.familyCards) ? walletData.familyCards : [])
       .filter(card => card && card.source === 'real');
     const hasGeneratedCards = walletData.mainCards.length > 0;
@@ -1424,7 +1434,7 @@ ${recentHistory || '无'}
     const recentHistory = history.map(m => String(m?.content || '')).join('\n');
     const prompt = `你是${displayName}本人。请根据人物人设生成“钱包中的银行卡/信用卡列表”，返回 JSON。
 要求：
-1. 风格真实自然，符合人物设定。
+1. 贴近现实，符合人物设定。
 2. 只生成 mainCards，不要生成亲属卡，不要生成账单。
 3. 卡片数量根据人设合理生成。
 4. 只输出 JSON，格式：
@@ -1479,7 +1489,7 @@ ${recentHistory || '无'}
 {"balance":5234.5}
 要求：
 1. balance 为数字，>= 0。
-2. 必须符合人设，以及符合人物的消费。
+2. 必须符合人设，以及符合人物的经济状况。
 人设：
 ${persona || '无'}
 最近聊天：
