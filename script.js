@@ -6658,6 +6658,19 @@ ${savedHerSchedule}
             let visibleReply = replyMatchBlock
                 ? String(replyMatchBlock[1] || '').trim()
                 : safeReply.replace(/<think_note>[\s\S]*?<\/think_note>/ig, '').trim();
+
+            // 修复心绪精灵和引用在 <reply> 标签外被丢弃的问题
+            if (replyMatchBlock) {
+                const spriteMatch = safeReply.match(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/i);
+                if (spriteMatch && !visibleReply.includes(spriteMatch[0])) {
+                    visibleReply += '\n\n' + spriteMatch[0];
+                }
+                const quoteMatchOutside = safeReply.match(/<quote>([\s\S]*?)<\/quote>/i);
+                if (quoteMatchOutside && !visibleReply.includes(quoteMatchOutside[0])) {
+                    visibleReply = quoteMatchOutside[0] + '\n\n' + visibleReply;
+                }
+            }
+
         let quoteData = null;
 const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
 const quoteMatch = visibleReply.match(quoteTagRegex);
