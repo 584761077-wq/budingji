@@ -2665,9 +2665,42 @@ function initChatRoomLogic() {
 
     // 点击发送按钮触发 AI
     if (sendBtn) {
-        sendBtn.addEventListener('click', async () => {
+        let sendBtnTouchHandled = false;
+
+        // 阻止 mousedown 默认行为，防止 PC 端点击时输入框失焦
+        sendBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+
+        // 阻止 touchstart 默认行为，防止移动端点击时键盘收起
+        sendBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // 在 touchend 执行发送
+        sendBtn.addEventListener('touchend', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            sendBtnTouchHandled = true;
+            setTimeout(() => { sendBtnTouchHandled = false; }, 300); // 防止标志位卡死
             const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             await triggerAIResponse(chatId);
+            if (inputField) {
+                setTimeout(() => inputField.focus(), 10);
+            }
+        }, { passive: false });
+
+        sendBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (sendBtnTouchHandled) {
+                sendBtnTouchHandled = false;
+                return;
+            }
+            const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
+            await triggerAIResponse(chatId);
+            if (inputField) {
+                setTimeout(() => inputField.focus(), 10);
+            }
         });
     }
 
@@ -4985,10 +5018,47 @@ if (quoteMatch) {
     }
 
     if (stickerBtn && stickerMenu) {
+        let stickerTouchHandled = false;
+
+        // 阻止 mousedown 默认行为，防止 PC 端点击时输入框失焦
+        stickerBtn.addEventListener('mousedown', (e) => {
+            if (stickerBtn.classList.contains('send-mode')) {
+                e.preventDefault();
+            }
+        });
+
+        // 阻止 touchstart 默认行为，防止移动端点击时键盘收起
+        stickerBtn.addEventListener('touchstart', (e) => {
+            if (stickerBtn.classList.contains('send-mode')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // 在 touchend 执行发送，并设置标志位防止触发后续 click 导致打开表情包菜单
+        stickerBtn.addEventListener('touchend', (e) => {
+            if (stickerBtn.classList.contains('send-mode')) {
+                e.preventDefault();
+                e.stopPropagation();
+                stickerTouchHandled = true;
+                setTimeout(() => { stickerTouchHandled = false; }, 300); // 防止标志位卡死
+                sendInputToScreen();
+                if (inputField) {
+                    setTimeout(() => inputField.focus(), 10);
+                }
+            }
+        }, { passive: false });
+
         stickerBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (stickerTouchHandled) {
+                stickerTouchHandled = false;
+                return;
+            }
             if (stickerBtn.classList.contains('send-mode')) {
                 sendInputToScreen();
+                if (inputField) {
+                    setTimeout(() => inputField.focus(), 10);
+                }
                 return;
             }
             const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
