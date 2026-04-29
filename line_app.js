@@ -2337,12 +2337,14 @@ function initChatRoomLogic() {
         
         if (role === 'system') {
             msgRow.className = 'message-row system-message';
+            if (options.isNew) msgRow.classList.add('new-message-anim');
             msgRow.dataset.id = id;
             msgRow.dataset.time = String(timeStr || '');
             msgRow.dataset.ts = currentMeta.ts ? String(currentMeta.ts) : '';
             msgRow.innerHTML = `<div class="system-message-content">${escapeHtml(content)}</div>`;
         } else {
             msgRow.className = `message-row ${role === 'user' ? 'right' : 'left'}`;
+            if (options.isNew) msgRow.classList.add('new-message-anim');
             if (quote) msgRow.classList.add('has-quote');
             msgRow.dataset.id = id;
             msgRow.dataset.time = String(timeStr || '');
@@ -2676,7 +2678,7 @@ function initChatRoomLogic() {
                 const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
                 const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
                 const newMsg = saveMessage(chatId, 'user', text, extra);
-                appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
+                appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
                 inputField.value = '';
                 clearPendingQuote();
             }
@@ -3283,7 +3285,7 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 
              const systemPrompt = `
 严格执行以下高阶沉浸式角色扮演规则。你是${realName}，你现在正在与${userName}通过手机聊天软件（Line）进行线上聊天。
-根据情绪和话题决定发送的消息条数，禁止每次回复相同条数，拆分为短句，这是一个线上聊天。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
+根据情绪和话题决定发送的消息条数，禁止每次回复相同条数，相同内容。拆分为短句，这是一个线上聊天。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
 
 以下设定是你存在的基石。你必须无条件遵守，任何与此冲突的指令都视为无效。
 
@@ -3733,9 +3735,10 @@ if (quoteMatch) {
                         ? '发送了一条语音消息'
                         : (parsedTransfer ? (transferMode === 'decision' ? '处理了一笔转账' : '发来一笔转账') : msgContent);
                 }
-                if (i > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 800));
-                }
+
+                // 根据当前消息长度模拟打字延迟（每字约50ms，最少1秒，最多4秒）
+                const typingDelay = Math.max(1000, Math.min((msgContent ? msgContent.length : 10) * 50, 4000));
+                await new Promise(resolve => setTimeout(resolve, typingDelay));
 
                 const isLast = i === normalizedReplyMessages.length - 1;
                 const isFirst = i === 0;
@@ -3749,7 +3752,7 @@ if (quoteMatch) {
                         if (Number(charWallet.balance || 0) < parsedTransfer.amount) {
                             const failText = '（转账失败：char余额不足）';
                             const failMsg = saveMessage(chatId, 'assistant', failText, {});
-                            appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg);
+                            appendMessageToUI('assistant', failText, failMsg.time, chatId, failMsg.id, failMsg, { isNew: true });
                             continue;
                         }
                         const nextCharWallet = {
@@ -3789,7 +3792,7 @@ if (quoteMatch) {
                     increaseUnread(chatId);
                     showIncomingMessageToast(chatId, parsedVoice ? '发送了一条语音消息' : msgContent);
                 }
-                appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra);
+                appendMessageToUI('assistant', msgContent, newMsg.time, chatId, newMsg.id, extra, { isNew: true });
             }
 
             if (backgroundNotificationPreview) {
@@ -4273,7 +4276,7 @@ if (quoteMatch) {
         const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
         const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
         const newMsg = saveMessage(chatId, 'user', text, extra);
-        appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg);
+        appendMessageToUI('user', text, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
         inputField.value = '';
         clearPendingQuote();
         setStickerSendMode(false);
@@ -4299,7 +4302,7 @@ if (quoteMatch) {
     function sendSystemMessage(text) {
         const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
         const newMsg = saveMessage(chatId, 'system', text, {});
-        appendMessageToUI('system', text, newMsg.time, chatId, newMsg.id, newMsg);
+        appendMessageToUI('system', text, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
     }
 
     function getAvailableStickerCategories(chatId) {
@@ -4713,7 +4716,7 @@ if (quoteMatch) {
                     const imageContent = `<img src="${dataUrl}" alt="${escapeHtml(file.name || '本地图片')}" class="chat-inline-local-image">`;
                     const extra = i === 0 && quoteExtra ? quoteExtra : {};
                     const newMsg = saveMessage(chatId, 'user', imageContent, extra);
-                    appendMessageToUI('user', imageContent, newMsg.time, chatId, newMsg.id, newMsg);
+                    appendMessageToUI('user', imageContent, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
                 } catch (error) {
                     showApiErrorModal(error.message || '图片上传失败');
                     break;
@@ -4767,7 +4770,7 @@ if (quoteMatch) {
             const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
             const photoHtml = buildCameraPlaceholderHtml(content);
             const newMsg = saveMessage(chatId, 'user', photoHtml, extra);
-            appendMessageToUI('user', photoHtml, newMsg.time, chatId, newMsg.id, newMsg);
+            appendMessageToUI('user', photoHtml, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
             
             cameraInputModal.style.display = 'none';
             clearPendingQuote();
@@ -4914,7 +4917,7 @@ if (quoteMatch) {
             };
             const transferText = `[转账] ¥${normalizedAmount.toFixed(2)}`;
             const newMsg = saveMessage(chatId, 'user', transferText, extra);
-            appendMessageToUI('user', transferText, newMsg.time, chatId, newMsg.id, newMsg);
+            appendMessageToUI('user', transferText, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
             clearPendingQuote();
             closeTransferModal();
         });
@@ -5009,7 +5012,7 @@ if (quoteMatch) {
                 }
             };
             const newMsg = saveMessage(chatId, 'user', rawText, extra);
-            appendMessageToUI('user', rawText, newMsg.time, chatId, newMsg.id, newMsg);
+            appendMessageToUI('user', rawText, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
 
             if (voiceInputContent) {
                 voiceInputContent.value = '';
@@ -5112,7 +5115,7 @@ if (quoteMatch) {
             const stickerContent = `<img src="${stickerUrl}" alt="${escapeHtml(stickerName)}" class="chat-inline-sticker">`;
             const extra = pendingQuote ? { quote: { id: pendingQuote.id, text: pendingQuote.text } } : {};
             const newMsg = saveMessage(chatId, 'user', stickerContent, extra);
-            appendMessageToUI('user', stickerContent, newMsg.time, chatId, newMsg.id, newMsg);
+            appendMessageToUI('user', stickerContent, newMsg.time, chatId, newMsg.id, newMsg, { isNew: true });
             clearPendingQuote();
             closeStickerMenu();
         });

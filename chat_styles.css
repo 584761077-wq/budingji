@@ -1228,6 +1228,15 @@
     position: relative; /* Ensure sprites can be positioned relative to the row */
 }
 
+.message-row.new-message-anim {
+    animation: messagePopUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes messagePopUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .message-main {
     display: flex;
     flex-direction: column;
