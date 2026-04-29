@@ -1632,6 +1632,34 @@
                             </div>
                             <div class="time-zone-preview" id="time-zone-preview">开启后将显示双方当前时间与时差。</div>
                         </div>
+                        <div class="memory-limit-row toggle-group" style="margin-top: 14px;">
+                            <label for="weather-map-toggle">双方天气映射</label>
+                            <label class="switch">
+                                <input type="checkbox" id="weather-map-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="weather-map-settings-body" id="weather-map-settings-body" style="display: none;">
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="user-weather-place-input">我的虚构地名</label>
+                                <input type="text" id="user-weather-place-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：雾星城">
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="user-weather-real-input">映射真实地区</label>
+                                <input type="text" id="user-weather-real-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：上海">
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="char-weather-place-input">TA 的虚构地名</label>
+                                <input type="text" id="char-weather-place-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：雪港">
+                            </div>
+                            <div class="memory-limit-row time-zone-field">
+                                <label for="char-weather-real-input">映射真实地区</label>
+                                <input type="text" id="char-weather-real-input" class="candy-input memory-limit-input time-zone-input" placeholder="例如：东京">
+                            </div>
+                            <div class="time-zone-preview" id="weather-map-preview">开启后可为双方虚构地名映射真实地区天气。</div>
+                            <div class="weather-map-status" id="user-weather-map-status"></div>
+                            <div class="weather-map-status" id="char-weather-map-status"></div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -4307,6 +4307,26 @@ function getCharCityKey(chatId) {
     return `chat_char_city_${chatId}`;
 }
 
+function getWeatherMapEnabledKey(chatId) {
+    return `chat_weather_map_enabled_${chatId}`;
+}
+
+function getUserWeatherPlaceKey(chatId) {
+    return `chat_user_weather_place_${chatId}`;
+}
+
+function getUserWeatherRealKey(chatId) {
+    return `chat_user_weather_real_${chatId}`;
+}
+
+function getCharWeatherPlaceKey(chatId) {
+    return `chat_char_weather_place_${chatId}`;
+}
+
+function getCharWeatherRealKey(chatId) {
+    return `chat_char_weather_real_${chatId}`;
+}
+
 function getSummaryCursorKey(chatId) {
     return `chat_summary_cursor_${chatId}`;
 }
@@ -4432,6 +4452,127 @@ function buildTimeZoneComputedData(chatId, date = new Date()) {
         diffLabel: `${diffHours >= 0 ? '+' : ''}${diffHours}h`,
         charPeriod: getPeriodLabelByHour(charHour)
     };
+}
+
+const weatherMapGeoCache = new Map();
+const weatherMapWeatherCache = new Map();
+
+function getWeatherCodeText(code) {
+    const map = {
+        0: '晴朗', 1: '大部晴朗', 2: '局部多云', 3: '阴天', 45: '有雾', 48: '雾凇',
+        51: '毛毛雨', 53: '小雨', 55: '中雨', 56: '冻毛毛雨', 57: '冻雨',
+        61: '小雨', 63: '中雨', 65: '大雨', 66: '冻雨', 67: '强冻雨',
+        71: '小雪', 73: '中雪', 75: '大雪', 77: '雪粒', 80: '阵雨', 81: '较强阵雨', 82: '强阵雨',
+        85: '阵雪', 86: '强阵雪', 95: '雷暴', 96: '雷暴伴冰雹', 99: '强雷暴伴冰雹'
+    };
+    return map[Number(code)] || '天气未知';
+}
+
+async function geocodeWeatherLocation(query) {
+    const q = String(query || '').trim();
+    if (!q) return null;
+    if (weatherMapGeoCache.has(q)) return weatherMapGeoCache.get(q);
+    try {
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=zh&format=json`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('geocode failed');
+        const data = await res.json();
+        const item = data?.results?.[0];
+        const result = item ? {
+            name: item.name,
+            country: item.country,
+            admin1: item.admin1,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            display: [item.name, item.admin1, item.country].filter(Boolean).join('，')
+        } : null;
+        weatherMapGeoCache.set(q, result);
+        return result;
+    } catch (_) {
+        weatherMapGeoCache.set(q, null);
+        return null;
+    }
+}
+
+async function fetchOpenMeteoWeather(lat, lon) {
+    const key = `${Number(lat).toFixed(2)},${Number(lon).toFixed(2)}`;
+    if (weatherMapWeatherCache.has(key)) return weatherMapWeatherCache.get(key);
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=auto&forecast_days=1`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('weather failed');
+        const data = await res.json();
+        const current = data?.current || {};
+        const result = current ? {
+            temperature: current.temperature_2m,
+            humidity: current.relative_humidity_2m,
+            windSpeed: current.wind_speed_10m,
+            code: current.weather_code,
+            summary: getWeatherCodeText(current.weather_code)
+        } : null;
+        weatherMapWeatherCache.set(key, result);
+        return result;
+    } catch (_) {
+        weatherMapWeatherCache.set(key, null);
+        return null;
+    }
+}
+
+async function buildWeatherMapComputedData(chatId) {
+    const cfg = {
+        enabled: localStorage.getItem(getWeatherMapEnabledKey(chatId)) === 'true',
+        userPlace: String(localStorage.getItem(getUserWeatherPlaceKey(chatId)) || '').trim(),
+        userReal: String(localStorage.getItem(getUserWeatherRealKey(chatId)) || '').trim(),
+        charPlace: String(localStorage.getItem(getCharWeatherPlaceKey(chatId)) || '').trim(),
+        charReal: String(localStorage.getItem(getCharWeatherRealKey(chatId)) || '').trim()
+    };
+    if (!cfg.enabled) return { ...cfg, ready: false };
+
+    const resolveOne = async (place, real) => {
+        const query = String(real || '').trim();
+        if (!query) return { place, real: '', ok: false, status: '请填写真实地区' };
+        const geo = await geocodeWeatherLocation(query);
+        if (!geo) return { place, real: query, ok: false, status: '未找到地区坐标' };
+        const weather = await fetchOpenMeteoWeather(geo.latitude, geo.longitude);
+        if (!weather) return { place, real: query, ok: true, geo, status: '已识别地点，但天气获取失败' };
+        return { place, real: query, ok: true, geo, weather, status: '已识别并获取天气' };
+    };
+
+    const [user, char] = await Promise.all([
+        resolveOne(cfg.userPlace || '我方', cfg.userReal),
+        resolveOne(cfg.charPlace || 'TA 方', cfg.charReal)
+    ]);
+    return { ...cfg, ready: true, user, char };
+}
+
+function buildWeatherMapPreviewText(data) {
+    if (!data?.enabled) return '开启后可为双方虚构地名映射真实地区天气。';
+    const user = data.user || {};
+    const char = data.char || {};
+    const render = (item) => {
+        const lines = [`${item.place || '虚构地名'} → ${item.real || '真实地区'}`];
+        if (item.geo) lines.push(`坐标：${Number(item.geo.latitude).toFixed(2)}, ${Number(item.geo.longitude).toFixed(2)}`);
+        if (item.weather) lines.push(`天气：${item.weather.summary} / ${item.weather.temperature}°C / 湿度 ${item.weather.humidity ?? '未知'}% / 风速 ${item.weather.windSpeed ?? '未知'} km/h`);
+        lines.push(`状态：${item.status || '未解析'}`);
+        return lines.join('\n');
+    };
+    return `${render(user)}\n\n${render(char)}`;
+}
+
+async function buildWeatherMapPrompt(chatId) {
+    const data = await buildWeatherMapComputedData(chatId);
+    if (!data.enabled || !data.ready) return '';
+    const formatItem = (item, label) => {
+        const parts = [item.place || label, `真实地区：${item.real || '无'}`];
+        if (item.geo) parts.push(`坐标：${Number(item.geo.latitude).toFixed(2)}, ${Number(item.geo.longitude).toFixed(2)}`);
+        if (item.weather) parts.push(`天气：${item.weather.summary}，${item.weather.temperature}°C，湿度${item.weather.humidity ?? '未知'}%，风速${item.weather.windSpeed ?? '未知'} km/h`);
+        return parts.join('；');
+    };
+    return `
+[双方天气映射]
+我方：${formatItem(data.user, '我方')}
+TA 方：${formatItem(data.char, 'TA 方')}
+请把“虚构地名”当作角色认知中的地点名称，但天气表现必须参考对应真实地区的实时天气；双方都要知道彼此当前天气，并自然体现在对话里。`;
 }
 
 function updateChatTimeZoneIndicator(chatId) {
@@ -6123,6 +6264,7 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 请严格考虑双方时差来决定回复语气、问候和作息相关表达，不要无视深夜/清晨场景。
 `
                 : '';
+            const weatherMapPrompt = await buildWeatherMapPrompt(chatId);
 
             const wbIds = JSON.parse(localStorage.getItem('chat_worldbooks_' + chatId) || '[]');
             const allWbItems = largeStore.get('worldbook_items', []);
@@ -6191,6 +6333,7 @@ ${userPersona || '无'}
 ${phoneLockPrompt || '无'}
 ${timeSyncPrompt}
 ${timeZonePrompt}
+${weatherMapPrompt}
 
 **【可用附加功能】**（根据人设、场景需要自然使用，禁止复读）
 ${assistantStickerPromptText}
@@ -8892,6 +9035,17 @@ function initTimeSettingsLogic(chatRoomNameEl) {
     const userTimeZoneSelect = document.getElementById('user-timezone-select');
     const charTimeZoneSelect = document.getElementById('char-timezone-select');
     const previewEl = document.getElementById('time-zone-preview');
+    const weatherMapToggle = document.getElementById('weather-map-toggle');
+    const weatherMapBody = document.getElementById('weather-map-settings-body');
+    const userWeatherPlaceInput = document.getElementById('user-weather-place-input');
+    const userWeatherRealInput = document.getElementById('user-weather-real-input');
+    const charWeatherPlaceInput = document.getElementById('char-weather-place-input');
+    const charWeatherRealInput = document.getElementById('char-weather-real-input');
+    const weatherMapPreviewEl = document.getElementById('weather-map-preview');
+    const weatherMapStatusEls = [
+        document.getElementById('user-weather-map-status'),
+        document.getElementById('char-weather-map-status')
+    ];
 
     if (!timeSettingsBtn || !modal || !syncToggle) return;
 
@@ -8958,6 +9112,29 @@ function initTimeSettingsLogic(chatRoomNameEl) {
         previewEl.textContent = `${userCity} ${userTime}（${userZone}）\n${charCity} ${charTime}（${charZone}）\n时差：${diffLabel}（TA-我）`;
     };
 
+    const updateWeatherMapPreview = async () => {
+        if (!weatherMapBody || !weatherMapPreviewEl || !weatherMapToggle) return;
+        weatherMapBody.style.display = weatherMapToggle.checked ? 'block' : 'none';
+        if (!weatherMapToggle.checked) {
+            weatherMapPreviewEl.textContent = '开启后可为双方虚构地名映射真实地区天气。';
+            weatherMapStatusEls.forEach((el) => { if (el) el.textContent = ''; });
+            return;
+        }
+        const userPlace = String((userWeatherPlaceInput && userWeatherPlaceInput.value) || '').trim() || '我的虚构地名';
+        const userReal = String((userWeatherRealInput && userWeatherRealInput.value) || '').trim();
+        const charPlace = String((charWeatherPlaceInput && charWeatherPlaceInput.value) || '').trim() || 'TA 的虚构地名';
+        const charReal = String((charWeatherRealInput && charWeatherRealInput.value) || '').trim();
+        weatherMapPreviewEl.textContent = `${userPlace} → ${userReal || '真实地区'}\n${charPlace} → ${charReal || '真实地区'}`;
+        const chatId = getCurrentChatId();
+        const data = await buildWeatherMapComputedData(chatId);
+        const render = (item, el) => {
+            if (!el) return;
+            el.textContent = item?.status ? `${item.place || ''}：${item.status}${item.geo ? `｜坐标 ${Number(item.geo.latitude).toFixed(2)}, ${Number(item.geo.longitude).toFixed(2)}` : ''}${item.weather ? `｜${item.weather.summary} ${item.weather.temperature}°C` : ''}` : '';
+        };
+        render(data.user, weatherMapStatusEls[0]);
+        render(data.char, weatherMapStatusEls[1]);
+    };
+
     const syncFromStorage = () => {
         const chatId = getCurrentChatId();
         syncToggle.checked = localStorage.getItem(getTimeSyncEnabledKey(chatId)) === 'true';
@@ -8970,6 +9147,14 @@ function initTimeSettingsLogic(chatRoomNameEl) {
         userTimeZoneSelect.value = cfg.userTimeZone;
         charTimeZoneSelect.value = cfg.charTimeZone;
         updateTimeZonePreview();
+        if (weatherMapToggle) {
+            weatherMapToggle.checked = localStorage.getItem(getWeatherMapEnabledKey(chatId)) === 'true';
+            if (userWeatherPlaceInput) userWeatherPlaceInput.value = localStorage.getItem(getUserWeatherPlaceKey(chatId)) || '';
+            if (userWeatherRealInput) userWeatherRealInput.value = localStorage.getItem(getUserWeatherRealKey(chatId)) || '';
+            if (charWeatherPlaceInput) charWeatherPlaceInput.value = localStorage.getItem(getCharWeatherPlaceKey(chatId)) || '';
+            if (charWeatherRealInput) charWeatherRealInput.value = localStorage.getItem(getCharWeatherRealKey(chatId)) || '';
+            updateWeatherMapPreview();
+        }
     };
 
     timeSettingsBtn.addEventListener('click', () => {
@@ -8982,6 +9167,13 @@ function initTimeSettingsLogic(chatRoomNameEl) {
         .forEach((el) => {
             el.addEventListener('change', updateTimeZonePreview);
             el.addEventListener('input', updateTimeZonePreview);
+        });
+
+    [weatherMapToggle, userWeatherPlaceInput, userWeatherRealInput, charWeatherPlaceInput, charWeatherRealInput]
+        .filter(Boolean)
+        .forEach((el) => {
+            el.addEventListener('change', updateWeatherMapPreview);
+            el.addEventListener('input', updateWeatherMapPreview);
         });
 
     if (closeBtn) {
@@ -9001,6 +9193,13 @@ function initTimeSettingsLogic(chatRoomNameEl) {
                 localStorage.setItem(getUserCityKey(chatId), String((userCityInput && userCityInput.value) || '').trim());
                 localStorage.setItem(getCharCityKey(chatId), String((charCityInput && charCityInput.value) || '').trim());
                 updateChatTimeZoneIndicator(chatId);
+            }
+            if (weatherMapToggle) {
+                localStorage.setItem(getWeatherMapEnabledKey(chatId), weatherMapToggle.checked ? 'true' : 'false');
+                localStorage.setItem(getUserWeatherPlaceKey(chatId), String((userWeatherPlaceInput && userWeatherPlaceInput.value) || '').trim());
+                localStorage.setItem(getUserWeatherRealKey(chatId), String((userWeatherRealInput && userWeatherRealInput.value) || '').trim());
+                localStorage.setItem(getCharWeatherPlaceKey(chatId), String((charWeatherPlaceInput && charWeatherPlaceInput.value) || '').trim());
+                localStorage.setItem(getCharWeatherRealKey(chatId), String((charWeatherRealInput && charWeatherRealInput.value) || '').trim());
             }
             closeAppModal(modal);
         });
