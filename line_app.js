@@ -1438,6 +1438,9 @@ function initMemorySettingsLogic(chatRoomNameEl) {
                 saveBtn.textContent = originalText;
                 saveBtn.style.backgroundColor = '#000000';
                 closeAppModal(modal);
+                if (typeof startAutoSummaryWorker === 'function') {
+                    startAutoSummaryWorker(chatId);
+                }
             }, 500);
         });
     }
@@ -1476,8 +1479,8 @@ function initMemorySettingsLogic(chatRoomNameEl) {
             const cursor = ensureSummaryCursor(chatId);
             const total = history.length;
 
-            if (manualSummaryInfo) {
-                manualSummaryInfo.textContent = `共 ${total} 条消息，已总结至第 ${cursor} 条`;
+            if (typeof updateManualSummaryUI === 'function') {
+                updateManualSummaryUI(chatId);
             }
 
             const batchSize = normalizeMemorySummaryInput(summaryInput.value);
@@ -2192,6 +2195,10 @@ function initChatRoomLogic() {
         renderHistoryBatch(chatId, chunk, startIndex, { forceFirstDivider: true });
         updateLoadMoreVisibility(chatId);
         chatContent.scrollTop = chatContent.scrollHeight;
+        
+        if (typeof startAutoSummaryWorker === 'function') {
+            startAutoSummaryWorker(chatId);
+        }
     }
 
     function isChatRoomOpenFor(chatId) {
@@ -2300,9 +2307,13 @@ function initChatRoomLogic() {
     refreshChatListPreviewFor(chatId);
 
     Promise.resolve().then(() => {
-        triggerAutoSummaryIfNeeded(chatId).catch((error) => {
-            console.error('Auto summary trigger failed:', error);
-        });
+        if (typeof startAutoSummaryWorker === 'function') {
+            startAutoSummaryWorker(chatId);
+        } else {
+            triggerAutoSummaryIfNeeded(chatId).catch((error) => {
+                console.error('Auto summary trigger failed:', error);
+            });
+        }
     });
 
     return newMsg;

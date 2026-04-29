@@ -122,6 +122,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     runMediaMigration();
     initLineApp();
     initStickerApp();
+    
+    // 新增：启动所有聊天室的后台自动总结 Worker
+    if (typeof startAllAutoSummaryWorkers === 'function') {
+        startAllAutoSummaryWorkers();
+    }
     // 新增：初始化 ThemeEngine
     ThemeEngine.init().then(() => {
         initThemeApp();
@@ -3425,21 +3430,47 @@ function ensureSummaryCursor(chatId) {
     const cursorKey = getSummaryCursorKey(chatId);
     const history = largeStore.get('chat_history_' + chatId, []);
     const historyLength = Array.isArray(history) ? history.length : 0;
-    const parsed = parseInt(localStorage.getItem(cursorKey) || '', 10);
+    const diaries = getMemoryDiaries(chatId);
+    const raw = localStorage.getItem(cursorKey);
+    let parsed = parseInt(raw || '', 10);
+
     if (Number.isFinite(parsed)) {
+        if (parsed > 0 && diaries.length === 0) {
+            parsed = 0;
+        }
         const clamped = Math.max(0, Math.min(parsed, historyLength));
-        if (clamped !== parsed) {
+        if (String(clamped) !== raw) {
             localStorage.setItem(cursorKey, String(clamped));
         }
         return clamped;
     }
-    const hasDiary = getMemoryDiaries(chatId).length > 0;
-    const fallback = hasDiary ? historyLength : 0;
+
+    const fallback = 0;
     localStorage.setItem(cursorKey, String(fallback));
     return fallback;
 }
 
 const autoSummaryRunningByChat = Object.create(null);
+const autoSummaryRetryCount = Object.create(null);
+const autoSummaryStatusMessage = Object.create(null);
+
+function updateManualSummaryUI(chatId) {
+    const chatRoomNameEl = document.getElementById('chat-room-name');
+    if (!chatRoomNameEl) return;
+    const currentChatId = chatRoomNameEl.dataset.chatId || chatRoomNameEl.textContent;
+    if (currentChatId !== chatId) return;
+
+    const manualSummaryInfo = document.getElementById('manual-summary-info');
+    if (manualSummaryInfo) {
+        const history = largeStore.get('chat_history_' + chatId, []);
+        const total = Array.isArray(history) ? history.length : 0;
+        const cursor = ensureSummaryCursor(chatId);
+        const pending = Math.max(0, total - cursor);
+        const statusText = autoSummaryStatusMessage[chatId] || '等待中';
+        
+        manualSummaryInfo.innerHTML = `共 ${total} 条消息，已确认总结 ${cursor} 条，待总结 ${pending} 条。<br><span style="font-size: 0.9em; color: #888; margin-top: 4px; display: inline-block;">自动总结状态：${statusText}</span>`;
+    }
+}
 
 function getAutoSummaryStatus(chatId) {
     const enabled = localStorage.getItem(getAutoSummaryEnabledKey(chatId)) === 'true';
@@ -3481,25 +3512,78 @@ function formatAutoSummaryError(chatId, status, error) {
     ].join('\n');
 }
 
-async function triggerAutoSummaryIfNeeded(chatId) {
-    if (!chatId) return 0;
-    if (autoSummaryRunningByChat[chatId]) return 0;
+function startAllAutoSummaryWorkers() {
+    const chatList = JSON.parse(localStorage.getItem('global_chat_list') || '[]');
+    chatList.forEach(chatId => {
+        if (!chatId) return;
+        const status = getAutoSummaryStatus(chatId);
+        if (status.enabled && status.ready) {
+            startAutoSummaryWorker(chatId);
+        }
+    });
+}
 
-    const status = getAutoSummaryStatus(chatId);
-    if (!status.enabled) return 0;
-    if (!status.ready) return 0;
+function startAutoSummaryWorker(chatId) {
+    if (!chatId || autoSummaryRunningByChat[chatId]) return;
 
-    autoSummaryRunningByChat[chatId] = true;
+    async function workerLoop() {
+        if (!chatId) return;
+        const status = getAutoSummaryStatus(chatId);
+        
+        if (!status.enabled) {
+            autoSummaryRunningByChat[chatId] = false;
+            autoSummaryStatusMessage[chatId] = '未开启自动总结';
+            if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+            return;
+        }
 
-    try {
-        return await runAutoSummaryBatches(chatId, status.batchSize);
-    } catch (error) {
-        console.error('Auto summary failed:', error);
-        showApiErrorModal(formatAutoSummaryError(chatId, status, error));
-        throw error;
-    } finally {
-        autoSummaryRunningByChat[chatId] = false;
+        if (!status.ready) {
+            autoSummaryRunningByChat[chatId] = false;
+            autoSummaryStatusMessage[chatId] = '等待新消息';
+            if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+            return;
+        }
+
+        autoSummaryRunningByChat[chatId] = true;
+        autoSummaryStatusMessage[chatId] = '总结中...';
+        if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+
+        try {
+            // 每次只处理1个批次，避免长时间阻塞
+            const processed = await runAutoSummaryBatches(chatId, status.batchSize, 1);
+            autoSummaryRetryCount[chatId] = 0; // 重置重试计数
+            
+            if (processed > 0) {
+                autoSummaryStatusMessage[chatId] = '总结成功';
+                if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+                // 立刻继续循环处理下一批
+                setTimeout(workerLoop, 500);
+            } else {
+                autoSummaryRunningByChat[chatId] = false;
+                autoSummaryStatusMessage[chatId] = '暂无需要总结的消息';
+                if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+            }
+        } catch (error) {
+            console.error('Auto summary worker failed:', error);
+            const retries = (autoSummaryRetryCount[chatId] || 0) + 1;
+            autoSummaryRetryCount[chatId] = retries;
+            
+            // 指数退避，最大120秒
+            const backoff = Math.min(120, Math.pow(2, retries - 1) * 5);
+            autoSummaryStatusMessage[chatId] = `总结失败，${backoff}秒后重试 (${error.message || '未知错误'})`;
+            if (typeof updateManualSummaryUI === 'function') updateManualSummaryUI(chatId);
+            
+            // 定时重试
+            setTimeout(workerLoop, backoff * 1000);
+        }
     }
+
+    workerLoop();
+}
+
+async function triggerAutoSummaryIfNeeded(chatId) {
+    startAutoSummaryWorker(chatId);
+    return 0;
 }
 
 
@@ -3644,11 +3728,11 @@ async function runRangeSummary(chatId, start, end) {
     return content;
 }
 
-async function runAutoSummaryBatches(chatId, batchSize) {
+async function runAutoSummaryBatches(chatId, batchSize, maxBatches = Infinity) {
     const normalizedBatch = normalizeMemorySummaryInput(batchSize);
     let summarized = 0;
 
-    while (true) {
+    while (summarized < maxBatches) {
         const history = largeStore.get('chat_history_' + chatId, []);
         if (!Array.isArray(history) || history.length === 0) break;
 
