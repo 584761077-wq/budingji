@@ -147,7 +147,7 @@
     overflow-y: auto;
     padding: 15px;
     padding-top: 110px; /* Increased space for taller header */
-    padding-bottom: 20px; /* Reset padding since footer is now relative in flex layout */
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)); 
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -240,11 +240,10 @@
     padding-bottom: max(10px, env(safe-area-inset-bottom)); /* Safe area padding */
     gap: 12px;
     border-top: 1px solid rgba(0,0,0,0.05);
-    position: relative; /* Fix footer: Change from absolute to relative for flex layout */
+    position: absolute; /* Fix footer */
+    bottom: 0;
     width: 100%;
     z-index: 10;
-    margin-top: auto; /* Push to bottom in flex container */
-    transform: translateZ(0); /* Force hardware acceleration */
 }
 
 .chat-room-footer.keyboard-open {
@@ -254,8 +253,7 @@
 /* Chat Action Menu */
 .chat-action-menu {
     position: absolute;
-    bottom: 100%; /* Anchor to top of footer */
-    margin-bottom: 10px; /* Space between menu and footer */
+    bottom: 70px;
     left: 10px;
     width: calc(100% - 20px);
     background: rgba(255, 255, 255, 0.95);
@@ -269,8 +267,7 @@
 
 .chat-sticker-menu {
     position: absolute;
-    bottom: 100%; /* Anchor to top of footer */
-    margin-bottom: 10px; /* Space between menu and footer */
+    bottom: 70px;
     left: 10px;
     width: calc(100% - 20px);
     max-height: 320px;

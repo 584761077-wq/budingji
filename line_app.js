@@ -1893,13 +1893,22 @@ function initChatRoomLogic() {
 
     // 使用 VisualViewport 监听键盘弹起，动态计算真实可用高度
     if (window.visualViewport) {
+        let lastViewportHeight = window.visualViewport.height;
+
         const resetViewportScroll = () => {
             if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
-                window.scrollTo(0, 0); // 强制浏览器不产生原生滚动偏移
+                // 如果当前视口高度发生了变化（键盘弹起或收起中），则不干预滚动，让其自然过渡
+                if (window.visualViewport.height !== lastViewportHeight) return;
+                
+                // 仅在视口尺寸稳定时，检测到偏移才强制拉回，避免动画冲突
+                if (window.scrollY > 0 || window.visualViewport.pageTop > 0) {
+                    window.scrollTo(0, 0); 
+                }
             }
         };
 
         window.visualViewport.addEventListener('resize', () => {
+            lastViewportHeight = window.visualViewport.height;
             if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
                 // 实时同步可视区高度，让底栏完美贴紧键盘上方
                 const vh = window.visualViewport.height + 'px';
@@ -1907,7 +1916,7 @@ function initChatRoomLogic() {
                 if (chatRoom) {
                     chatRoom.style.height = vh;
                 }
-                resetViewportScroll();
+                window.scrollTo(0, 0);
                 if (chatContent) {
                     chatContent.scrollTop = chatContent.scrollHeight;
                 }
