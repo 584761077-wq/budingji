@@ -5606,6 +5606,78 @@ function initChatRoomLogic() {
         };
         resolveMediaImagesInElement(msgRow);
 
+        if (role === 'assistant' && extra && extra.thinkNote) {
+            const avatarEl = msgRow.querySelector('.message-avatar');
+            if (avatarEl) {
+                avatarEl.style.cursor = 'pointer';
+                avatarEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const existing = document.querySelectorAll('.think-note-sticky');
+                    existing.forEach((el) => el.remove());
+                    const rect = avatarEl.getBoundingClientRect();
+                    const panel = document.createElement('div');
+                    panel.className = 'think-note-sticky';
+                    panel.style.position = 'fixed';
+                    panel.style.left = `${Math.max(8, rect.left)}px`;
+                    panel.style.top = `${rect.bottom + 6}px`;
+                    panel.style.zIndex = '9999';
+                    panel.style.background = '#fff5f7';
+                    panel.style.color = '#444';
+                    panel.style.border = '1px solid rgba(0,0,0,0.06)';
+                    panel.style.borderRadius = '8px';
+                    panel.style.boxShadow = '0 10px 24px rgba(0,0,0,0.12)';
+                    panel.style.padding = '14px 16px';
+                    panel.style.maxWidth = '72vw';
+                    panel.style.minWidth = '240px';
+                    panel.style.maxHeight = '65vh';
+                    panel.style.overflowY = 'auto';
+                    panel.style.fontSize = '0.92rem';
+                    panel.style.lineHeight = '1.6';
+                    panel.style.wordBreak = 'break-word';
+
+                    let formattedNote = escapeHtml(String(extra.thinkNote || '')).trim();
+                    formattedNote = formattedNote.replace(/\n+/g, '\n');
+                    formattedNote = formattedNote.replace(/\n(\d+\.\s*)/g, '\n\n$1');
+                    
+                    formattedNote = formattedNote.split('\n').map(line => {
+                        if (/^\d+\.\s*/.test(line)) {
+                            let splitIdx = -1;
+                            const match = line.match(/^\d+\.\s*.*?[？?\:：]/);
+                            if (match) {
+                                splitIdx = match[0].length;
+                            }
+                            
+                            if (splitIdx !== -1) {
+                                const question = line.substring(0, splitIdx);
+                                const answer = line.substring(splitIdx).trim();
+                                if (answer) {
+                                    return `<strong style="color:#222; font-weight:700; font-size: 1.05em;">${question}</strong><br><br><strong style="color:#444; font-weight:600; font-size: 0.9em;">${answer}</strong>`;
+                                }
+                                return `<strong style="color:#222; font-weight:700; font-size: 1.05em;">${question}</strong>`;
+                            } else {
+                                return `<strong style="color:#222; font-weight:700; font-size: 1.05em;">${line}</strong>`;
+                            }
+                        } else if (line.trim()) {
+                            // 处理回答换行的情况
+                            return `<strong style="color:#444; font-weight:600; font-size: 0.9em;">${line}</strong>`;
+                        }
+                        return line;
+                    }).join('\n');
+
+                    panel.innerHTML = `<div>${formattedNote.replace(/\n/g, '<br>')}</div>`;
+                    document.body.appendChild(panel);
+                    const onDocClick = (ev) => {
+                        if (!panel.contains(ev.target)) {
+                            panel.remove();
+                        }
+                    };
+                    setTimeout(() => {
+                        document.addEventListener('click', onDocClick, { once: true });
+                    }, 0);
+                });
+            }
+        }
+
         // 心绪精灵逻辑 (Mood Sprite)
         // 仅当包含 sprite 数据且未被 dismissed (除非被收藏) 时显示
         if (role === 'assistant' && extra && extra.sprite) {
@@ -6330,10 +6402,10 @@ ${longTermMemory || '无'}
 **【${userName}的信息】**
 ${userPersona || '无'}
 **【当前现实信息】**
-${phoneLockPrompt || '无'}
-${timeSyncPrompt}
-${timeZonePrompt}
-${weatherMapPrompt}
+- 手机锁屏状态：${phoneLockPrompt || '无'}
+- 当前现实时间：${timeSyncPrompt}
+- 你所在的时区：${timeZonePrompt}
+- 你所在地的天气：${weatherMapPrompt}
 
 **【可用附加功能】**（根据人设、场景需要自然使用，禁止复读）
 ${assistantStickerPromptText}
@@ -6369,10 +6441,10 @@ ${pendingIncomingTransfersPrompt}
 请严格按以下格式输出：
 
 <think_note>
-1. 我是谁？
-2. 对方这句话真正想表达什么？
-3. 我现在的真实情绪是什么？是否符合人设？
-4. 我内心最真实的判断/顾虑/在意点是什么？
+1. 我是谁？我的人设是？
+2. 对方这句话的潜台词是什么？
+3. 我此刻的真实情绪（开心/委屈/期待？）我的情绪是否符合我的人设
+4. 基于人设，我内心最真实的想法...
 5. 我准备怎么回？要不要用功能？
 </think_note>
 
@@ -6576,7 +6648,16 @@ ${savedHerSchedule}
                 reply = data.choices?.[0]?.message?.content || '';
             }
 
-            let visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            let thinkNoteText = '';
+            let safeReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            const thinkMatch = safeReply.match(/<think_note>([\s\S]*?)<\/think_note>/i);
+            if (thinkMatch) {
+                thinkNoteText = (thinkMatch[1] || '').trim();
+            }
+            const replyMatchBlock = safeReply.match(/<reply>([\s\S]*?)<\/reply>/i);
+            let visibleReply = replyMatchBlock
+                ? String(replyMatchBlock[1] || '').trim()
+                : safeReply.replace(/<think_note>[\s\S]*?<\/think_note>/ig, '').trim();
         let quoteData = null;
 const quoteTagRegex = /<quote>([\s\S]*?)<\/quote>/i;
 const quoteMatch = visibleReply.match(quoteTagRegex);
@@ -6791,6 +6872,7 @@ if (quoteMatch) {
                 if (isLast && spriteData) extra.sprite = spriteData;
                 if (isFirst && quoteData) extra.quote = quoteData;
                 if (messageItem.translationText) extra.translation = messageItem.translationText;
+                if (isFirst && thinkNoteText) extra.thinkNote = thinkNoteText;
 
                 const newMsg = saveMessage(chatId, 'assistant', msgContent, extra);
                 const shouldUnread = !isChatRoomOpenFor(chatId);
