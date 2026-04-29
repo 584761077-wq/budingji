@@ -2758,6 +2758,12 @@ function initChatRoomLogic() {
         });
 
         normalized = normalized.replace(/<img[^>]*>/gi, (imgTag) => isLocalImageTag(imgTag) ? '[本地图片]' : imgTag);
+        
+        // 剪掉思维链和心绪精灵的残留标签，给历史记录减负
+        normalized = normalized.replace(/<think_note>[\s\S]*?<\/think_note>/ig, '');
+        normalized = normalized.replace(/<mood_sprite\b[^>]*>[\s\S]*?(?:<\/mood_sprite\s*>|$)/ig, '');
+        normalized = normalized.replace(/<\/?mood_sprite\b[^>]*>/ig, '');
+        
         normalized = normalized.replace(/<[^>]+>/g, '');
         return decodeHtmlEntities(normalized).trim();
     }
@@ -3288,10 +3294,7 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 
             const historyCandidates = lastAssistantIndex >= 0 ? fullHistory.slice(0, lastAssistantIndex + 1) : [];
             const contextHistory = historyCandidates.slice(Math.max(0, historyCandidates.length - limit));
-            const contextText = contextHistory.map(msg => {
-                const speaker = msg.role === 'assistant' ? realName : (msg.role === 'system' ? '系统/旁白' : userName);
-                return formatHistoryMessageForModel(msg, speaker);
-            }).join('\n');
+            // 不再将历史记录拼接成一段文本
             const pendingIncomingTransfersPrompt = buildPendingIncomingTransfersPromptForChar(chatId);
 
              const systemPrompt = `
@@ -3383,7 +3386,6 @@ ${localImageSection}
 `.trim();
 
             // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
-            const historyUserText = contextText ? `[历史上下文，仅作回复参考]\n${contextText}` : '';
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
             const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景/重要功能设定]\n${frontWbContent}` : '';
@@ -3446,9 +3448,19 @@ ${savedHerSchedule}
                 topSystemBlocks.push(middleWorldbookUserText);
             }
 
-            // 记忆与历史放入 History 区块
+            // 记忆放入 History 区块 (将长时记忆作为系统指令)
             if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
-            if (historyUserText) historyMessages.push({ role: "system", content: historyUserText });
+
+            // 将历史聊天记录原汁原味地加入到 historyMessages 数组中，保持原生的 user 和 assistant 对话链
+            contextHistory.forEach(msg => {
+                if (msg.role === 'system') {
+                    historyMessages.push({ role: "system", content: `[系统/旁白]\n${formatTurnInputForModel(msg)}` });
+                } else if (msg.role === 'assistant') {
+                    historyMessages.push({ role: "assistant", content: formatTurnInputForModel(msg) });
+                } else {
+                    historyMessages.push({ role: "user", content: formatTurnInputForModel(msg) });
+                }
+            });
 
             // 日程安排更靠近当前，放入 Bottom 区块
             if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
