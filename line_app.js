@@ -1893,6 +1893,12 @@ function initChatRoomLogic() {
 
     // 使用 VisualViewport 监听键盘弹起，动态计算真实可用高度
     if (window.visualViewport) {
+        const resetViewportScroll = () => {
+            if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
+                window.scrollTo(0, 0); // 强制浏览器不产生原生滚动偏移
+            }
+        };
+
         window.visualViewport.addEventListener('resize', () => {
             if (chatRoomFooter && chatRoomFooter.classList.contains('keyboard-open')) {
                 // 实时同步可视区高度，让底栏完美贴紧键盘上方
@@ -1901,12 +1907,17 @@ function initChatRoomLogic() {
                 if (chatRoom) {
                     chatRoom.style.height = vh;
                 }
-                window.scrollTo(0, 0); // 确保不会产生偏移
+                resetViewportScroll();
                 if (chatContent) {
                     chatContent.scrollTop = chatContent.scrollHeight;
                 }
             }
         });
+
+        // 监听视口滚动，当 iOS/Android 浏览器试图强行将整个页面推上去时，把它拉回来
+        window.visualViewport.addEventListener('scroll', resetViewportScroll);
+        // 也监听 document 的滚动事件，作为双保险
+        document.addEventListener('scroll', resetViewportScroll, { passive: true });
     }
 
     // 聊天状态管理
@@ -2685,9 +2696,6 @@ function initChatRoomLogic() {
             setTimeout(() => { sendBtnTouchHandled = false; }, 300); // 防止标志位卡死
             const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             await triggerAIResponse(chatId);
-            if (inputField) {
-                setTimeout(() => inputField.focus(), 10);
-            }
         }, { passive: false });
 
         sendBtn.addEventListener('click', async (e) => {
@@ -2699,7 +2707,7 @@ function initChatRoomLogic() {
             const chatId = chatRoomName.dataset.chatId || chatRoomName.textContent;
             await triggerAIResponse(chatId);
             if (inputField) {
-                setTimeout(() => inputField.focus(), 10);
+                inputField.focus(); // PC 端可能需要重新获取焦点
             }
         });
     }
@@ -5042,9 +5050,6 @@ if (quoteMatch) {
                 stickerTouchHandled = true;
                 setTimeout(() => { stickerTouchHandled = false; }, 300); // 防止标志位卡死
                 sendInputToScreen();
-                if (inputField) {
-                    setTimeout(() => inputField.focus(), 10);
-                }
             }
         }, { passive: false });
 
@@ -5057,7 +5062,7 @@ if (quoteMatch) {
             if (stickerBtn.classList.contains('send-mode')) {
                 sendInputToScreen();
                 if (inputField) {
-                    setTimeout(() => inputField.focus(), 10);
+                    inputField.focus(); // PC端点击时重新获取焦点
                 }
                 return;
             }
