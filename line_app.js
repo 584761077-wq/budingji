@@ -3305,17 +3305,17 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 
 **【你的人设】**
 ${charPersona || '无'}
-**【你和${userName}之间的重要记忆】**
+**【你和${userName}之间的长期记忆】**
 ${longTermMemory || '无'}
 **【${userName}的信息】**
 ${userPersona || '无'}
-**【当前现实信息】**
+**【当前情景】**
 - 手机锁屏状态：${phoneLockPrompt || '无'}
 - 当前现实时间：${timeSyncPrompt}
 - 你所在的时区：${timeZonePrompt}
 - 你所在地的天气：${weatherMapPrompt}
 
-**【可用附加功能】**（根据人设、场景需要自然使用，禁止复读）
+**【可用附加功能】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
 ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
@@ -3330,9 +3330,9 @@ ${pendingIncomingTransfersPrompt}
 
             const formatInstructionPrompt = `
 **【输出格式与排版要求】**
-1. 消息拆分：根据人设、情绪和当前对话决定回复条数，必须用 [SPLIT] 将回复拆分为短句。禁止每轮回复条数一样。
+1. 消息拆分：必须用 [SPLIT] 将回复拆分为短句。禁止每轮回复条数一样。
 2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
-3. 贴图发送时机：根据人设、情绪和当前对话选择是否发送贴图，禁止每轮都发送贴图。贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
+3. 贴图：贴图的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
 
 **【扮演准则与禁止项】**
 1.** 绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
@@ -3759,8 +3759,8 @@ if (quoteMatch) {
                         : (parsedTransfer ? (transferMode === 'decision' ? '处理了一笔转账' : '发来一笔转账') : msgContent);
                 }
 
-                // 根据当前消息长度模拟打字延迟（每字约50ms，最少1秒，最多4秒）
-                const typingDelay = Math.max(1000, Math.min((msgContent ? msgContent.length : 10) * 50, 4000));
+                // 根据用户要求：消息弹出弄慢一些，且每条都是一样的固定速度，设为2秒
+                const typingDelay = 2000;
                 await new Promise(resolve => setTimeout(resolve, typingDelay));
 
                 const isLast = i === normalizedReplyMessages.length - 1;
@@ -5443,6 +5443,10 @@ function initLineApp() {
     const lineUserAddRealnameInput = document.getElementById('line-user-add-realname');
     const lineMoreWalletBtn = document.getElementById('line-more-wallet-btn');
     const lineUserWalletBackBtn = document.getElementById('line-user-wallet-back-btn');
+    const lineMoreCotBtn = document.getElementById('line-more-cot-btn');
+    const lineUserCotBackBtn = document.getElementById('line-user-cot-back-btn');
+    const lineUserCotSaveBtn = document.getElementById('line-user-cot-save-btn');
+    const lineUserCotTextarea = document.getElementById('line-user-cot-textarea');
     const lineUserWalletBalance = document.getElementById('line-user-wallet-balance');
     const lineUserWalletEditBalanceBtn = document.getElementById('line-user-wallet-edit-balance-btn');
     const lineUserWalletCardsGenerateBtn = document.getElementById('line-user-wallet-cards-generate-btn');
@@ -6196,6 +6200,29 @@ ${persona || '无'}
             switchLinePage('line-more-page', false);
         });
     }
+
+    if (lineMoreCotBtn) {
+        lineMoreCotBtn.addEventListener('click', () => {
+            if (lineUserCotTextarea) {
+                lineUserCotTextarea.value = localStorage.getItem('line_user_cot_content') || '';
+            }
+            switchLinePage('line-user-cot-page', false);
+        });
+    }
+    if (lineUserCotBackBtn) {
+        lineUserCotBackBtn.addEventListener('click', () => {
+            switchLinePage('line-more-page', false);
+        });
+    }
+    if (lineUserCotSaveBtn) {
+        lineUserCotSaveBtn.addEventListener('click', () => {
+            if (lineUserCotTextarea) {
+                localStorage.setItem('line_user_cot_content', lineUserCotTextarea.value);
+                alert('思维cot保存成功');
+            }
+        });
+    }
+
     if (lineUserWalletEditBalanceBtn) {
         lineUserWalletEditBalanceBtn.addEventListener('click', () => {
             openLineWalletBalanceEditModal();
