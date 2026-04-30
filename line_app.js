@@ -863,6 +863,8 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
     const bilingualStyleRadios = document.getElementsByName('bilingual_style');
     const bilingualStyleDesc = document.getElementById('bilingual-style-desc');
 
+    const cotToggle = document.getElementById('chat-cot-toggle');
+
     if (!advSettingsBtn || !modal) return;
 
     const updateBilingualDesc = (style) => {
@@ -894,6 +896,12 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
             }
         }
         updateBilingualDesc(bilingualStyle);
+
+        // 加载 CoT 开关状态（默认开启）
+        const cotEnabled = localStorage.getItem('chat_cot_enabled_' + chatId) !== 'false';
+        if (cotToggle) {
+            cotToggle.checked = cotEnabled;
+        }
     };
 
     advSettingsBtn.addEventListener('click', () => {
@@ -945,6 +953,10 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
                     if (radio.checked) selectedStyle = radio.value;
                 }
                 localStorage.setItem('chat_bilingual_style_' + chatId, selectedStyle);
+            }
+
+            if (cotToggle) {
+                localStorage.setItem('chat_cot_enabled_' + chatId, cotToggle.checked ? 'true' : 'false');
             }
 
             closeAppModal(modal);

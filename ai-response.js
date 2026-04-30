@@ -269,6 +269,10 @@ const PipelineAIResponse = {
                 contextMap.bilingualPrompt = `**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`;
             }
         } catch (e) {}
+
+        // 加载 CoT 开关状态
+        const cotEnabled = localStorage.getItem('chat_cot_enabled_' + contextMap.chatId) !== 'false';
+        contextMap.cotEnabled = cotEnabled;
     },
 
     /**
@@ -337,16 +341,24 @@ const PipelineAIResponse = {
             finalUserPayload = mergeBackWorldbookWithUserPayload(`[最高优世界书/剧情状态强制提醒]\n${contextMap.backWbContent}`, finalUserPayload);
         }
 
-        const cotTemplate = PromptManager.render('cotTemplate', contextMap);
+        const cotTemplate = contextMap.cotEnabled ? PromptManager.render('cotTemplate', contextMap) : '';
 
         if (isBackground) {
+            let bgContent = "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。\\n\\n";
+            if (cotTemplate) {
+                bgContent += cotTemplate;
+            }
             messages.push({ 
                 role: "user", 
-                content: "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。\\n\\n" + cotTemplate 
+                content: bgContent
             });
         } else {
             // 将思维链指令强行压底
-            messages.push({ role: "user", content: finalUserPayload + "\\n\\n" + cotTemplate });
+            let userContent = finalUserPayload;
+            if (cotTemplate) {
+                userContent += "\\n\\n" + cotTemplate;
+            }
+            messages.push({ role: "user", content: userContent });
         }
 
         return messages;
