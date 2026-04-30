@@ -3169,6 +3169,7 @@ function initChatRoomLogic() {
             const apiUrl = localStorage.getItem('api_url');
             const apiKey = localStorage.getItem('api_key');
             const modelName = localStorage.getItem('model_name');
+            const cotEnabled = localStorage.getItem('chat_cot_enabled_' + chatId) !== 'false';
             
             if (!apiUrl || !apiKey) {
                 throw new Error('请先在设置中配置 API URL 和 Key');
@@ -3517,9 +3518,17 @@ ${savedHerSchedule}
             }
 
             if (isBackground) {
-                messages.push({ role: "user", content: "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。\n\n" + formatInstructionPromptCoT });
+                let backgroundPrompt = "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。";
+                if (cotEnabled) {
+                    backgroundPrompt += "\n\n" + formatInstructionPromptCoT;
+                }
+                messages.push({ role: "user", content: backgroundPrompt });
             } else {
-                messages.push({ role: "user", content: finalUserContent + "\n\n" + formatInstructionPromptCoT });
+                let userContent = finalUserContent;
+                if (cotEnabled) {
+                    userContent += "\n\n" + formatInstructionPromptCoT;
+                }
+                messages.push({ role: "user", content: userContent });
             }
 
             // 3. 调用 API
