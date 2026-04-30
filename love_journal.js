@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const calendarGrid = document.getElementById('calendar-grid');
   
   let currentScheduleDate = new Date();
-  let selectedScheduleDateStr = currentScheduleDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  let selectedScheduleDateStr = `${currentScheduleDate.getFullYear()}-${String(currentScheduleDate.getMonth() + 1).padStart(2, '0')}-${String(currentScheduleDate.getDate()).padStart(2, '0')}`; // YYYY-MM-DD
   const generateMeScheduleBtn = document.getElementById('generate-me-schedule-btn');
   const updateMeScheduleBtn = document.getElementById('update-me-schedule-btn');
   const importMeScheduleBtn = document.getElementById('import-me-schedule-btn');
@@ -834,6 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       largeStore.put('love_journal_imported_schedule_' + currentChatId, tempSchedule);
       largeStore.put('love_journal_imported_wbs_' + currentChatId, wbContext);
+      largeStore.put('love_journal_imported_schedule_date_' + currentChatId, selectedScheduleDateStr);
       
       alert('导入成功！已注入AI回复记忆中。');
     });
@@ -915,6 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       largeStore.put('love_journal_imported_her_schedule_' + currentChatId, tempSchedule);
       largeStore.put('love_journal_imported_her_wbs_' + currentChatId, wbContext);
+      largeStore.put('love_journal_imported_her_schedule_date_' + currentChatId, selectedScheduleDateStr);
       
       alert('导入成功！已注入AI回复记忆中。');
     });

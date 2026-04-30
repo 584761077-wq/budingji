@@ -3351,7 +3351,7 @@ ${pendingIncomingTransfersPrompt}
 **绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
 **生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
 **世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
-**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以和用户分享生活的趣事。
+**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以偶尔和用户分享生活的趣事。
 `;
 
             const formatInstructionPromptCoT = `
@@ -3410,10 +3410,13 @@ ${localImageSection}
             const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
 
-            const savedMeSchedule = largeStore.get('love_journal_imported_schedule_' + chatId, '');
-            const importedWbs = largeStore.get('love_journal_imported_wbs_' + chatId, '');
-            const savedHerSchedule = largeStore.get('love_journal_imported_her_schedule_' + chatId, '');
-            const importedHerWbs = largeStore.get('love_journal_imported_her_wbs_' + chatId, '');
+            const importedMeDate = largeStore.get('love_journal_imported_schedule_date_' + chatId, '');
+            const importedHerDate = largeStore.get('love_journal_imported_her_schedule_date_' + chatId, '');
+
+            const savedMeSchedule = importedMeDate === nowDate ? largeStore.get('love_journal_imported_schedule_' + chatId, '') : '';
+            const importedWbs = importedMeDate === nowDate ? largeStore.get('love_journal_imported_wbs_' + chatId, '') : '';
+            const savedHerSchedule = importedHerDate === nowDate ? largeStore.get('love_journal_imported_her_schedule_' + chatId, '') : '';
+            const importedHerWbs = importedHerDate === nowDate ? largeStore.get('love_journal_imported_her_wbs_' + chatId, '') : '';
             
             let meScheduleText = '';
             if (savedMeSchedule) {
