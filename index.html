@@ -24,9 +24,11 @@
     <div class="app-shell">
         <div class="phone-frame" id="phone-screen">
         <div class="screen active" id="home-screen">
-            <!-- 中间主要区域 -->
-            <main class="main-content">
-                <!-- 顶部个人信息组件 -->
+            <!-- 桌面分页容器 -->
+            <div class="home-pages-wrapper">
+                <!-- 第一页：中间主要区域 -->
+                <main class="main-content home-page-1">
+                    <!-- 顶部个人信息组件 -->
                 <div class="top-profile-widget">
                     <div class="top-avatar-container">
                         <div class="top-avatar-large" id="top-profile-avatar" style="cursor: pointer;">
@@ -114,6 +116,31 @@
                     <input type="file" id="hero-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
                 </div>
             </main>
+
+            <!-- 第二页：新应用区域 -->
+            <main class="main-content home-page-2">
+                <div class="apps-grid-full">
+                    <!-- 月经App -->
+                    <div class="app-icon candy-box" id="app-period">
+                        <div class="icon-inner">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                            </svg>
+                        </div>
+                        <span class="app-name">月经</span>
+                    </div>
+                    <!-- 宠物App -->
+                    <div class="app-icon candy-box" id="app-pet">
+                        <div class="icon-inner">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <path d="M12 2c-5.33 0-8 2.77-8 7.05 0 3.08 2.1 4.95 4.34 4.95 1.5 0 2.57-1.15 3.66-1.15 1.1 0 2.16 1.15 3.66 1.15 2.24 0 4.34-1.87 4.34-4.95C20 4.77 17.33 2 12 2zm-4 13c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8 0c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"></path>
+                            </svg>
+                        </div>
+                        <span class="app-name">宠物</span>
+                    </div>
+                </div>
+            </main>
+            </div>
         </div>
 
         <!-- 世界书页面 (INS 极简风) -->

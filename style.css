@@ -139,8 +139,11 @@ body {
     }
     
     /* 修复 iOS 弹性滚动导致的空白 */
-    .main-content {
+    .home-pages-wrapper {
         flex: 1; /* Take remaining space */
+    }
+    .main-content {
+        flex: 0 0 100%;
         overflow-y: auto; /* Internal scrolling only */
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-y: contain; /* 防止滚动链 */
@@ -296,13 +299,35 @@ body {
 }
 
 /* 中间区域 */
-.main-content {
+.home-pages-wrapper {
     flex: 1;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+}
+.home-pages-wrapper::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+}
+
+.main-content {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     gap: 20px;
     padding: 20px 24px 0; /* Adjusted padding */
     align-items: stretch;
+}
+
+.apps-grid-full {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px 12px;
+    align-content: flex-start;
+    padding: 20px 0;
 }
 
 /* 顶部个人信息组件 */
