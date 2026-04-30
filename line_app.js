@@ -3283,7 +3283,7 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const hasBoundAssistantStickers = assistantBoundStickers.length > 0;
             const assistantStickerRuleText = hasBoundAssistantStickers
-                ? assistantBoundStickers.map(item => `- ${item.name} | 分类: ${item.category} | URL: ${item.url}`).join('\n')
+                ? assistantBoundStickers.map(item => item.name).join('、')
                 : '';
             const assistantStickerPromptText = hasBoundAssistantStickers
                 ? `- [贴图:名称]（强制：只能从【${assistantStickerRuleText}】中选择，严禁捏造或翻译！）`
