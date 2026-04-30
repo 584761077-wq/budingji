@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budingji-v31';
+const CACHE_NAME = 'budingji-v32';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -7,8 +7,6 @@ const ASSETS_TO_CACHE = [
     './worldbook_styles.css',
     './script.js',
     './love_journal.js',
-    './prompt-manager.js',
-    './ai-response.js',
     './love_journal.css',
     './manifest.json',
     'https://unpkg.com/mammoth/mammoth.browser.min.js',

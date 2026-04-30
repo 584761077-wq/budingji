@@ -3328,7 +3328,7 @@ ${userPersona || '无'}
 - 你所在的时区：${timeZonePrompt}
 - 你所在地的天气：${weatherMapPrompt}
 
-**【可用附加功能】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
+**【【你拥有的能力标签清单】】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
 ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
@@ -3343,35 +3343,35 @@ ${pendingIncomingTransfersPrompt}
 
             const formatInstructionPrompt = `
 **【输出格式与排版要求】**
-1. 对话节奏：根据真人的聊天习惯，可以一次性发送多条短消息。使用[SPLIT]拆分为多条短消息。
-2. 贴图/图片/转账排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
-3. 贴图：贴图的选择要丰富，发送的位置要自然多变（随机开头、中间、结尾皆可），禁止每次都机械化地放在同一个位置。
+1. 对话节奏：根据真人的聊天习惯，可以一次性发送多条短消息。使用 [SPLIT]拆分为 3-8条短消息发送。。
+2. 标签独立排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
+3. 贴图灵活性：贴图的选择要丰富，每轮发送的位置要自然多变（随机开头、中间、结尾皆可）。
 
-**【扮演准则与禁止项】**
-1.** 绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
-
-**【生动表达技巧】**
+**【扮演准则与生动表达技巧】**
+**绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
 **生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
 **世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
-**保持"活人感**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以和用户分享生活的趣事。
+**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以和用户分享生活的趣事。
 `;
 
             const formatInstructionPromptCoT = `
 现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复。
 
-你必须在正式回复前先进行“思维链”整理，*注意：思维链是防止OOC的关键，必须以第一人称书写。*请先输出思维链，帮助你防止ooc，再输出最终回复。
+你必须在正式回复前先进行“思维链”内心独白，请直接以第一人称（“我”）代入此刻的情境，展现你最真实的心理活动。
 
 请严格按以下格式输出：
 
 <think_note>
 Q1：我是谁？我的人设性格是？
 A1：……
-Q2：对方这句话的潜台词是什么？当前话题是否涉及世界书/人设中的特殊设定？我该如何体现？
+Q2：对方这句话的潜台词是什么？我有过度解读吗？
 A2：……
-Q3：我此刻的真实情绪（开心/委屈/期待？）我的情绪是否符合我的人设？
+Q3：我现在第一时间的真实内心OS是什么？（吐槽/委屈/开心/无奈等，符合我的人设）
 A3：……
-Q4：基于人设，我内心最真实的想法...
+Q4：我接下来该怎么回？发几条？发不发贴图？如何自然地表现出我的"活人感"？
 A4：……
+Q5：我的回答有去掉爹味、油腻吗？有重复上文的模板吗？
+Q5：……
 </think_note>
 
 <reply>
@@ -3442,31 +3442,39 @@ ${savedHerSchedule}
                 }
             }
 
-            // 2. 定义各个插入区域 (Zones) 模仿 SillyTavern 结构
-            let topSystemBlocks = [systemPrompt]; // 顶部系统设定池
-            let historyMessages = [];             // 历史消息池
-            let bottomMessages = [];              // 底部最新消息前的池
+            // 2. 按照“四层架构”重构打包逻辑
+            
+            // ==========================================
+            // 第一层：Top System (全局基石)
+            // ==========================================
+            let topSystemBlocks = [systemPrompt];
+            if (frontWorldbookUserText) topSystemBlocks.push(frontWorldbookUserText);
+            if (timeUserText) topSystemBlocks.push(timeUserText);
+            if (timeZonePrompt) topSystemBlocks.push(timeZonePrompt);
+            if (weatherMapPrompt) topSystemBlocks.push(weatherMapPrompt);
+            if (phoneLockPrompt) topSystemBlocks.push(phoneLockPrompt);
+            if (pendingIncomingTransfersPrompt) topSystemBlocks.push(pendingIncomingTransfersPrompt);
+            
+            const layer1TopSystem = { role: "system", content: topSystemBlocks.join('\n\n') };
 
-            // 基础设定放入 System (越往上全局约束力越强)
-            if (personaUserText) topSystemBlocks.push(personaUserText);
-            if (userPersonaText) topSystemBlocks.push(userPersonaText);
-            if (timeUserText) topSystemBlocks.push(`[当前时间]\n${timeUserText}`);
+            // ==========================================
+            // 第二层：Context System (环境与日程)
+            // ==========================================
+            let contextSystemBlocks = [];
+            if (middleWorldbookUserText) contextSystemBlocks.push(middleWorldbookUserText);
+            if (meScheduleText) contextSystemBlocks.push(meScheduleText);
+            if (herScheduleText) contextSystemBlocks.push(herScheduleText);
+            
+            const layer2ContextSystem = contextSystemBlocks.length > 0 
+                ? { role: "system", content: contextSystemBlocks.join('\n\n') } 
+                : null;
 
-            // === 世界书深度处理 ===
-            // 1. 前 (Front)：紧贴系统设定，放在最前面
-            if (frontWorldbookUserText) {
-                topSystemBlocks.push(frontWorldbookUserText);
-            }
-
-            // 2. 中 (Middle)：为了防止多系统消息被丢弃，直接并入全局 System 设定，位置放在历史记录之前
-            if (middleWorldbookUserText) {
-                topSystemBlocks.push(middleWorldbookUserText);
-            }
-
-            // 记忆放入 History 区块 (将长时记忆作为系统指令)
+            // ==========================================
+            // 第三层：History (历史对话)
+            // ==========================================
+            let historyMessages = [];
             if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
-
-            // 将历史聊天记录原汁原味地加入到 historyMessages 数组中，保持原生的 user 和 assistant 对话链
+            
             contextHistory.forEach(msg => {
                 if (msg.role === 'system') {
                     historyMessages.push({ role: "system", content: `[系统/旁白]\n${formatTurnInputForModel(msg)}` });
@@ -3477,59 +3485,59 @@ ${savedHerSchedule}
                 }
             });
 
-            // 日程安排更靠近当前，放入 Bottom 区块
-            if (meScheduleText) bottomMessages.push({ role: "system", content: meScheduleText });
-            if (herScheduleText) bottomMessages.push({ role: "system", content: herScheduleText });
+            // ==========================================
+            // 第四层：Bottom User (终极强制指令层)
+            // ==========================================
+            let finalUserContentParts = [];
+            
+            // 1. backWorldbookUserText
+            if (backWorldbookUserText) finalUserContentParts.push(backWorldbookUserText);
+            
+            // 2. 用户的最新消息文本
+            let latestUserText = '';
+            if (isBackground) {
+                latestUserText = "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。";
+            } else {
+                latestUserText = userMessagePayload;
+            }
+            finalUserContentParts.push(latestUserText);
 
-            // 追加所有的格式指令到 System 的最后，保证绝对的服从度
+            // 3. 加上一条明显的分隔符
+            finalUserContentParts.push(`====================\n[核心执行指令]`);
+
+            // 4. 拼上 finalFormatPrompt
             let finalFormatPrompt = formatInstructionPrompt;
+            finalUserContentParts.push(finalFormatPrompt);
 
+            // 5. 如果开启了思维链（cotEnabled），紧接着拼上 formatInstructionPromptCoT
+            if (cotEnabled) {
+                finalUserContentParts.push(formatInstructionPromptCoT);
+            }
+
+            // 6. 拼上条数限制和双语翻译要求
             try {
                 const replyCountConfig = JSON.parse(localStorage.getItem('chat_reply_count_' + chatId) || 'null');
                 if (replyCountConfig && (replyCountConfig.min || replyCountConfig.max)) {
                     const min = replyCountConfig.min || replyCountConfig.max;
                     const max = replyCountConfig.max || replyCountConfig.min;
-                    finalFormatPrompt += `\n\n**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`;
+                    finalUserContentParts.push(`**【回复条数限制】**\n请严格遵守回复条数限制，本次回复必须输出 ${min} 到 ${max} 条消息（使用 [SPLIT] 分隔）。`);
                 }
             } catch (e) {}
 
             try {
                 const bilingualEnabled = localStorage.getItem('chat_bilingual_' + chatId) === 'true';
                 if (bilingualEnabled) {
-                    finalFormatPrompt += `\n\n**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`;
+                    finalUserContentParts.push(`**【双语模式】**\n用户已开启双语模式。请在回复内容的结尾处，使用 \`<translation>翻译成标准中文的内容</translation>\` 标签提供本次回复的中文翻译（无论是外语、方言还是标准中文，都请提供对应的标准中文翻译）。特别注意：如果输出仅仅是单独的emoji表情或颜文字等，没有实质性的语言文字，则不需要翻译，也不要输出 \`<translation>\` 标签。注意，只在 \`<translation>\` 标签内提供翻译结果，如果输出多条消息，则请为每条消息分别附上独立的 \`<translation>\` 标签。标签之外保持原本的角色设定和对话方式，不要让角色自己说出“这是翻译”之类的话。`);
                 }
             } catch (e) {}
 
-            topSystemBlocks.push(finalFormatPrompt);
+            const layer4BottomUser = { role: "user", content: finalUserContentParts.join('\n\n') };
 
-            // 4. 最终合并打包
-            const messages = [
-                { role: "system", content: topSystemBlocks.join('\n\n') },
-                ...historyMessages,
-                ...bottomMessages
-            ];
-
-            // 5. 压入最新一条用户指令 (必须放最后，模型对最后一条消息的指令服从度最高)
-            let finalUserContent = userMessagePayload;
-            
-            // 3. 后 (Back)：最高优先级，为了防止系统消息被降权或丢弃，直接和用户的最新一句话缝合在一起
-            if (backWorldbookUserText) {
-                finalUserContent = mergeBackWorldbookWithUserPayload(backWorldbookUserText, userMessagePayload);
-            }
-
-            if (isBackground) {
-                let backgroundPrompt = "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。";
-                if (cotEnabled) {
-                    backgroundPrompt += "\n\n" + formatInstructionPromptCoT;
-                }
-                messages.push({ role: "user", content: backgroundPrompt });
-            } else {
-                let userContent = finalUserContent;
-                if (cotEnabled) {
-                    userContent += "\n\n" + formatInstructionPromptCoT;
-                }
-                messages.push({ role: "user", content: userContent });
-            }
+            // 最终合并打包 messages 数组
+            const messages = [layer1TopSystem];
+            if (layer2ContextSystem) messages.push(layer2ContextSystem);
+            messages.push(...historyMessages);
+            messages.push(layer4BottomUser);
 
             // 3. 调用 API
             const streamEnabled = localStorage.getItem('stream_enabled') === 'true';
