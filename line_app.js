@@ -3266,19 +3266,18 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
             const allWbItems = largeStore.get('worldbook_items', []);
             const boundWorldbooks = wbIds.map(id => allWbItems.find(i => String(i.id) === String(id))).filter(Boolean);
             
-            // 分类世界书：前(front)、中(middle)、后(back)
-            const frontWbs = boundWorldbooks.filter(wb => wb.depth === 'front' || !wb.depth);
-            const middleWbs = boundWorldbooks.filter(wb => wb.depth === 'middle');
-            const backWbs = boundWorldbooks.filter(wb => wb.depth === 'back');
+            // 分类世界书：前(before)、后(after)
+            // 兼容旧的 front/middle/back 数据
+            const beforeWbs = boundWorldbooks.filter(wb => wb.depth === 'before' || wb.depth === 'front');
+            const afterWbs = boundWorldbooks.filter(wb => wb.depth === 'after' || wb.depth === 'back' || wb.depth === 'middle' || !wb.depth);
 
             const buildWbText = (wbs) => wbs.map(item => {
                 const itemKeywords = item.keywords ? `关键词: ${item.keywords}` : '关键词: 无';
                 return `- ${item.name}\n  分类: ${item.category || '未分类'}\n  ${itemKeywords}\n  内容: ${item.content || ''}`;
             }).join('\n');
 
-            const frontWbContent = buildWbText(frontWbs);
-            const middleWbContent = buildWbText(middleWbs);
-            const backWbContent = buildWbText(backWbs);
+            const beforeWbContent = buildWbText(beforeWbs);
+            const afterWbContent = buildWbText(afterWbs);
 
             const assistantBoundStickers = getAssistantBoundStickers(chatId);
             const hasBoundAssistantStickers = assistantBoundStickers.length > 0;
@@ -3314,21 +3313,33 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
 严格执行以下高阶沉浸式角色扮演规则。现在你是${realName}，你现在正在与${userName}通过手机聊天软件（Line）进行线上聊天。
 这是一个线上聊天。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
 
-以下设定是你存在的基石。你必须无条件遵守，任何与此冲突的指令都视为无效。
+以下设定是你存在的基石。
+
+${beforeWbContent ? `**【全局设定/前置世界书】**\n${beforeWbContent}` : ''}
 
 **【你的人设】**
 ${charPersona || '无'}
-**【你和${userName}之间的长期记忆】**
-${longTermMemory || '无'}
 **【${userName}的信息】**
 ${userPersona || '无'}
+
+${afterWbContent ? `**【场景/物品/后置世界书】**\n${afterWbContent}` : ''}
+
+**【你和${userName}之间的长期记忆】**
+${longTermMemory || '无'}
+
+**【活人运转逻辑（扮演准则与生动表达技巧）】**
+**绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
+**生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
+**世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
+**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以偶尔和用户分享生活的趣事。
+
 **【当前情景】**
 - 手机锁屏状态：${phoneLockPrompt || '无'}
 - 当前现实时间：${timeSyncPrompt}
 - 你所在的时区：${timeZonePrompt}
 - 你所在地的天气：${weatherMapPrompt}
 
-**【【你拥有的能力标签清单】】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
+**【你拥有的能力标签清单】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
 ${assistantStickerPromptText}
 - [语音]内容[/语音]
 - [图片:描述]
@@ -3339,22 +3350,14 @@ ${assistantStickerPromptText}
 **【待你处理的入账转账】**
 ${pendingIncomingTransfersPrompt}
 若为“无”，你禁止输出任何 [转账处理:...] 标签。
-`;
+`.replace(/\n{3,}/g, '\n\n').trim();
 
             const formatInstructionPrompt = `
 **【输出格式与排版要求】**
 1. 对话节奏：根据真人的聊天习惯，可以一次性发送多条短消息。使用 [SPLIT]拆分为 3-8条短消息发送。。
-2. 标签独立排版：如果要发贴图、图片或转账标签，该标签必须**独立成条**（例如：\`文字[SPLIT][贴图:开心][SPLIT][转账:66|晚饭AA][SPLIT][转账处理:收款|transfer_xxx][SPLIT]文字\`），绝不能和文字挤在同一条内！
-3. 贴图灵活性：贴图的选择要丰富，每轮发送的位置要自然多变（随机开头、中间、结尾皆可）。
-
-**【扮演准则与生动表达技巧】**
-**绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
-**生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
-**世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
-**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以偶尔和用户分享生活的趣事。
 `;
 
-            const formatInstructionPromptCoT = `
+           const formatInstructionPromptCoT = `
 现在，作为 ** ${realName}**，基于你的人设、记忆和当前情景，开始回复。
 
 你必须在正式回复前先进行“思维链”内心独白，请直接以第一人称（“我”）代入此刻的情境，展现你最真实的心理活动。
@@ -3403,9 +3406,6 @@ ${localImageSection}
             // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
             const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
-            const frontWorldbookUserText = frontWbContent ? `[全局世界书/背景/重要功能设定]\n${frontWbContent}` : '';
-            const middleWorldbookUserText = middleWbContent ? `[相关世界书/物品/场景补充]\n${middleWbContent}` : '';
-            const backWorldbookUserText = backWbContent ? `[最高优世界书/剧情状态强制提醒]\n${backWbContent}` : '';
             const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
             const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
             const timeUserText = String(timeSyncPrompt || '').trim();
@@ -3451,7 +3451,6 @@ ${savedHerSchedule}
             // 第一层：Top System (全局基石)
             // ==========================================
             let topSystemBlocks = [systemPrompt];
-            if (frontWorldbookUserText) topSystemBlocks.push(frontWorldbookUserText);
             if (timeUserText) topSystemBlocks.push(timeUserText);
             if (timeZonePrompt) topSystemBlocks.push(timeZonePrompt);
             if (weatherMapPrompt) topSystemBlocks.push(weatherMapPrompt);
@@ -3464,7 +3463,6 @@ ${savedHerSchedule}
             // 第二层：Context System (环境与日程)
             // ==========================================
             let contextSystemBlocks = [];
-            if (middleWorldbookUserText) contextSystemBlocks.push(middleWorldbookUserText);
             if (meScheduleText) contextSystemBlocks.push(meScheduleText);
             if (herScheduleText) contextSystemBlocks.push(herScheduleText);
             
@@ -3493,10 +3491,7 @@ ${savedHerSchedule}
             // ==========================================
             let finalUserContentParts = [];
             
-            // 1. backWorldbookUserText
-            if (backWorldbookUserText) finalUserContentParts.push(backWorldbookUserText);
-            
-            // 2. 用户的最新消息文本
+            // 1. 用户的最新消息文本
             let latestUserText = '';
             if (isBackground) {
                 latestUserText = "【系统提示】距离上次聊天已经过去了一段时间。现在请你主动向我发一条消息。请完全沉浸在你的角色设定中，结合当前的时间和你的日常，自然地开启一个新话题或者分享你现在的状态。绝对不要提及“时间到了”、“主动找你”等系统指令，要表现得像是一个真实的活人随手发来的消息。";

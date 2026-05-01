@@ -4385,7 +4385,7 @@ function initAddWorldBookItemLogic() {
             categorySelect.value = '未分类';
             keywordsInput.value = '';
             contentInput.value = '';
-            depthSelect.value = 'front'; // 默认初始位置
+            depthSelect.value = 'after'; // 默认初始位置
             
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('active'), 10);
@@ -4407,7 +4407,7 @@ function initAddWorldBookItemLogic() {
             const category = categorySelect.value;
             const keywords = keywordsInput.value.trim();
             const content = contentInput.value.trim();
-            const depth = depthSelect.value || 'front';
+            const depth = depthSelect.value || 'after';
 
             if (!name) {
                 alert('请输入条目名称');
@@ -4495,7 +4495,11 @@ function openWorldBookItem(id) {
         
         keywordsInput.value = item.keywords || '';
         contentInput.value = item.content || '';
-        depthSelect.value = item.depth || 'front';
+        // 兼容旧数据
+        let loadedDepth = item.depth || 'after';
+        if (loadedDepth === 'front') loadedDepth = 'before';
+        if (loadedDepth === 'middle' || loadedDepth === 'back') loadedDepth = 'after';
+        depthSelect.value = loadedDepth;
 
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('active'), 10);
