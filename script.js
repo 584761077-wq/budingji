@@ -2032,6 +2032,136 @@ function initSettings() {
             alert('检查更新失败：' + (e?.message || e));
         }
     });
+
+    // 语音生图功能设置
+    const voiceImageEntry = document.getElementById('voice-image-settings-entry');
+    const voiceImageModal = document.getElementById('voice-image-modal');
+    const closeVoiceImageBtn = document.getElementById('close-voice-image-btn');
+    const saveVoiceImageBtn = document.getElementById('save-voice-image-btn');
+    const minimaxUrlInput = document.getElementById('minimax-api-url');
+    const minimaxKeyInput = document.getElementById('minimax-api-key');
+    const minimaxModelInput = document.getElementById('minimax-model-name');
+    const fetchMinimaxModelsBtn = document.getElementById('fetch-minimax-models');
+    const minimaxModelListContainer = document.getElementById('minimax-model-list-container');
+    const minimaxModelList = document.getElementById('minimax-model-list');
+    const minimaxModelSelectTrigger = document.getElementById('minimax-model-select-trigger');
+    const minimaxModelDropdownArrow = document.getElementById('minimax-model-dropdown-arrow');
+
+    function toggleMinimaxModelList() {
+        if (!minimaxModelListContainer) return;
+        const isHidden = minimaxModelListContainer.style.display === 'none' || minimaxModelListContainer.style.display === '';
+        minimaxModelListContainer.style.display = isHidden ? 'block' : 'none';
+        if (minimaxModelSelectTrigger) {
+            minimaxModelSelectTrigger.classList.toggle('open', isHidden);
+        }
+    }
+
+    if (minimaxModelDropdownArrow) {
+        minimaxModelDropdownArrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMinimaxModelList();
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!minimaxModelListContainer || !minimaxModelSelectTrigger) return;
+        if (!minimaxModelListContainer.contains(e.target) && !minimaxModelSelectTrigger.contains(e.target)) {
+            minimaxModelListContainer.style.display = 'none';
+            minimaxModelSelectTrigger.classList.remove('open');
+        }
+    });
+
+    if (fetchMinimaxModelsBtn) {
+        fetchMinimaxModelsBtn.addEventListener('click', async () => {
+            const apiUrl = minimaxUrlInput.value.replace(/\/$/, '');
+            const apiKey = minimaxKeyInput.value;
+
+            if (!apiUrl || !apiKey) {
+                showApiErrorModal('请先填写 API 地址和 Key');
+                return;
+            }
+
+            fetchMinimaxModelsBtn.textContent = '...';
+            
+            try {
+                const response = await fetch(`${apiUrl}/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(errText || `模型拉取失败（${response.status}）`);
+                }
+
+                const data = await response.json();
+                const models = data.data || [];
+
+                minimaxModelList.innerHTML = '';
+                models.forEach(model => {
+                    const div = document.createElement('div');
+                    div.className = 'model-item';
+                    div.textContent = model.id;
+                    div.onclick = () => {
+                        minimaxModelInput.value = model.id;
+                        minimaxModelListContainer.style.display = 'none';
+                        if (minimaxModelSelectTrigger) minimaxModelSelectTrigger.classList.remove('open');
+                    };
+                    minimaxModelList.appendChild(div);
+                });
+
+                if (models.length > 0) {
+                    minimaxModelListContainer.style.display = 'block';
+                    if (minimaxModelSelectTrigger) minimaxModelSelectTrigger.classList.add('open');
+                } else {
+                    throw new Error('未找到可用模型');
+                }
+            } catch (error) {
+                console.error(error);
+                showApiErrorModal(error.message || '拉取失败，请检查配置');
+            } finally {
+                fetchMinimaxModelsBtn.textContent = '拉取';
+            }
+        });
+    }
+
+    if (voiceImageEntry && voiceImageModal) {
+        voiceImageEntry.addEventListener('click', () => {
+            minimaxUrlInput.value = localStorage.getItem('minimax_api_url') || '';
+            minimaxKeyInput.value = localStorage.getItem('minimax_api_key') || '';
+            minimaxModelInput.value = localStorage.getItem('minimax_model_name') || '';
+            voiceImageModal.classList.add('active');
+            voiceImageModal.style.display = 'block';
+        });
+
+        closeVoiceImageBtn.addEventListener('click', () => {
+            voiceImageModal.classList.remove('active');
+            setTimeout(() => {
+                voiceImageModal.style.display = 'none';
+            }, 300);
+        });
+
+        saveVoiceImageBtn.addEventListener('click', () => {
+            localStorage.setItem('minimax_api_url', minimaxUrlInput.value);
+            localStorage.setItem('minimax_api_key', minimaxKeyInput.value);
+            localStorage.setItem('minimax_model_name', minimaxModelInput.value);
+            
+            const originalText = saveVoiceImageBtn.textContent;
+            saveVoiceImageBtn.textContent = '已存';
+            saveVoiceImageBtn.style.backgroundColor = '#333';
+            setTimeout(() => {
+                saveVoiceImageBtn.textContent = originalText;
+                saveVoiceImageBtn.style.backgroundColor = '#000000';
+                voiceImageModal.classList.remove('active');
+                setTimeout(() => {
+                    voiceImageModal.style.display = 'none';
+                }, 300);
+            }, 800);
+        });
+    }
 }
 }
 
