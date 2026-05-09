@@ -2061,14 +2061,34 @@ function initStickerApp() {
     const cancelTargetBtn = document.getElementById('cancel-sticker-target');
     const saveTargetBtn = document.getElementById('save-sticker-target');
     const targetList = document.getElementById('sticker-target-list');
+    const deleteModeBtn = document.getElementById('delete-sticker-mode-btn');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-sticker-btn');
+    const cancelDeleteBtn = document.getElementById('cancel-delete-sticker-btn');
+    const stickerContent = document.querySelector('.sticker-content');
 
     const storageKey = 'sticker_categories_v1';
     const targetStorageKey = 'sticker_category_targets_v1';
     let activeTargetCategoryId = null;
+    let isDeletingStickers = false;
     const getCategories = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
     const setCategories = (categories) => localStorage.setItem(storageKey, JSON.stringify(categories));
     const getTargetMap = () => JSON.parse(localStorage.getItem(targetStorageKey) || '{}');
     const setTargetMap = (map) => localStorage.setItem(targetStorageKey, JSON.stringify(map));
+
+    const exitDeletingMode = () => {
+        if (!isDeletingStickers) return;
+        isDeletingStickers = false;
+        if (stickerContent) stickerContent.classList.remove('deleting');
+        if (deleteModeBtn) deleteModeBtn.style.display = 'block';
+        if (openAddBtn) openAddBtn.style.display = 'block';
+        if (importBtn) importBtn.style.display = 'block';
+        if (confirmDeleteBtn) confirmDeleteBtn.style.display = 'none';
+        if (cancelDeleteBtn) cancelDeleteBtn.style.display = 'none';
+        if (stickerContent) {
+            const checkedInputs = stickerContent.querySelectorAll('.sticker-delete-checkbox:checked');
+            checkedInputs.forEach(input => input.checked = false);
+        }
+    };
 
     const openStickerModal = () => {
         modal.style.display = 'flex';
@@ -2078,6 +2098,7 @@ function initStickerApp() {
     };
 
     const closeStickerModal = () => {
+        exitDeletingMode();
         modal.classList.remove('active');
         setTimeout(() => {
             modal.style.display = 'none';
@@ -2187,15 +2208,19 @@ function initStickerApp() {
     let pendingStickerImport = null;
 
     const showCategoryList = () => {
+        activeDetailCategoryId = null;
         detailView.style.display = 'none';
         categoryGrid.style.display = 'grid';
     };
+
+    let activeDetailCategoryId = null;
 
     const showCategoryDetail = (categoryId) => {
         const categories = getCategories();
         const category = categories.find(item => item.id === categoryId);
         if (!category) return;
 
+        activeDetailCategoryId = categoryId;
         detailTitle.textContent = category.name;
         categoryGrid.style.display = 'none';
         detailView.style.display = 'block';
@@ -2206,7 +2231,8 @@ function initStickerApp() {
         }
 
         emojiGrid.innerHTML = category.emojis.map((emoji) => `
-            <div class="sticker-emoji-card">
+            <div class="sticker-emoji-card" data-emoji-id="${emoji.id}">
+                <input type="checkbox" class="sticker-delete-checkbox" value="${emoji.id}">
                 <img src="${emoji.url}" alt="${emoji.name}" class="sticker-emoji-img">
                 <div class="sticker-emoji-name">${emoji.name}</div>
             </div>
@@ -2215,6 +2241,7 @@ function initStickerApp() {
 
     const renderCategoryFolders = () => {
         const categories = getCategories();
+        activeDetailCategoryId = null;
 
         if (categories.length === 0) {
             categoryGrid.innerHTML = '<div class="sticker-empty">还没有分类，先点上面的 + 添加</div>';
@@ -2225,6 +2252,7 @@ function initStickerApp() {
             const cover = category.emojis && category.emojis[0] ? `<img src="${category.emojis[0].url}" alt="${category.name}" class="sticker-folder-cover">` : '<div class="sticker-folder-cover sticker-folder-cover-empty">🙂</div>';
             return `
                 <div class="sticker-folder-card" data-id="${category.id}">
+                    <input type="checkbox" class="sticker-delete-checkbox" value="${category.id}">
                     <div class="sticker-folder-box">${cover}</div>
                     <div class="sticker-folder-footer">
                         <div class="sticker-folder-name">${category.name}</div>
@@ -2255,6 +2283,48 @@ function initStickerApp() {
         importBtn.addEventListener('click', () => {
             importInput.value = '';
             importInput.click();
+        });
+    }
+
+    if (deleteModeBtn) {
+        deleteModeBtn.addEventListener('click', () => {
+            isDeletingStickers = true;
+            stickerContent.classList.add('deleting');
+            deleteModeBtn.style.display = 'none';
+            openAddBtn.style.display = 'none';
+            importBtn.style.display = 'none';
+            confirmDeleteBtn.style.display = 'block';
+            if (cancelDeleteBtn) cancelDeleteBtn.style.display = 'block';
+        });
+    }
+
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', exitDeletingMode);
+    }
+
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', () => {
+            const checkedInputs = Array.from(stickerContent.querySelectorAll('.sticker-delete-checkbox:checked'));
+            if (checkedInputs.length > 0) {
+                const categories = getCategories();
+                
+                if (activeDetailCategoryId) {
+                    const category = categories.find(item => item.id === activeDetailCategoryId);
+                    if (category) {
+                        const toDeleteIds = new Set(checkedInputs.map(input => input.value));
+                        category.emojis = category.emojis.filter(emoji => !toDeleteIds.has(emoji.id));
+                        setCategories(categories);
+                        showCategoryDetail(activeDetailCategoryId);
+                    }
+                } else {
+                    const toDeleteIds = new Set(checkedInputs.map(input => input.value));
+                    const newCategories = categories.filter(category => !toDeleteIds.has(category.id));
+                    setCategories(newCategories);
+                    renderCategoryFolders();
+                }
+            }
+
+            exitDeletingMode();
         });
     }
 
@@ -2398,6 +2468,17 @@ function initStickerApp() {
 
             const folder = e.target.closest('.sticker-folder-card');
             if (!folder) return;
+            
+            if (isDeletingStickers) {
+                // Ignore clicks if clicking directly on the checkbox
+                if (e.target.classList.contains('sticker-delete-checkbox')) return;
+                const checkbox = folder.querySelector('.sticker-delete-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                }
+                return;
+            }
+
             const categoryId = folder.dataset.id;
             if (categoryId) {
                 showCategoryDetail(categoryId);
@@ -2405,8 +2486,25 @@ function initStickerApp() {
         });
     }
 
+    if (emojiGrid) {
+        emojiGrid.addEventListener('click', (e) => {
+            if (isDeletingStickers) {
+                const card = e.target.closest('.sticker-emoji-card');
+                if (!card) return;
+                if (e.target.classList.contains('sticker-delete-checkbox')) return;
+                const checkbox = card.querySelector('.sticker-delete-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                }
+            }
+        });
+    }
+
     if (detailBackBtn) {
-        detailBackBtn.addEventListener('click', showCategoryList);
+        detailBackBtn.addEventListener('click', () => {
+            exitDeletingMode();
+            showCategoryList();
+        });
     }
 
     if (cancelTargetBtn) {
@@ -4977,4 +5075,139 @@ function initAppearanceSettings() {
             }
         });
     });
+
+    // --- 应用图标更换逻辑 开始 ---
+    function initAppIconsReplace() {
+        const grid = document.getElementById('app-icons-replace-grid');
+        const modal = document.getElementById('app-icon-replace-modal');
+        const closeBtn = document.getElementById('close-app-icon-replace-modal');
+        const uploadLocalBtn = document.getElementById('app-icon-upload-local-btn');
+        const fileInput = document.getElementById('app-icon-file-input');
+        const urlInput = document.getElementById('app-icon-url-input');
+        const preview = document.getElementById('app-icon-preview');
+        const confirmBtn = document.getElementById('confirm-app-icon-replace-btn');
+        
+        if (!grid || !modal) return;
+
+        let currentAppIdentifier = null;
+        
+        // 收集所有应用图标
+        const apps = Array.from(document.querySelectorAll('.app-icon'));
+        const appData = apps.map((app, index) => {
+            const nameSpan = app.querySelector('.app-name');
+            const name = nameSpan ? nameSpan.textContent.trim() : 'Unknown';
+            const id = app.id || `app-dynamic-id-${name}-${index}`;
+            // 为没有 id 的 app 分配一个稳定的 id
+            if (!app.id) app.id = id;
+            return { el: app, name, id };
+        }).filter(app => app.name !== 'Unknown');
+
+        // 加载已保存的图标
+        const savedIcons = JSON.parse(localStorage.getItem('custom_app_icons') || '{}');
+        
+        // 应用已保存的图标
+        appData.forEach(app => {
+            if (savedIcons[app.id]) {
+                applyIconToApp(app.el, savedIcons[app.id]);
+            }
+        });
+
+        // 生成更换网格
+        grid.innerHTML = '';
+        appData.forEach(app => {
+            const item = document.createElement('div');
+            item.className = 'app-icon-replace-item';
+            
+            const nameEl = document.createElement('div');
+            nameEl.className = 'app-name';
+            nameEl.textContent = app.name;
+            nameEl.title = app.name;
+            
+            const btn = document.createElement('button');
+            btn.className = 'candy-btn-small replace-icon-btn';
+            btn.textContent = '更换';
+            btn.onclick = () => {
+                currentAppIdentifier = app.id;
+                urlInput.value = '';
+                preview.style.display = 'none';
+                preview.src = '';
+                modal.style.display = 'flex';
+            };
+            
+            item.appendChild(nameEl);
+            item.appendChild(btn);
+            grid.appendChild(item);
+        });
+
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        uploadLocalBtn.onclick = () => {
+            fileInput.click();
+        };
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    urlInput.value = '';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        urlInput.oninput = () => {
+            if (urlInput.value.trim()) {
+                preview.src = urlInput.value.trim();
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        };
+
+        confirmBtn.onclick = () => {
+            if (!currentAppIdentifier) return;
+            const iconUrl = preview.src;
+            if (!iconUrl || preview.style.display === 'none') {
+                alert('请先选择或输入图片');
+                return;
+            }
+            
+            // 保存
+            const saved = JSON.parse(localStorage.getItem('custom_app_icons') || '{}');
+            saved[currentAppIdentifier] = iconUrl;
+            localStorage.setItem('custom_app_icons', JSON.stringify(saved));
+            
+            // 应用
+            const app = appData.find(a => a.id === currentAppIdentifier);
+            if (app) {
+                applyIconToApp(app.el, iconUrl);
+            }
+            
+            modal.style.display = 'none';
+        };
+
+        function applyIconToApp(appEl, url) {
+            const inner = appEl.querySelector('.icon-inner');
+            if (!inner) return;
+            
+            inner.innerHTML = '';
+            
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = 'inherit';
+            
+            inner.appendChild(img);
+        }
+    }
+
+    initAppIconsReplace();
+    // --- 应用图标更换逻辑 结束 ---
 }

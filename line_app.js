@@ -3309,52 +3309,15 @@ ${timeZoneData.charCity || realName}：${timeZoneData.charTime}（${timeZoneData
             // 不再将历史记录拼接成一段文本
             const pendingIncomingTransfersPrompt = buildPendingIncomingTransfersPromptForChar(chatId);
 
-             const systemPrompt = `
-严格执行以下高阶沉浸式角色扮演规则。现在你是${realName}，你现在正在与${userName}通过手机聊天软件（Line）进行线上聊天。
-这是一个线上聊天。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
-
-以下设定是你存在的基石。
-
-${beforeWbContent ? `**【全局设定/前置世界书】**\n${beforeWbContent}` : ''}
-
-**【你的人设】**
-${charPersona || '无'}
-**【${userName}的信息】**
-${userPersona || '无'}
-
-${afterWbContent ? `**【场景/物品/后置世界书】**\n${afterWbContent}` : ''}
-
-**【你和${userName}之间的长期记忆】**
-${longTermMemory || '无'}
-
-**【活人运转逻辑（扮演准则与生动表达技巧）】**
-**绝对沉浸**：永远以“我 = ${realName}”的第一人称说话。
-**生活感**：你的回复必须充满“人气”。基于你的人设，你可以懒散、可以犯错等。不要做一个完美的客服。
-**世界观融合**：可以在对话中不经意、自然地提到地透露出世界书里的设定（例如地名、术语、常识），不要干巴巴地解说设定。
-**保持"活人感"**：你有自己的日常、兴趣、朋友圈和社交生活，除了和用户聊天，你每天还有自己的生活，不是围绕用户打转的，你可以偶尔和用户分享生活的趣事。
-
-**【当前情景】**
-- 手机锁屏状态：${phoneLockPrompt || '无'}
-- 当前现实时间：${timeSyncPrompt}
-- 你所在的时区：${timeZonePrompt}
-- 你所在地的天气：${weatherMapPrompt}
-
-**【你拥有的能力标签清单】**（原则：只有当符合你的人设、经济状况和当前情绪时才使用。）
-${assistantStickerPromptText}
-- [语音]内容[/语音]
-- [图片:描述]
-- [转账:金额|备注]（仅在你要主动给 ${userName} 转账时使用，必须独立成条）
-- [转账处理:收款|转账ID] 或 [转账处理:拒绝|转账ID]（仅用于处理 ${userName} 发给你的待收款转账，必须独立成条）
-- <quote>原文</quote>
-
-**【待你处理的入账转账】**
-${pendingIncomingTransfersPrompt}
-若为“无”，你禁止输出任何 [转账处理:...] 标签。
-`.replace(/\n{3,}/g, '\n\n').trim();
-
             const formatInstructionPrompt = `
 **【输出格式与排版要求】**
-1. 对话节奏：根据真人的聊天习惯，可以一次性发送多条短消息。使用 [SPLIT]拆分为 3-8条短消息发送。。
+1. 对话节奏：根据真人的聊天习惯，可以一次性发送多条短消息。使用 [SPLIT]拆分为 3-8条短消息发送。
+${cotEnabled ? '' : `2. 心绪精灵（重要）：你必须在回复的最后附加一段真实的内心活动，严格使用以下格式：
+<mood_sprite mood="核心情绪" color="#RRGGBB">
+这里写你没发出去的真实内心，一句话。（吐槽/纠结/爱意/碎碎念/幽默/真实）。绝不能违背人设。
+---
+绝对不能让对方知道的一个念头（直白/真实）。绝不能违背人设。
+</mood_sprite>`}
 `;
 
            const formatInstructionPromptCoT = `
@@ -3371,10 +3334,10 @@ Q2：对方这句话的潜台词是什么？我有过度解读吗？
 A2：……
 Q3：我现在第一时间的真实内心OS是什么？（吐槽/委屈/开心/无奈等，符合我的人设）
 A3：……
-Q4：我接下来该怎么回？发几条？发不发贴图？如何自然地表现出我的"活人感"？
+Q4：我接下来该怎么回？发几条？发不发贴图（极度克制，最多1个）？如何自然地表现出我的"活人感"？
 A4：……
 Q5：我的回答有去掉爹味、油腻吗？有重复上文的模板吗？
-Q5：……
+A5：……
 </think_note>
 
 <reply>
@@ -3405,10 +3368,6 @@ ${localImageSection}
 
             // 1. 准备各个模块的内容，去除空值污染，增强“活人感”
             const userMessagePayload = buildUserMessagePayload(currentUserText, localImageRecords);
-            const personaUserText = charPersona ? `[角色人设]\n${charPersona}` : '';
-            const longTermMemoryText = longTermMemory ? `[核心记忆]\n${longTermMemory}` : '';
-            const userPersonaText = userPersona ? `[${userName}是谁]\n${userPersona}` : '';
-            const timeUserText = String(timeSyncPrompt || '').trim();
 
             const importedMeDate = largeStore.get('love_journal_imported_schedule_date_' + chatId, '');
             const importedHerDate = largeStore.get('love_journal_imported_her_schedule_date_' + chatId, '');
@@ -3514,7 +3473,6 @@ ${pendingIncomingTransfersPrompt}
             // 第三层：History (历史对话)
             // ==========================================
             let historyMessages = [];
-            if (longTermMemoryText) historyMessages.push({ role: "system", content: longTermMemoryText });
             
             contextHistory.forEach(msg => {
                 if (msg.role === 'system') {

@@ -297,6 +297,34 @@
                 </div>
             </div>
 
+            <div class="ins-modal-overlay" id="app-icon-replace-modal" style="display: none;">
+                <div class="ins-modal">
+                    <div class="ins-modal-header">
+                        <h3>更换应用图标</h3>
+                        <button class="ins-modal-close" id="close-app-icon-replace-modal">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="ins-modal-body">
+                        <div class="ins-input-group">
+                            <label>上传本地图片</label>
+                            <button class="ins-btn-secondary" id="app-icon-upload-local-btn" style="width: 100%;">选择图片</button>
+                            <input type="file" id="app-icon-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+                        </div>
+                        <div class="ins-input-group" style="margin-top: 15px;">
+                            <label>或者输入图片 URL</label>
+                            <input type="url" id="app-icon-url-input" placeholder="https://..." class="form-input">
+                        </div>
+                        <div style="margin-top: 15px; text-align: center;">
+                            <img id="app-icon-preview" src="" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; display: none; margin: 0 auto; border: 1px solid #e5e5ea;">
+                        </div>
+                    </div>
+                    <div class="ins-modal-footer">
+                        <button class="ins-btn-primary" id="confirm-app-icon-replace-btn">应用</button>
+                    </div>
+                </div>
+            </div>
+
 
             <!-- 底部 Dock 栏 -->
             <footer class="dock-container">
@@ -493,6 +521,13 @@
                             </select>
                             <button class="candy-btn-small" id="save-global-font-preset-btn">保存</button>
                             <button class="candy-btn-small" id="manage-global-font-preset-btn">管理</button>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-card appearance-app-icons-card" style="margin-top: 20px;">
+                        <h3 class="card-title">应用图标更换</h3>
+                        <div class="app-icons-replace-grid" id="app-icons-replace-grid" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            <!-- 将由 JS 动态生成 -->
                         </div>
                     </div>
                 </div>
@@ -1873,6 +1908,15 @@
                         </button>
                         <button class="toolbar-icon-btn" id="import-sticker-btn" title="导入表情">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                        <button class="toolbar-icon-btn" id="delete-sticker-mode-btn" title="删除表情">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                        <button class="toolbar-icon-btn" id="cancel-delete-sticker-btn" title="取消" style="display: none;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                        <button class="toolbar-icon-btn" id="confirm-delete-sticker-btn" title="确认删除" style="display: none; color: #ff4d4f;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         </button>
                     </div>
                     <div class="sticker-category-grid" id="sticker-category-grid"></div>

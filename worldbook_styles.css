@@ -356,6 +356,27 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
+    position: relative;
+}
+
+.sticker-delete-checkbox {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    z-index: 10;
+    display: none;
+}
+
+.sticker-content.deleting .sticker-delete-checkbox {
+    display: block;
+}
+
+.sticker-content.deleting .sticker-folder-card:hover,
+.sticker-content.deleting .sticker-emoji-card:hover {
+    transform: none;
 }
 
 .sticker-folder-box {
@@ -454,6 +475,7 @@
 }
 
 .sticker-emoji-card {
+    position: relative;
     background: #ffffff;
     border-radius: 14px;
     border: 1px solid rgba(0,0,0,0.06);

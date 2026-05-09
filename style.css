@@ -806,11 +806,31 @@ body {
 }
 
 .appearance-wallpaper-card,
-.appearance-font-card {
+.appearance-font-card,
+.appearance-app-icons-card {
     padding: 20px;
 }
 
-.appearance-font-card .card-title {
+.app-icon-replace-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 60px;
+}
+
+.app-icon-replace-item .app-name {
+    font-size: 0.8rem;
+    color: #1d1d1f;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.appearance-font-card .card-title,
+.appearance-app-icons-card .card-title {
     font-size: 0.95rem;
     margin-bottom: 12px;
 }
