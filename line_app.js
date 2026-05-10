@@ -63,6 +63,15 @@ function saveLineWalletByUserId(userId, wallet) {
     largeStore.put(key, normalizeLineWalletData(wallet));
 }
 
+function applyChatFontSize(chatId) {
+    const chatFontSize = localStorage.getItem('chat_font_size_' + chatId);
+    if (chatFontSize) {
+        document.documentElement.style.setProperty('--chat-font-size', `${chatFontSize}px`);
+    } else {
+        document.documentElement.style.removeProperty('--chat-font-size');
+    }
+}
+
 function initChatSettingsLogic(chatRoomNameEl) {
     const settingsBtn = document.getElementById('chat-settings-btn');
     const modal = document.getElementById('chat-settings-modal');
@@ -863,6 +872,9 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
     const bilingualStyleRadios = document.getElementsByName('bilingual_style');
     const bilingualStyleDesc = document.getElementById('bilingual-style-desc');
 
+    const chatFontSizeSlider = document.getElementById('chat-font-size-slider');
+    const chatFontSizeValue = document.getElementById('chat-font-size-value');
+
     const cotToggle = document.getElementById('chat-cot-toggle');
 
     if (!advSettingsBtn || !modal) return;
@@ -897,6 +909,14 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
         }
         updateBilingualDesc(bilingualStyle);
 
+        const chatFontSize = localStorage.getItem('chat_font_size_' + chatId) || '16';
+        if (chatFontSizeSlider) {
+            chatFontSizeSlider.value = chatFontSize;
+        }
+        if (chatFontSizeValue) {
+            chatFontSizeValue.textContent = chatFontSize + 'px';
+        }
+
         // 加载 CoT 开关状态（默认开启）
         const cotEnabled = localStorage.getItem('chat_cot_enabled_' + chatId) !== 'false';
         if (cotToggle) {
@@ -923,6 +943,14 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
                 }
             });
         }
+    }
+
+    if (chatFontSizeSlider) {
+        chatFontSizeSlider.addEventListener('input', () => {
+            if (chatFontSizeValue) {
+                chatFontSizeValue.textContent = chatFontSizeSlider.value + 'px';
+            }
+        });
     }
 
     if (closeBtn) {
@@ -957,6 +985,13 @@ function initChatAdvancedSettingsLogic(chatRoomNameEl) {
 
             if (cotToggle) {
                 localStorage.setItem('chat_cot_enabled_' + chatId, cotToggle.checked ? 'true' : 'false');
+            }
+
+            if (chatFontSizeSlider) {
+                const fontSize = chatFontSizeSlider.value;
+                localStorage.setItem('chat_font_size_' + chatId, fontSize);
+                // Apply the font size immediately
+                applyChatFontSize(chatId);
             }
 
             closeAppModal(modal);
@@ -2428,7 +2463,7 @@ function initChatRoomLogic() {
             if (bilingualStyle === 'inside') {
                 bubbleContent += `<hr style="border:none; border-top: 1px solid rgba(0,0,0,0.1); margin: 4px 0;" /><span style="font-size:0.85em; color:#86868b;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</span>`;
             } else {
-                translationHtml = `<div class="message-translation" style="display: none; font-size: 0.85rem; color: #86868b; margin-top: 4px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-radius: 8px; line-height: 1.4; word-break: break-word;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</div>`;
+                translationHtml = `<div class="message-translation" style="display: none; font-size: calc(var(--chat-font-size, 0.95rem) * 0.9); color: #86868b; margin-top: 4px; padding: 6px 10px; background: rgba(0,0,0,0.03); border-radius: 8px; line-height: 1.4; word-break: break-word;">${escapeHtml(translationText).replace(/\n/g, '<br>')}</div>`;
             }
         }
 
@@ -5190,6 +5225,7 @@ if (quoteMatch) {
         clearUnread(chatId);
         applyChatWallpaper(chatId);
         applyChatTheme(chatId);
+        applyChatFontSize(chatId);
         
         chatRoom.style.display = 'flex';
         updateChatTimeZoneIndicator(chatId);

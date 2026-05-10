@@ -316,7 +316,7 @@
                             <input type="url" id="app-icon-url-input" placeholder="https://..." class="form-input">
                         </div>
                         <div style="margin-top: 15px; text-align: center;">
-                            <img id="app-icon-preview" src="" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; display: none; margin: 0 auto; border: 1px solid #e5e5ea;">
+                            <img id="app-icon-preview" src="" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; display: none; margin: 0 auto;">
                         </div>
                     </div>
                     <div class="ins-modal-footer">
@@ -1871,6 +1871,17 @@
                                 <div style="font-size: 0.75rem; color: #888;" id="bilingual-style-desc">
                                     气泡外：点击气泡后，像微信翻译那样在气泡下方显示翻译。
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section" style="margin-top: 25px;">
+                            <h4 class="section-title" style="margin-bottom: 10px;">聊天界面字体大小</h4>
+                            <div class="font-size-row" style="display: flex; align-items: center; gap: 15px;">
+                                <input type="range" id="chat-font-size-slider" class="font-size-slider" min="12" max="28" step="1" value="16" style="flex: 1;">
+                                <span id="chat-font-size-value" style="font-size: 0.9rem; color: #666; width: 40px; text-align: right;">16px</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #86868b; margin-top: 8px;">
+                                单独设置聊天界面的字体大小，与全局字体分开。
                             </div>
                         </div>
                     </div>

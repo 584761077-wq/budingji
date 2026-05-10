@@ -5335,6 +5335,9 @@ function initAppearanceSettings() {
             img.style.borderRadius = 'inherit';
             
             inner.appendChild(img);
+            inner.style.background = 'transparent';
+            inner.style.border = 'none';
+            inner.style.boxShadow = 'none';
         }
     }
 
